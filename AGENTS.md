@@ -1945,6 +1945,11 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   sistema). O Next não rebaixa a sintaxe de `node_modules`: pacote que publica ES2022+ (ex.: `static {}` do
   `@radix-ui/react-collection`) entra em `transpilePackages` no `next.config.js`. O CI roda
   `scripts/audit-legacy-syntax.js` depois do build (bloco estático de classe, regex com lookbehind ou flag `v`).
+  CSS: o iOS 15 não tem `color-mix()`, e o fallback do Tailwind v4 para `bg-X/NN` é a cor CHEIA. O
+  `postcss/colorMixFallback.js` (depois do Tailwind no `postcss.config.mjs`) declara `--X-rgb` ao lado de cada token
+  opaco e troca o fallback por `rgb(var(--X-rgb) / NN%)`; token translúcido fica sem canal (fallback transparente).
+  Cor escrita em runtime precisa do canal também — `setColor` em `lib/brand.ts`. Container queries (`@container`,
+  iOS 16) só como melhoria: o layout base tem que funcionar sem elas.
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).

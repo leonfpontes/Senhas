@@ -151,7 +151,18 @@ export const TERRA_SURFACES = {
  * (`--primary`, `--primary-foreground`) continuam vindo do `applyBrand`.
  */
 export function applyTerraBrandText(root: HTMLElement, primary: string): void {
-  root.style.setProperty('--terra-brand-text-light', brandTextColorOn(primary, 'light', TERRA_SURFACES.light));
+  setColor(root, '--terra-brand-text-light', brandTextColorOn(primary, 'light', TERRA_SURFACES.light));
+}
+
+/**
+ * Grava a cor e os canais `--X-rgb` ("r g b"): sem `color-mix` (Safari do iOS 15) o
+ * `bg-brand/10` cai em `rgb(var(--X-rgb) / 10%)` — ver postcss/colorMixFallback.js.
+ */
+function setColor(root: HTMLElement, name: string, value: string): void {
+  root.style.setProperty(name, value);
+  const rgb = parseColor(value);
+  if (rgb) root.style.setProperty(`${name}-rgb`, rgb.join(' '));
+  else root.style.removeProperty(`${name}-rgb`);
 }
 
 /**
@@ -164,14 +175,14 @@ export function applyBrand(root: HTMLElement, colors: BrandColors): void {
   // A secundária não tem cor de fonte configurada: aplica a mesma regra sem preferência.
   const secondaryForeground = pickForeground(colors.secondary);
 
-  root.style.setProperty('--primary', colors.primary);
-  root.style.setProperty('--primary-foreground', primaryForeground);
-  root.style.setProperty('--secondary', colors.secondary);
-  root.style.setProperty('--secondary-foreground', secondaryForeground);
-  root.style.setProperty('--ring', colors.primary);
-  root.style.setProperty('--sidebar-primary', colors.primary);
-  root.style.setProperty('--sidebar-primary-foreground', primaryForeground);
+  setColor(root, '--primary', colors.primary);
+  setColor(root, '--primary-foreground', primaryForeground);
+  setColor(root, '--secondary', colors.secondary);
+  setColor(root, '--secondary-foreground', secondaryForeground);
+  setColor(root, '--ring', colors.primary);
+  setColor(root, '--sidebar-primary', colors.primary);
+  setColor(root, '--sidebar-primary-foreground', primaryForeground);
   // `text-brand` (globals.css: --primary-text) escolhe uma das duas conforme o modo.
-  root.style.setProperty('--brand-text-light', brandTextColor(colors.primary, 'light'));
-  root.style.setProperty('--brand-text-dark', brandTextColor(colors.primary, 'dark'));
+  setColor(root, '--brand-text-light', brandTextColor(colors.primary, 'light'));
+  setColor(root, '--brand-text-dark', brandTextColor(colors.primary, 'dark'));
 }

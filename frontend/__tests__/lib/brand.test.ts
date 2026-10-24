@@ -78,6 +78,15 @@ describe('applyBrand', () => {
     expect(root.style.getPropertyValue('--secondary-foreground')).toBe('#ffffff');
   });
 
+  it('grava os canais `--X-rgb` (fallback sem color-mix, Safari do iOS 15)', () => {
+    const root = document.createElement('div');
+    applyBrand(root, { primary: '#4f46e5', secondary: '#ec4899', font: '#ffffff' });
+    expect(root.style.getPropertyValue('--primary-rgb')).toBe('79 70 229');
+    expect(root.style.getPropertyValue('--ring-rgb')).toBe('79 70 229');
+    expect(root.style.getPropertyValue('--secondary-rgb')).toBe('236 72 153');
+    expect(root.style.getPropertyValue('--brand-text-dark-rgb')).toMatch(/^\d+ \d+ \d+$/);
+  });
+
   it('não toca nos tokens estruturais', () => {
     const root = document.createElement('div');
     root.style.setProperty('--background', '#123456');
