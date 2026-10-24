@@ -6,6 +6,10 @@
  * Duplas da noite: com `duplas`, o médium vira uma grade de cartões (nome, cambone e quantas
  * senhas já atendeu na noite). Tocar no cartão preenche médium e cambone — o cambone continua
  * editável só para esta senha. "Outro médium…" volta para o campo de antes.
+ *
+ * Layout: cabeçalho e botões fixos e só o meio rola, limitado à altura da tela — com uma noite
+ * cheia de duplas o "Atendido" nunca sai do alcance (iPad em pé). Com duplas a janela alarga
+ * para 3 colunas de cartões a partir do `sm`.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -182,19 +186,27 @@ export default function AttendModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !loading && onClose()}>
-      <DialogContent className="sm:max-w-md" data-testid="attend-modal">
-        <DialogHeader>
+      <DialogContent
+        className={cn(
+          // Cabeçalho e botões fixos; só o meio rola. Com muitas duplas a janela passava da altura
+          // da tela (iPad em pé) e o "Atendido" ficava fora do alcance.
+          'flex max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden p-0 supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]',
+          comDuplas ? 'sm:max-w-2xl' : 'sm:max-w-md',
+        )}
+        data-testid="attend-modal"
+      >
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4 pr-12">
           <DialogTitle>{editMode ? 'Editar atendimento' : `Chamar senha ${numero}`}</DialogTitle>
           <DialogDescription>
             Senha <strong className="font-mono text-foreground">{numero}</strong> — {consulenteNome}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-6 py-4" data-testid="attend-modal-body">
           {comDuplas && (
             <div role="radiogroup" aria-label="Médium da noite" className="flex flex-col gap-1.5">
               <span className="text-sm font-medium">Médium</span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {duplas.map((d) => {
                   const ativo = duplaEscolhida?.medium_nome === d.medium_nome;
                   return (
@@ -206,7 +218,7 @@ export default function AttendModal({
                       disabled={loading}
                       onClick={() => escolherDupla(d)}
                       className={cn(
-                        'flex min-h-14 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                        'flex min-h-12 flex-col items-start justify-center gap-0.5 rounded-lg border px-3 py-1.5 text-left hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                         ativo && 'border-brand bg-brand/10 ring-1 ring-brand',
                       )}
                       data-testid="attend-dupla"
@@ -230,7 +242,7 @@ export default function AttendModal({
                   disabled={loading}
                   onClick={escolherOutro}
                   className={cn(
-                    'flex min-h-14 items-center rounded-lg border border-dashed px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                    'flex min-h-12 items-center rounded-lg border border-dashed px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                     outroMedium && 'border-brand text-brand',
                   )}
                 >
@@ -259,14 +271,14 @@ export default function AttendModal({
           <TextField
             label="Observações"
             multiline
-            rows={3}
+            rows={2}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             disabled={loading}
           />
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t px-6 py-4">
           <Button type="button" variant="outline" size="touch" onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
