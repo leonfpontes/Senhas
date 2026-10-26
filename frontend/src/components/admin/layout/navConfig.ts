@@ -38,6 +38,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  Tags,
   Ticket,
   TrendingUp,
   Users,
@@ -209,6 +210,9 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
           keywords: ['contas a pagar', 'contas a receber', 'despesas', 'receitas'],
         }),
         link('/admin/financeiro/fluxo-de-caixa', 'Fluxo de caixa', TrendingUp, { keywords: ['caixa', 'saldo'] }),
+        link('/admin/financeiro/por-categoria', 'Por categoria', Tags, {
+          keywords: ['categorias', 'relatório financeiro', 'despesas por categoria', 'receitas por categoria'],
+        }),
       );
     }
     // A tela se protege por aba (categorias/contas: contas_financeiras; mensalidade: financeiro).

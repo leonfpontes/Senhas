@@ -22,6 +22,16 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.9.0',
+    date: '2026-10-26',
+    title: 'Financeiro por categoria',
+    highlights: [
+      'Nova tela Financeiro → Por categoria: quanto entrou e quanto saiu em cada categoria no período, com gráfico, percentual de cada uma e o que ainda está em aberto. Período de mais de um mês mostra também o valor de cada mês.',
+      'Relatório por categoria em PDF, com a logo do terreiro, e exportação em CSV para abrir no Excel.',
+      'Botão "Por categoria" no Fluxo de caixa e em Lançamentos, já no mesmo período.',
+    ],
+  },
+  {
     version: '2.8.3',
     date: '2026-10-26',
     title: 'Saldo do fluxo de caixa batendo com o banco',
