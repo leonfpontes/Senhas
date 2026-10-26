@@ -1023,6 +1023,7 @@ async def get_fluxo_de_caixa(
     meses: int = Query(None, ge=1, le=60, description="Quantos meses incluir (legado)"),
     data_inicio: Optional[date] = Query(None, description="Primeiro dia do intervalo (YYYY-MM-DD)"),
     data_fim: Optional[date] = Query(None, description="Último dia do intervalo (YYYY-MM-DD)"),
+    conta_bancaria_id: Optional[UUID] = Query(None, description="Só os lançamentos e o saldo desta conta"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1036,9 +1037,27 @@ async def get_fluxo_de_caixa(
     ativas, levado até o início do intervalo pelo que foi pago entre a data_saldo_inicial
     e o início (somando para frente, descontando para trás). Pago antes da data do saldo não
     entra — já está no saldo informado.
+
+    Com conta_bancaria_id: só os lançamentos daquela conta e o saldo dela (mesmo inativa) —
+    cada conta com o próprio saldo (mensalidades caem na conta da chave PIX, migração 100).
     """
     tenant_id = current_user.tenant_id
     hoje = today_local()
+    if conta_bancaria_id is not None:
+        existe = (
+            await db.execute(
+                select(ContaBancaria.id).where(
+                    ContaBancaria.id == conta_bancaria_id,
+                    ContaBancaria.tenant_id == tenant_id,
+                    ContaBancaria.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if existe is None:
+            raise HTTPException(status_code=404, detail="Conta bancária não encontrada.")
+    da_conta = (
+        (ContaFinanceira.conta_bancaria_id == conta_bancaria_id,) if conta_bancaria_id is not None else ()
+    )
 
     # Lista de (ano, mes, primeiro_dia, ultimo_dia) — recortada pelo intervalo pedido
     periods: list[tuple[int, int, date, date]] = []
@@ -1064,6 +1083,7 @@ async def get_fluxo_de_caixa(
     stmt = select(ContaFinanceira).where(
         ContaFinanceira.tenant_id == tenant_id,
         ContaFinanceira.deleted_at.is_(None),
+        *da_conta,
     ).where(
         # pagas dentro da janela OU com vencimento dentro da janela
         (
@@ -1085,11 +1105,16 @@ async def get_fluxo_de_caixa(
     #            − pago entre o início da janela e a data do saldo      (janela antes da data)
     # Lançamento ligado a uma conta usa a data dessa conta; sem conta, a data mais antiga.
     # Antes somava todo o histórico pago por cima do saldo e contava em dobro (TUCCCO, out/26).
+    filtro_contas = (
+        (ContaBancaria.id == conta_bancaria_id,)
+        if conta_bancaria_id is not None
+        else (ContaBancaria.ativo.is_(True),)
+    )
     contas_bancarias_res = await db.execute(
         select(ContaBancaria.saldo_inicial, ContaBancaria.data_saldo_inicial).where(
             ContaBancaria.tenant_id == tenant_id,
             ContaBancaria.deleted_at.is_(None),
-            ContaBancaria.ativo.is_(True),
+            *filtro_contas,
         )
     )
     contas_bancarias = contas_bancarias_res.all()
@@ -1104,6 +1129,7 @@ async def get_fluxo_de_caixa(
         ContaFinanceira.tenant_id == tenant_id,
         ContaFinanceira.deleted_at.is_(None),
         ContaFinanceira.status == "pago",
+        *da_conta,
     )
     if inicio_controle is None:
         # Sem conta bancária ativa não há saldo informado: vale todo o histórico pago.

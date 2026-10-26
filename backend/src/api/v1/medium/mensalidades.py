@@ -20,6 +20,8 @@ o único parâmetro). Gate além do `require_medium` do router: módulo "mensali
   (`valor_informado`, opcional) e vê a lista dos comprovantes enviados com o status.
 - Status por mês: `services/medium_inicio.situacao_mensalidade` (a mesma regra do Início);
   quais meses aparecem: `services/medium_mensalidade.meses_da_area`.
+- A chave é a do grupo da corrente do médium, quando o grupo tem chave própria; senão a do
+  terreiro (`services/mensalidade_chaves_pix.pix_do_medium`, migração 100).
 - O BR Code é montado no servidor (`services/pix_brcode`), com o valor que falta no mês e o txid
   `MENS` + AAAAMM + 10 hex do id do médium (identifica médium e mês no extrato da casa).
 - Envio do comprovante: JPEG/PNG/WebP/PDF até 2 MB, conferido pelos bytes; recusado sob
@@ -60,6 +62,7 @@ from src.models.mensalidade_gateway import MensalidadeCobranca
 from src.services import mensalidade_parcial as parcial
 from src.services import mensalidade_gateway as gateway_service
 from src.services.pix_chave import ChavePixInvalida, normalizar_chave
+from src.services.mensalidade_chaves_pix import PixEfetivo, pix_do_medium
 from src.services.audit_service import AuditService
 from src.services.medium_area import area_medium_modulos
 from src.services.medium_inicio import (
@@ -290,14 +293,14 @@ def _item(sit: MensalidadeDoMes, hoje: date, reg: Optional[dict] = None) -> MesM
     )
 
 
-def _pix_da_casa(config: Optional[MensalidadeConfig]) -> Optional[PixDaCasa]:
-    if config is None or not config.pix_chave:
+def _pix_da_casa(pix: Optional[PixEfetivo]) -> Optional[PixDaCasa]:
+    if pix is None:
         return None
     return PixDaCasa(
-        tipo=config.pix_tipo,
-        chave=config.pix_chave,
-        nome_recebedor=config.pix_nome_recebedor,
-        chave_alterada_em=chave_alterada_recente(config.pix_alterado_em, utc_now()),
+        tipo=pix.tipo,
+        chave=pix.chave,
+        nome_recebedor=pix.nome_recebedor,
+        chave_alterada_em=chave_alterada_recente(pix.alterado_em, utc_now()),
     )
 
 
@@ -367,7 +370,7 @@ async def listar_minhas_mensalidades(
         isento=bool(ctx.medium.mensalidade_isento),
         valor_mensal=float(config.valor_mensal) if ativa and config.valor_mensal else None,
         dia_vencimento=config.dia_vencimento if ativa else None,
-        pix=_pix_da_casa(config),
+        pix=_pix_da_casa(await pix_do_medium(db, ctx.tenant_id, ctx.medium.id, config)),
         cobranca_automatica=(
             CobrancaAutomaticaInfo(
                 provedor=gw.provedor,
@@ -396,7 +399,8 @@ async def pix_do_mes(
             _MOTIVO_MES_FECHADO.get(sit.status, "Este mês não está em aberto."),
             details={"error_code": "MES_FECHADO", "status": sit.status},
         )
-    if config is None or not config.pix_chave:
+    pix = await pix_do_medium(db, ctx.tenant_id, ctx.medium.id, config)
+    if pix is None:
         raise ConflictError(
             "A casa ainda não cadastrou a chave PIX. Combine o pagamento com a casa.",
             details={"error_code": "PIX_NAO_CONFIGURADO"},
@@ -405,9 +409,9 @@ async def pix_do_mes(
     txid = txid_mensalidade(mes_date, ctx.medium.id)
     try:
         copia_e_cola = build_static_brcode(
-            chave=config.pix_chave,
-            nome_recebedor=config.pix_nome_recebedor or "",
-            cidade=config.pix_cidade or "",
+            chave=pix.chave,
+            nome_recebedor=pix.nome_recebedor or "",
+            cidade=pix.cidade or "",
             valor=sit.valor,
             txid=txid,
             descricao=descricao_pix(mes_date),
@@ -422,12 +426,12 @@ async def pix_do_mes(
         valor=sit.valor,
         copia_e_cola=copia_e_cola,
         txid=txid,
-        tipo=config.pix_tipo,
-        chave=config.pix_chave,
-        nome_recebedor=config.pix_nome_recebedor,
-        cidade=config.pix_cidade,
-        instrucoes=config.pix_instrucoes,
-        chave_alterada_em=chave_alterada_recente(config.pix_alterado_em, utc_now()),
+        tipo=pix.tipo,
+        chave=pix.chave,
+        nome_recebedor=pix.nome_recebedor,
+        cidade=pix.cidade,
+        instrucoes=pix.instrucoes,
+        chave_alterada_em=chave_alterada_recente(pix.alterado_em, utc_now()),
     )
 
 

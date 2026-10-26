@@ -22,6 +22,20 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.9.0',
+    date: '2026-10-26',
+    title: 'Mensalidade em mais de uma conta',
+    highlights: [
+      'A casa que recebe a mensalidade em mais de uma conta agora pode ter uma chave PIX para cada grupo da corrente. Em Financeiro → Configuração → Mensalidade, cadastre a outra chave e escolha os grupos que pagam nela. Quem não está nesses grupos continua pagando na chave do terreiro.',
+      'Cada chave diz em qual conta bancária o dinheiro cai. A mensalidade paga entra no saldo dessa conta.',
+      'O Fluxo de caixa ganhou o filtro por conta: veja o saldo de cada conta separado ou de todas juntas.',
+      'Na Área do Médium, cada um vê a chave do seu grupo, no PIX copia e cola e no QR.',
+    ],
+    fixes: [
+      'Mensalidades pagas antes desta versão não têm conta definida. Elas continuam no total de "Todas as contas".',
+    ],
+  },
+  {
     version: '2.8.3',
     date: '2026-10-26',
     title: 'Saldo do fluxo de caixa batendo com o banco',

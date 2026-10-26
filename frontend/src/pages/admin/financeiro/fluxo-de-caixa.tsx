@@ -3,7 +3,8 @@
  *
  * Presets de período (ToggleGroup) + intervalo personalizado (DateField duplo), KPIs, um gráfico
  * combinado (recebido × pago + saldo acumulado), tabela mensal e exportação em PDF (prévia em
- * Dialog). "Hoje" é sempre no fuso de Brasília (`lib/dateBr`).
+ * Dialog). "Hoje" é sempre no fuso de Brasília (`lib/dateBr`). Filtro por conta bancária: só os
+ * lançamentos e o saldo daquela conta (as mensalidades caem na conta da chave PIX usada).
  */
 'use client';
 
@@ -41,10 +42,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { addDaysIso, addMonthsYm, brDateParts, formatBRL, formatDateBr, formatDateTimeBr, monthRangeIso, todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
+
+interface ContaOpcao {
+  id: string;
+  nome: string;
+  ativo: boolean;
+}
+
+const TODAS_CONTAS = 'todas';
 
 interface FluxoMes {
   ano: number;
@@ -159,6 +169,8 @@ function FluxoDeCaixaContent() {
   const [dados, setDados] = useState<FluxoMes[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<Periodo>(() => ({ preset: 'mes_atual', ...presetRange('mes_atual') }));
+  const [contas, setContas] = useState<ContaOpcao[]>([]);
+  const [conta, setConta] = useState<string>(TODAS_CONTAS);
 
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -173,7 +185,11 @@ function FluxoDeCaixaContent() {
     setLoading(true);
     try {
       const res = await apiClient.get<FluxoMes[]>('/api/v1/admin/financeiro/fluxo-de-caixa', {
-        params: { data_inicio: periodo.inicio, data_fim: periodo.fim },
+        params: {
+          data_inicio: periodo.inicio,
+          data_fim: periodo.fim,
+          ...(conta !== TODAS_CONTAS ? { conta_bancaria_id: conta } : {}),
+        },
       });
       setDados(res.data);
     } catch {
@@ -182,11 +198,21 @@ function FluxoDeCaixaContent() {
     } finally {
       setLoading(false);
     }
-  }, [planAllows, canView, periodo.inicio, periodo.fim, showError]);
+  }, [planAllows, canView, periodo.inicio, periodo.fim, conta, showError]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (!planAllows || !canView) return;
+    apiClient
+      .get<ContaOpcao[]>('/api/v1/admin/financeiro/contas-bancarias', { params: { incluir_inativos: true } })
+      .then((res) => setContas(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setContas([])); // sem a lista, o filtro some e o fluxo segue com todas as contas
+  }, [planAllows, canView]);
+
+  const contaNome = contas.find((c) => c.id === conta)?.nome ?? null;
 
   const handlePreset = (key: Preset) => {
     if (key === 'personalizado') {
@@ -389,8 +415,24 @@ function FluxoDeCaixaContent() {
             />
           </div>
         )}
+        {contas.length > 1 && (
+          <Select value={conta} onValueChange={setConta}>
+            <SelectTrigger className="w-full sm:w-56" aria-label="Conta bancária">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODAS_CONTAS}>Todas as contas</SelectItem>
+              {contas.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.ativo ? c.nome : `${c.nome} (inativa)`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <span className="text-xs text-muted-foreground md:ml-auto">
           {formatDateBr(periodo.inicio)} – {formatDateBr(periodo.fim)}
+          {contaNome && ` · ${contaNome}`}
         </span>
       </div>
 
@@ -475,6 +517,7 @@ function FluxoDeCaixaContent() {
                 logoBase64={logoBase64}
                 geradoPor={profile?.full_name ?? profile?.username ?? profile?.email ?? 'Usuário'}
                 geradoEm={formatDateTimeBr(new Date().toISOString()).replace(',', ' às')}
+                conta={contaNome}
               />
             </div>
           </div>

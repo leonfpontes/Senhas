@@ -19,6 +19,11 @@ Contas with this prefix are a mirror of Mensalidades: the Lançamentos
 endpoints refuse to edit, pay off or delete them (409, see
 ``is_conta_espelho_mensalidade``). Every change goes through Mensalidades.
 
+Conta bancária (migração 100): the mirror goes to the bank account of the PIX key the person
+pays with — the key of the médium's corrente group, or the terreiro key (associados always use
+the terreiro key). A month already paid keeps the account it was paid into; a gateway payment
+(F-02, money in the provider account) has no bank account.
+
 "Hoje" is always the Brasília date (``today_local``) — the server runs in UTC.
 """
 from __future__ import annotations
@@ -116,6 +121,14 @@ async def _find_conta(
     return result.scalar_one_or_none()
 
 
+async def _conta_destino(db: AsyncSession, tenant_id: UUID, tipo_pessoa: str, pessoa_id: UUID) -> Optional[UUID]:
+    from src.services.mensalidade_chaves_pix import conta_bancaria_do_medium, conta_bancaria_do_terreiro
+
+    if tipo_pessoa == "mediun":
+        return await conta_bancaria_do_medium(db, tenant_id, pessoa_id)
+    return await conta_bancaria_do_terreiro(db, tenant_id)
+
+
 def _to_decimal(v: Optional[Decimal]) -> Decimal:
     return Decimal(str(v)) if v else Decimal("0")
 
@@ -136,6 +149,7 @@ async def sync_pagamento(
     dia_vencimento: int,
     criado_por: Optional[UUID],  # None = baixa automática do gateway (F-02), sem usuário
     valor_pago: Optional[Decimal] = None,  # valor efetivamente pago (formulário)
+    conta_automatica: bool = True,  # False = baixa do gateway: não cai em conta bancária da casa
 ) -> None:
     """Create or update the ContaFinanceira that mirrors a mensalidade event.
 
@@ -144,6 +158,7 @@ async def sync_pagamento(
     - PENDENTE: conta "pendente" (ou "vencido" se o vencimento já passou).
     - ISENTO: o mês não é devido — a conta espelho, se existir, é cancelada
       (volta a valer se o mês for registrado de novo como pago/pendente).
+    - Conta bancária: a da chave PIX da pessoa; mês que já estava pago mantém a conta.
     """
     ref = _make_ref(tipo_pessoa, pessoa_id, mes_date)
     conta = await _find_conta(db, tenant_id, ref)
@@ -177,6 +192,11 @@ async def sync_pagamento(
         data_pag = None
         pago_dec = None
 
+    manter_conta = conta is not None and conta.status == "pago" and conta.conta_bancaria_id is not None
+    conta_bancaria_id = None
+    if not manter_conta and conta_automatica:
+        conta_bancaria_id = await _conta_destino(db, tenant_id, tipo_pessoa, pessoa_id)
+
     if conta is None:
         conta = ContaFinanceira(
             id=uuid.uuid4(),
@@ -189,11 +209,14 @@ async def sync_pagamento(
             data_pagamento=data_pag,
             valor_pago=pago_dec,
             categoria_id=categoria_id,
+            conta_bancaria_id=conta_bancaria_id,
             criado_por=criado_por,
             external_ref=ref,
         )
         db.add(conta)
     else:
+        if not manter_conta:
+            conta.conta_bancaria_id = conta_bancaria_id
         conta.descricao = descricao
         conta.valor = valor_dec
         conta.status = conta_status
@@ -239,6 +262,7 @@ async def criar_conta_proxima_mensalidade(
         data_vencimento=vencimento,
         status="pendente",
         categoria_id=categoria_id,
+        conta_bancaria_id=await _conta_destino(db, tenant_id, tipo_pessoa, pessoa_id),
         criado_por=criado_por,
         external_ref=ref,
     )

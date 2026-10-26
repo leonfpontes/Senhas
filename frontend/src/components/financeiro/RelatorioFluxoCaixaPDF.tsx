@@ -29,6 +29,8 @@ export interface RelatorioProps {
   logoBase64?: string | null;
   geradoPor: string;
   geradoEm: string;
+  /** Nome da conta bancária quando o relatório é de uma conta só. */
+  conta?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -173,7 +175,7 @@ function svgSaldoBars(
 
 export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, RelatorioProps>(
   function RelatorioFluxoCaixaPDF(
-    { dados, projecoes, r2, periodo, tenantName, logoUrl, logoBase64, geradoPor, geradoEm },
+    { dados, projecoes, r2, periodo, tenantName, logoUrl, logoBase64, geradoPor, geradoEm, conta },
     ref,
   ) {
     const totalReceitas = dados.reduce((s, d) => s + d.receitas, 0);
@@ -234,6 +236,11 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
             <div style={{ fontSize: 18, fontWeight: 700, color: '#2C3E7A' }}>Relatório de Fluxo de Caixa</div>
             <div style={{ fontSize: 10, color: '#666', marginTop: 4, lineHeight: 1.7 }}>
               Período: <strong>{periodoLabel}</strong><br />
+              {conta && (
+                <>
+                  Conta: <strong>{conta}</strong><br />
+                </>
+              )}
               Gerado em: {geradoEm}<br />
               Gerado por: {geradoPor}
             </div>

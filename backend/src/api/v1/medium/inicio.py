@@ -44,6 +44,7 @@ from src.services.medium_aniversarios import aniversariantes_da_semana, faz_aniv
 from src.services.medium_area import get_area_medium_config
 from src.services.medium_inicio import MensalidadeDoMes, montar_pendencias, situacao_mensalidade
 from src.services.mensalidade_parcial import RESUMO_VAZIO, comprovantes_por_pagamento, gateway_pago_por_mes
+from src.services.mensalidade_chaves_pix import pix_do_medium
 from src.services.plan_features import get_effective_plan_features
 from src.services.presenca import SITUACAO_DISPENSADO, SITUACAO_SUBSTITUIDO
 
@@ -195,7 +196,7 @@ async def _mensalidade(
         valor_recebido=recebido,
         **resumo.para_situacao(),
     )
-    return situacao, bool((config.pix_chave or "").strip())
+    return situacao, (await pix_do_medium(db, ctx.tenant_id, ctx.medium.id, config)) is not None
 
 
 async def _avisos(db: AsyncSession, ctx: MediumContext) -> AvisosInicio:

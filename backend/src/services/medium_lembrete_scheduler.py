@@ -272,23 +272,25 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> tupl
                         ),
                     )
                 )
-        trocou = await lm.troca_do_pix(db, tenant_id, agora)
-        if trocou is not None and lm.janela_aberta(lm.TIPO_PIX_ALTERADO, agora):
-            ref = trocou.isoformat(timespec="seconds")
+        if lm.janela_aberta(lm.TIPO_PIX_ALTERADO, agora):
+            trocas = await lm.trocas_do_pix(db, tenant_id, agora, list(dest.keys()))
+        else:
+            trocas = {}
+        for medium_id, trocou in trocas.items():
+            d = dest[medium_id]
+            if d.isento or not quer(medium_id, lm.TIPO_PIX_ALTERADO):
+                continue
             quando = lm.data_legivel(lm.local(trocou).date())
-            for medium_id, d in dest.items():
-                if d.isento or not quer(medium_id, lm.TIPO_PIX_ALTERADO):
-                    continue
-                pendentes.append(
-                    Pendente(
-                        tipo=lm.TIPO_PIX_ALTERADO,
-                        medium_id=medium_id,
-                        partes=[(ref, None)],
-                        montar=lambda _, d=d: tpl.conteudo_pix_alterado(
-                            terreiro=terreiro, nome=d.nome, quando=quando, link=area_medium_link(base, "/mensalidade")
-                        ),
-                    )
+            pendentes.append(
+                Pendente(
+                    tipo=lm.TIPO_PIX_ALTERADO,
+                    medium_id=medium_id,
+                    partes=[(trocou.isoformat(timespec="seconds"), None)],
+                    montar=lambda _, d=d, quando=quando: tpl.conteudo_pix_alterado(
+                        terreiro=terreiro, nome=d.nome, quando=quando, link=area_medium_link(base, "/mensalidade")
+                    ),
                 )
+            )
 
     # ── Atividades e escalas ────────────────────────────────────────────────
     if features.atividades_corrente or features.escalas:

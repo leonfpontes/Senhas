@@ -17,6 +17,10 @@ pede — no lugar de empilhar `is_admin` sobre o grupo — é:
    dd/mm", AM-11). O e-mail aos médiuns com acesso à Área (sem a chave: "confira na Área")
    sai pelo agendador de lembretes (AM-15, tipo `pix_alterado`), que lê `pix_alterado_em`.
 
+Conta bancária (migração 100): `conta_bancaria_id` diz em qual conta cai esta chave — o espelho
+da mensalidade paga em contas a receber vai para ela e o Fluxo de caixa por conta a soma. Grupos
+da corrente podem pagar em outra chave/conta: `admin/mensalidade_chaves_pix.py`.
+
 Quem vê a chave inteira: só quem tem FINANCEIRO:edit (admin faz bypass). Quem só tem
 FINANCEIRO:view recebe a chave mascarada e sem a prévia do QR — CPF é dado pessoal do
 titular, e quem pode editar já poderia trocar a chave de qualquer jeito (ver a
@@ -47,6 +51,7 @@ from src.core.errors import UnauthorizedError, ValidationError
 from src.core.limiter import limiter
 from src.core.tz import APP_TZ, utc_now
 from src.models import PermissionFeature, User, UserRole
+from src.models.contas_financeiras import ContaBancaria
 from src.models.mensalidades import MensalidadeConfig
 from src.models.tenants import Tenant
 from src.repositories.mensalidade_repo import MensalidadeRepository
@@ -89,6 +94,8 @@ class PixConfigResponse(BaseModel):
     # (ou R$ 1,00), só para FINANCEIRO:edit.
     brcode_previa: Optional[str] = None
     valor_previa: Optional[float] = None
+    conta_bancaria_id: Optional[uuid.UUID] = None
+    conta_bancaria_nome: Optional[str] = None
 
 
 class PixConfigUpdate(BaseModel):
@@ -97,11 +104,13 @@ class PixConfigUpdate(BaseModel):
     nome_recebedor: str = Field(..., min_length=1, max_length=NOME_RECEBEDOR_MAX)
     cidade: str = Field(..., min_length=1, max_length=CIDADE_MAX)
     instrucoes: Optional[str] = Field(None, max_length=INSTRUCOES_MAX)
+    # Conta bancária onde cai o PIX desta chave (opcional; null = sem conta definida).
+    conta_bancaria_id: Optional[uuid.UUID] = None
     # Senha de quem está alterando (confirmação, D-05). Nunca é gravada nem auditada.
     senha: str = Field(..., min_length=1, max_length=256)
 
 
-async def _pode_editar(request: Request, user: User, db: AsyncSession) -> bool:
+async def pode_editar(request: Request, user: User, db: AsyncSession) -> bool:
     return await PermissionService(db).check_permission(
         user=user,
         feature=PermissionFeature.FINANCEIRO,
@@ -110,7 +119,38 @@ async def _pode_editar(request: Request, user: User, db: AsyncSession) -> bool:
     )
 
 
-def _response(config: Optional[MensalidadeConfig], ver_chave: bool) -> PixConfigResponse:
+async def nome_da_conta_bancaria(
+    db: AsyncSession, tenant_id: uuid.UUID, conta_id: Optional[uuid.UUID]
+) -> Optional[str]:
+    if conta_id is None:
+        return None
+    return (
+        await db.execute(
+            select(ContaBancaria.nome).where(ContaBancaria.id == conta_id, ContaBancaria.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
+
+
+async def validar_conta_bancaria(db: AsyncSession, tenant_id: uuid.UUID, conta_id: Optional[uuid.UUID]) -> None:
+    """A conta precisa ser do terreiro e não excluída (422 senão)."""
+    if conta_id is None:
+        return
+    existe = (
+        await db.execute(
+            select(ContaBancaria.id).where(
+                ContaBancaria.id == conta_id,
+                ContaBancaria.tenant_id == tenant_id,
+                ContaBancaria.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if existe is None:
+        raise ValidationError("Conta bancária não encontrada.", details={"field": "conta_bancaria_id"})
+
+
+def _response(
+    config: Optional[MensalidadeConfig], ver_chave: bool, conta_nome: Optional[str] = None
+) -> PixConfigResponse:
     if config is None or not config.pix_chave:
         return PixConfigResponse(configurada=False)
     resp = PixConfigResponse(
@@ -121,6 +161,8 @@ def _response(config: Optional[MensalidadeConfig], ver_chave: bool) -> PixConfig
         cidade=config.pix_cidade,
         instrucoes=config.pix_instrucoes,
         alterado_em=config.pix_alterado_em,
+        conta_bancaria_id=config.pix_conta_bancaria_id,
+        conta_bancaria_nome=conta_nome,
     )
     if ver_chave:
         valor = config.valor_mensal if config.valor_mensal and config.valor_mensal > 0 else VALOR_PREVIA_PADRAO
@@ -147,16 +189,18 @@ def _estado_auditavel(config: Optional[MensalidadeConfig]) -> dict:
         "chave": mascarar_chave(config.pix_tipo, config.pix_chave),
         "nome_recebedor": config.pix_nome_recebedor,
         "cidade": config.pix_cidade,
+        "conta_bancaria_id": str(config.pix_conta_bancaria_id) if config.pix_conta_bancaria_id else None,
     }
 
 
-async def _avisar_admins(
+async def avisar_admins(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     alterado_por: User,
     tipo: str,
     chave_mascarada: str,
     anterior_mascarada: Optional[str],
+    apelido: Optional[str] = None,
 ) -> int:
     """Enfileira o aviso para todos os admins ativos do terreiro. Devolve quantos."""
     from src.services.email.base import EmailMessage
@@ -186,7 +230,7 @@ async def _avisar_admins(
         tenant_name=tenant_name,
         alterado_por=alterado_por.full_name or alterado_por.username or alterado_por.email,
         quando=utc_now().astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M"),
-        tipo_label=PIX_TIPO_LABELS.get(tipo, tipo),
+        tipo_label=PIX_TIPO_LABELS.get(tipo, tipo) + (f" — chave “{apelido}” dos grupos da corrente" if apelido else ""),
         chave_mascarada=chave_mascarada,
         chave_anterior_mascarada=anterior_mascarada,
         painel_url=f"{settings.FRONTEND_URL.rstrip('/')}/admin/financeiro/config",
@@ -218,7 +262,10 @@ async def get_pix_config(
     db: AsyncSession = Depends(get_db),
 ) -> PixConfigResponse:
     config = await MensalidadeRepository(db).get_config(current_user.tenant_id)
-    return _response(config, await _pode_editar(request, current_user, db))
+    conta_nome = await nome_da_conta_bancaria(
+        db, current_user.tenant_id, config.pix_conta_bancaria_id if config else None
+    )
+    return _response(config, await pode_editar(request, current_user, db), conta_nome)
 
 
 @router.put(
@@ -255,6 +302,7 @@ async def update_pix_config(
     if not texto_ascii(cidade):
         raise ValidationError("Informe a cidade de quem recebe.", details={"field": "cidade"})
     instrucoes = (body.instrucoes or "").strip() or None
+    await validar_conta_bancaria(db, current_user.tenant_id, body.conta_bancaria_id)
 
     repo = MensalidadeRepository(db)
     config = await repo.get_config(current_user.tenant_id)
@@ -277,6 +325,7 @@ async def update_pix_config(
     config.pix_nome_recebedor = nome
     config.pix_cidade = cidade
     config.pix_instrucoes = instrucoes
+    config.pix_conta_bancaria_id = body.conta_bancaria_id
     if chave_mudou:
         config.pix_alterado_em = utc_now()
     config.updated_at = utc_now()
@@ -296,7 +345,7 @@ async def update_pix_config(
 
     if chave_mudou:
         try:
-            await _avisar_admins(
+            await avisar_admins(
                 db,
                 current_user.tenant_id,
                 current_user,
@@ -308,4 +357,6 @@ async def update_pix_config(
             logger.exception("Falha ao enfileirar o aviso de troca da chave PIX (tenant %s)", current_user.tenant_id)
         # Os médiuns recebem o aviso pelo agendador de lembretes (AM-15, `pix_alterado`).
 
-    return _response(config, True)
+    return _response(
+        config, True, await nome_da_conta_bancaria(db, current_user.tenant_id, config.pix_conta_bancaria_id)
+    )
