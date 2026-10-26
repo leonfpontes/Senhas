@@ -27,6 +27,7 @@ import {
   GraduationCap,
   Headset,
   HeartHandshake,
+  Layers,
   LayoutDashboard,
   Library,
   Megaphone,
@@ -223,9 +224,11 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
         icon: Package,
         items: [
           link('/admin/estoque/itens', 'Itens', Package, {
-            match: ['/admin/estoque/grupos', '/admin/estoque/relatorio'],
-            keywords: ['materiais', 'grupos de material', 'relatório de estoque'],
+            match: ['/admin/estoque/relatorio'],
+            keywords: ['materiais', 'relatório de estoque'],
           }),
+          // Grupos (Bebidas, Velas…) tinham tela mas nenhum caminho no menu — cliente não achava onde criar.
+          link('/admin/estoque/grupos', 'Grupos', Layers, { keywords: ['grupos de material', 'categorias do estoque'] }),
           link('/admin/estoque/movimentacoes', 'Movimentações', ArrowDownUp, { keywords: ['entrada', 'saída'] }),
         ],
       });

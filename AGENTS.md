@@ -1319,7 +1319,10 @@ Incluir obrigatoriamente:
   mensalidade (`external_ref mensalidade:*`).
 - **Fluxo de caixa**: com `data_inicio`/`data_fim`, o primeiro e o ultimo mes sao recortados pelas datas
   exatas. `saldo_acumulado` parte do saldo de abertura = soma do `saldo_inicial` das contas bancarias
-  ativas + realizado (pago) antes do inicio do intervalo.
+  ativas, levado ate o inicio do intervalo pelo que foi pago a partir de `data_saldo_inicial` (migracao
+  099; soma para frente, desconta para tras). Pago antes da data do saldo NAO entra — ja esta no saldo
+  informado (antes somava o historico inteiro e contava em dobro). Lancamento com `conta_bancaria_id`
+  usa a data dessa conta; sem conta, a mais antiga. Cada mes traz `saldo_anterior` (abertura do mes).
 - **Analytics**: `total_cancelled` conta status CANCELLED (era emitidos − usados) e ha `total_no_show`;
   limites de data em dias inteiros de Brasilia (`core.tz.local_day_bounds_utc`). O toggle
   `enable_analytics` saiu da tela de configuracao (era salvo e lido por ninguem; coluna mantida).

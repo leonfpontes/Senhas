@@ -53,6 +53,8 @@ interface FluxoMes {
   receitas: number;
   despesas: number;
   saldo: number;
+  /** Saldo com que o mês abriu (o acumulado do mês anterior). */
+  saldo_anterior: number;
   saldo_acumulado: number;
   a_receber: number;
   a_pagar: number;
@@ -272,6 +274,7 @@ function FluxoDeCaixaContent() {
           </span>
         ),
       },
+      { accessorKey: 'saldo_anterior', header: 'Saldo anterior', meta: { align: 'right' }, cell: ({ getValue }) => <span className="text-muted-foreground">{formatBRL(getValue<number>())}</span> },
       { accessorKey: 'receitas', header: 'Recebido', meta: { align: 'right' }, cell: ({ getValue }) => <span className="text-success">{formatBRL(getValue<number>())}</span> },
       { accessorKey: 'despesas', header: 'Pago', meta: { align: 'right' }, cell: ({ getValue }) => <span className="text-warning">{formatBRL(getValue<number>())}</span> },
       {
@@ -304,6 +307,8 @@ function FluxoDeCaixaContent() {
         </span>
       </div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+        <dt className="text-muted-foreground">Saldo anterior</dt>
+        <dd className="text-right text-muted-foreground">{formatBRL(d.saldo_anterior)}</dd>
         <dt className="text-muted-foreground">Recebido</dt>
         <dd className="text-right text-success">{formatBRL(d.receitas)}</dd>
         <dt className="text-muted-foreground">Pago</dt>
@@ -390,7 +395,7 @@ function FluxoDeCaixaContent() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Saldo acumulado" value={formatBRL(saldoAtual)} icon={<Wallet />} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="ao fim do período, com o saldo inicial das contas" loading={loading} />
+        <KpiCard label="Saldo acumulado" value={formatBRL(saldoAtual)} icon={<Wallet />} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="ao fim do período, a partir do saldo informado nas contas" loading={loading} />
         <KpiCard label="Recebido" value={formatBRL(totalReceitas)} icon={<ArrowDownToLine />} color="var(--info)" subtitle="realizado" loading={loading} />
         <KpiCard label="Pago" value={formatBRL(totalDespesas)} icon={<ArrowUpFromLine />} color="var(--warning)" subtitle="realizado" loading={loading} />
         <KpiCard label="Pendentes (líquido)" value={formatBRL(pendenteLiquido)} icon={<Scale />} color={pendenteLiquido >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="a receber − a pagar" loading={loading} />

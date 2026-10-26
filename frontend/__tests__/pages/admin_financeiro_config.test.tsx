@@ -113,4 +113,24 @@ describe('Configuração financeira', () => {
     expect(await screen.findByTestId('pix-chave-atual')).toHaveTextContent('tesouraria@example.com');
     expect(mockGet).toHaveBeenCalledWith('/api/v1/admin/financeiro/config/pix');
   });
+
+  it('conta bancária mostra e envia a data do saldo inicial', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/api/v1/admin/financeiro/contas-bancarias') {
+        return Promise.resolve({
+          data: [{ id: 'cb1', nome: 'Conta PJ', banco: 'Sicredi', saldo_inicial: 4844.99, data_saldo_inicial: '2026-01-01', ativo: true }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    render(<FinanceiroConfigPage />);
+    const tab = await screen.findByRole('tab', { name: 'Contas bancárias' });
+    fireEvent.mouseDown(tab);
+    fireEvent.click(tab);
+    expect(await screen.findByText(/Saldo de R\$\s*4\.844,99 em 01\/01\/2026/)).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Ações de Conta PJ' }), { key: 'Enter' });
+    fireEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Editar/ }));
+    expect(await screen.findByLabelText(/Saldo em/)).toHaveValue('01/01/2026');
+  });
 });
