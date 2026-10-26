@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import enum
 import uuid
+from datetime import date
 
 from sqlalchemy import (
     Date,
@@ -12,9 +13,12 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.core.tz import today_local
 
 from .base import SoftDeleteModel
 
@@ -71,6 +75,10 @@ class ContaBancaria(SoftDeleteModel):
     nome: Mapped[str] = mapped_column(String(100), nullable=False)
     banco: Mapped[str | None] = mapped_column(String(100), nullable=True)
     saldo_inicial: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    # Dia a que o saldo_inicial se refere: o Fluxo de caixa só soma o que foi pago a partir dele.
+    data_saldo_inicial: Mapped[date] = mapped_column(
+        Date, nullable=False, default=today_local, server_default=text("CURRENT_DATE")
+    )
     ativo: Mapped[bool] = mapped_column(default=True, nullable=False, server_default="true")
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

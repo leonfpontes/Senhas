@@ -7,6 +7,7 @@ Regressões cobertas:
 - "vencido" só existia como efeito colateral do GET da lista (filtro rodava antes);
 - recorrência gravada mas nenhuma próxima ocorrência era gerada;
 - fluxo de caixa arredondava o intervalo para meses inteiros e ignorava o saldo inicial;
+- fluxo de caixa somava o histórico pago ANTES da data do saldo inicial (contava em dobro);
 - Analytics contava "cancelados" como emitidos − usados;
 - operador com AUDITORIA:view barrado por um `is_admin` extra.
 """
@@ -324,3 +325,92 @@ async def test_fluxo_recorta_intervalo_e_parte_do_saldo_inicial(client, db):
     assert marco["saldo_acumulado"] == 1450.0
     assert abril["a_pagar"] == 70.0
     assert abril["saldo_acumulado"] == 1450.0
+
+
+# ── 10. Fluxo de caixa: data do saldo inicial ───────────────────────────────
+
+
+async def test_fluxo_ignora_pago_antes_da_data_do_saldo_inicial(client, db):
+    """Saldo informado em 01/01: mensalidade paga em 2025 já está nele e não soma de novo."""
+    tenant, admin = await _admin(db)
+    db.add_all([
+        ContaBancaria(tenant_id=tenant.id, nome="PJ", saldo_inicial=1000, data_saldo_inicial=date(2026, 1, 1)),
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Mensalidade 11/2025", valor=500,
+                        data_vencimento=date(2025, 11, 15), status="pago", data_pagamento=date(2025, 11, 15), valor_pago=500),
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Mensalidade 02/2026", valor=100,
+                        data_vencimento=date(2026, 2, 15), status="pago", data_pagamento=date(2026, 2, 15), valor_pago=100),
+        ContaFinanceira(tenant_id=tenant.id, tipo="pagar", descricao="Velas", valor=30,
+                        data_vencimento=date(2026, 3, 5), status="pago", data_pagamento=date(2026, 3, 5), valor_pago=30),
+    ])
+    await db.commit()
+
+    resp = await client.get(f"{BASE}/fluxo-de-caixa?data_inicio=2026-03-01&data_fim=2026-03-31", headers=admin.headers)
+    assert resp.status_code == 200, resp.text
+    (marco,) = resp.json()
+    # abertura = 1000 + 100 (fev, depois da data do saldo); os 500 de 2025 ficam de fora
+    assert marco["saldo_anterior"] == 1100.0
+    assert marco["saldo_acumulado"] == 1070.0
+
+
+async def test_fluxo_antes_da_data_do_saldo_desconta_para_tras(client, db):
+    """Saldo informado em 01/06 (o do extrato de hoje): olhar maio desconta o que entrou depois."""
+    tenant, admin = await _admin(db)
+    db.add_all([
+        ContaBancaria(tenant_id=tenant.id, nome="PJ", saldo_inicial=1000, data_saldo_inicial=date(2026, 6, 1)),
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Doação de maio", valor=200,
+                        data_vencimento=date(2026, 5, 10), status="pago", data_pagamento=date(2026, 5, 10), valor_pago=200),
+    ])
+    await db.commit()
+
+    resp = await client.get(f"{BASE}/fluxo-de-caixa?data_inicio=2026-05-01&data_fim=2026-06-30", headers=admin.headers)
+    maio, junho = resp.json()
+    assert maio["saldo_anterior"] == 800.0 and maio["saldo_acumulado"] == 1000.0
+    # o saldo fecha no valor informado no dia dele
+    assert junho["saldo_anterior"] == 1000.0 and junho["saldo_acumulado"] == 1000.0
+
+
+async def test_fluxo_usa_a_data_da_conta_do_lancamento(client, db):
+    """Duas contas com datas diferentes: cada lançamento ligado a uma conta usa a data dela."""
+    tenant, admin = await _admin(db)
+    pj = ContaBancaria(tenant_id=tenant.id, nome="PJ", saldo_inicial=1000, data_saldo_inicial=date(2026, 1, 1))
+    alt = ContaBancaria(tenant_id=tenant.id, nome="Alternativa", saldo_inicial=500, data_saldo_inicial=date(2026, 3, 1))
+    db.add_all([pj, alt])
+    await db.flush()
+    db.add_all([
+        # na Alternativa, antes de 01/03: já está nos 500
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Pix na alternativa", valor=40,
+                        data_vencimento=date(2026, 2, 10), status="pago", data_pagamento=date(2026, 2, 10),
+                        valor_pago=40, conta_bancaria_id=alt.id),
+        # na PJ, depois de 01/01: soma
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Pix na PJ", valor=60,
+                        data_vencimento=date(2026, 2, 10), status="pago", data_pagamento=date(2026, 2, 10),
+                        valor_pago=60, conta_bancaria_id=pj.id),
+    ])
+    await db.commit()
+
+    resp = await client.get(f"{BASE}/fluxo-de-caixa?data_inicio=2026-04-01&data_fim=2026-04-30", headers=admin.headers)
+    (abril,) = resp.json()
+    assert abril["saldo_anterior"] == 1560.0
+
+
+async def test_conta_bancaria_grava_data_do_saldo_inicial(client, db):
+    tenant, admin = await _admin(db)
+    criada = await client.post(
+        f"{BASE}/contas-bancarias",
+        json={"nome": "PJ", "saldo_inicial": 4844.99, "data_saldo_inicial": "2026-01-01"},
+        headers=admin.headers,
+    )
+    assert criada.status_code == 201, criada.text
+    assert criada.json()["data_saldo_inicial"] == "2026-01-01"
+
+    sem_data = (await client.post(f"{BASE}/contas-bancarias", json={"nome": "Caixa"}, headers=admin.headers)).json()
+    assert sem_data["data_saldo_inicial"] == str(today_local())
+
+    editada = await client.put(
+        f"{BASE}/contas-bancarias/{sem_data['id']}", json={"data_saldo_inicial": "2026-02-01"}, headers=admin.headers
+    )
+    assert editada.json()["data_saldo_inicial"] == "2026-02-01"
+    vazia = await client.put(
+        f"{BASE}/contas-bancarias/{sem_data['id']}", json={"data_saldo_inicial": None}, headers=admin.headers
+    )
+    assert vazia.status_code == 422

@@ -18,7 +18,7 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { PermissionDenied, PlanLocked, ReadOnlyNotice } from '@/components/gates';
-import { MoneyInput, TextField } from '@/components/fields';
+import { DateField, MoneyInput, TextField } from '@/components/fields';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatBRL } from '@/lib/dateBr';
+import { formatBRL, formatDateBr, todayBr } from '@/lib/dateBr';
 import { minPlanFor, minPlanPhrase } from '@/constants/plans';
 import { PixConfigCard } from '@/components/financeiro/PixConfigCard';
 import { MensalidadeGatewayCard } from '@/components/financeiro/MensalidadeGatewayCard';
@@ -43,7 +43,7 @@ import { useRouter } from 'next/router';
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface Categoria { id: string; nome: string; tipo: string; cor: string | null; ativo: boolean }
-interface ContaBancaria { id: string; nome: string; banco: string | null; saldo_inicial: number; ativo: boolean }
+interface ContaBancaria { id: string; nome: string; banco: string | null; saldo_inicial: number; data_saldo_inicial: string; ativo: boolean }
 
 const COR_OPTIONS = [
   '#1D9E75', '#378ADD', '#D4537E', '#BA7517', '#A32D2D', '#534AB7',
@@ -364,7 +364,7 @@ function CategoriasTab() {
 // Aba: Contas bancárias
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const EMPTY_CONTA = { nome: '', banco: '', saldo_inicial: 0 };
+const emptyConta = () => ({ nome: '', banco: '', saldo_inicial: 0, data_saldo_inicial: todayBr() as string | null });
 
 function ContasBancariasTab() {
   const { can: canGroup } = usePermissions();
@@ -380,7 +380,7 @@ function ContasBancariasTab() {
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [editTarget, setEditTarget] = useState<ContaBancaria | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(EMPTY_CONTA);
+  const [form, setForm] = useState(emptyConta);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContaBancaria | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -405,14 +405,14 @@ function ContasBancariasTab() {
   }, [load]);
 
   const openCreate = () => {
-    setForm(EMPTY_CONTA);
+    setForm(emptyConta());
     setTouched({});
     setDrawerMode('create');
     setEditTarget(null);
     setDrawerOpen(true);
   };
   const openEdit = (conta: ContaBancaria) => {
-    setForm({ nome: conta.nome, banco: conta.banco ?? '', saldo_inicial: conta.saldo_inicial });
+    setForm({ nome: conta.nome, banco: conta.banco ?? '', saldo_inicial: conta.saldo_inicial, data_saldo_inicial: conta.data_saldo_inicial });
     setTouched({});
     setDrawerMode('edit');
     setEditTarget(conta);
@@ -423,16 +423,24 @@ function ContasBancariasTab() {
     drawerMode === 'create'
       ? form.nome !== '' || form.banco !== '' || form.saldo_inicial !== 0
       : !!editTarget &&
-        (form.nome !== editTarget.nome || form.banco !== (editTarget.banco ?? '') || form.saldo_inicial !== editTarget.saldo_inicial);
+        (form.nome !== editTarget.nome ||
+          form.banco !== (editTarget.banco ?? '') ||
+          form.saldo_inicial !== editTarget.saldo_inicial ||
+          form.data_saldo_inicial !== editTarget.data_saldo_inicial);
 
   const handleSave = async () => {
-    setTouched({ nome: true });
-    if (!form.nome.trim()) return;
+    setTouched({ nome: true, data_saldo_inicial: true });
+    if (!form.nome.trim() || !form.data_saldo_inicial) return;
     if (drawerMode === 'create' && !canInsert) return;
     if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
-      const body = { nome: form.nome.trim(), banco: form.banco.trim() || null, saldo_inicial: form.saldo_inicial };
+      const body = {
+        nome: form.nome.trim(),
+        banco: form.banco.trim() || null,
+        saldo_inicial: form.saldo_inicial,
+        data_saldo_inicial: form.data_saldo_inicial,
+      };
       if (drawerMode === 'create') await apiClient.post('/api/v1/admin/financeiro/contas-bancarias', body);
       else if (editTarget) await apiClient.put(`/api/v1/admin/financeiro/contas-bancarias/${editTarget.id}`, body);
       setDrawerOpen(false);
@@ -503,7 +511,7 @@ function ContasBancariasTab() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{conta.nome}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {conta.banco ? `${conta.banco} · ` : ''}Saldo inicial {formatBRL(conta.saldo_inicial)}
+                    {conta.banco ? `${conta.banco} · ` : ''}Saldo de {formatBRL(conta.saldo_inicial)} em {formatDateBr(conta.data_saldo_inicial)}
                   </p>
                 </div>
                 {!conta.ativo && <InativoBadge />}
@@ -528,7 +536,7 @@ function ContasBancariasTab() {
         icon={<Landmark />}
         onSave={handleSave}
         saving={saving}
-        saveDisabled={!form.nome.trim()}
+        saveDisabled={!form.nome.trim() || !form.data_saldo_inicial}
         isDirty={isDirty}
       >
         <div className="flex flex-col gap-4">
@@ -548,12 +556,24 @@ function ContasBancariasTab() {
             onChange={(e) => setForm((f) => ({ ...f, banco: e.target.value }))}
             helperText="Opcional — ex.: Bradesco, Nubank, Caixa"
           />
-          <MoneyInput
-            label="Saldo inicial"
-            value={form.saldo_inicial}
-            onChange={(v) => setForm((f) => ({ ...f, saldo_inicial: v }))}
-            helperText="Saldo da conta no momento do cadastro — é o ponto de partida do saldo acumulado no Fluxo de caixa"
-          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <MoneyInput
+              label="Saldo inicial"
+              value={form.saldo_inicial}
+              onChange={(v) => setForm((f) => ({ ...f, saldo_inicial: v }))}
+            />
+            <DateField
+              label="Saldo em"
+              value={form.data_saldo_inicial}
+              onChange={(iso) => setForm((f) => ({ ...f, data_saldo_inicial: iso }))}
+              required
+              error={touched.data_saldo_inicial && !form.data_saldo_inicial && 'Obrigatório'}
+            />
+          </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Quanto tinha na conta nesse dia, como no extrato. O Fluxo de caixa parte desse saldo e soma só o que foi
+            pago a partir dessa data — o que entrou antes já está dentro dele.
+          </p>
         </div>
       </CrudDrawer>
 

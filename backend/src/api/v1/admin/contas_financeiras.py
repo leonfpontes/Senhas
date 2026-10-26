@@ -41,7 +41,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import Date, case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -128,6 +128,7 @@ class ContaBancariaOut(BaseModel):
     nome: str
     banco: Optional[str]
     saldo_inicial: float
+    data_saldo_inicial: date
     ativo: bool
 
     model_config = ConfigDict(from_attributes=True)
@@ -137,6 +138,8 @@ class ContaBancariaCreate(BaseModel):
     nome: str = Field(..., min_length=1, max_length=100)
     banco: Optional[str] = Field(None, max_length=100)
     saldo_inicial: float = 0.0
+    # Dia a que o saldo se refere; sem ela, o dia do cadastro.
+    data_saldo_inicial: Optional[date] = None
 
 
 class CategoriaUpdate(BaseModel):
@@ -150,6 +153,7 @@ class ContaBancariaUpdate(BaseModel):
     nome: Optional[str] = Field(None, min_length=1, max_length=100)
     banco: Optional[str] = Field(None, max_length=100)
     saldo_inicial: Optional[float] = None
+    data_saldo_inicial: Optional[date] = None
     ativo: Optional[bool] = None
 
 
@@ -225,6 +229,7 @@ class FluxoCaixaMes(BaseModel):
     receitas: float         # contas receber pagas no mês
     despesas: float         # contas pagar pagas no mês
     saldo: float            # receitas - despesas
+    saldo_anterior: float   # saldo com que o mês abriu (= saldo_acumulado do mês anterior)
     saldo_acumulado: float  # running total
     a_receber: float        # pendente/vencido com vencimento no mês
     a_pagar: float          # pendente/vencido com vencimento no mês
@@ -544,6 +549,7 @@ async def create_conta_bancaria(
         nome=body.nome,
         banco=body.banco,
         saldo_inicial=body.saldo_inicial,
+        data_saldo_inicial=body.data_saldo_inicial or today_local(),
     )
     db.add(conta)
     await db.flush()
@@ -572,7 +578,9 @@ async def update_conta_bancaria(
     conta = result.scalar_one_or_none()
     if not conta:
         raise HTTPException(status_code=404, detail="Conta bancária não encontrada.")
-    _aplicar_patch(conta, body.model_dump(exclude_unset=True), {"nome", "saldo_inicial", "ativo"})
+    _aplicar_patch(
+        conta, body.model_dump(exclude_unset=True), {"nome", "saldo_inicial", "data_saldo_inicial", "ativo"}
+    )
     await db.flush()
     await db.commit()
     await db.refresh(conta)
@@ -1025,7 +1033,9 @@ async def get_fluxo_de_caixa(
     primeiro e o último mês são recortados pelas datas exatas (antes o mês inteiro entrava).
 
     saldo_acumulado parte do saldo de abertura: soma do saldo_inicial das contas bancárias
-    ativas + receitas − despesas realizadas (pagas) ANTES do início do intervalo.
+    ativas, levado até o início do intervalo pelo que foi pago entre a data_saldo_inicial
+    e o início (somando para frente, descontando para trás). Pago antes da data do saldo não
+    entra — já está no saldo informado.
     """
     tenant_id = current_user.tenant_id
     hoje = today_local()
@@ -1068,33 +1078,61 @@ async def get_fluxo_de_caixa(
     result = await db.execute(stmt)
     all_contas = result.scalars().all()
 
-    # Saldo de abertura: saldo inicial das contas bancárias ativas + realizado antes da janela
-    saldo_inicial_res = await db.execute(
-        select(func.coalesce(func.sum(ContaBancaria.saldo_inicial), 0)).where(
+    # Saldo de abertura da janela. O saldo_inicial de cada conta é o saldo NAQUELE DIA
+    # (data_saldo_inicial): o que foi pago antes dele já está dentro do número. Por isso:
+    #   abertura = Σ saldo_inicial
+    #            + pago entre a data do saldo e o início da janela      (janela depois da data)
+    #            − pago entre o início da janela e a data do saldo      (janela antes da data)
+    # Lançamento ligado a uma conta usa a data dessa conta; sem conta, a data mais antiga.
+    # Antes somava todo o histórico pago por cima do saldo e contava em dobro (TUCCCO, out/26).
+    contas_bancarias_res = await db.execute(
+        select(ContaBancaria.saldo_inicial, ContaBancaria.data_saldo_inicial).where(
             ContaBancaria.tenant_id == tenant_id,
             ContaBancaria.deleted_at.is_(None),
             ContaBancaria.ativo.is_(True),
         )
     )
-    realizado_res = await db.execute(
-        select(
-            func.coalesce(
-                func.sum(
-                    case(
-                        (ContaFinanceira.tipo == "receber", func.coalesce(ContaFinanceira.valor_pago, ContaFinanceira.valor)),
-                        else_=-func.coalesce(ContaFinanceira.valor_pago, ContaFinanceira.valor),
-                    )
-                ),
-                0,
-            )
-        ).where(
-            ContaFinanceira.tenant_id == tenant_id,
-            ContaFinanceira.deleted_at.is_(None),
-            ContaFinanceira.status == "pago",
-            ContaFinanceira.data_pagamento < window_start,
-        )
+    contas_bancarias = contas_bancarias_res.all()
+    saldo_acumulado = float(sum((cb.saldo_inicial or 0) for cb in contas_bancarias))
+    inicio_controle = min((cb.data_saldo_inicial for cb in contas_bancarias), default=None)
+
+    valor_assinado = case(
+        (ContaFinanceira.tipo == "receber", func.coalesce(ContaFinanceira.valor_pago, ContaFinanceira.valor)),
+        else_=-func.coalesce(ContaFinanceira.valor_pago, ContaFinanceira.valor),
     )
-    saldo_acumulado = float(saldo_inicial_res.scalar() or 0) + float(realizado_res.scalar() or 0)
+    pagas = (
+        ContaFinanceira.tenant_id == tenant_id,
+        ContaFinanceira.deleted_at.is_(None),
+        ContaFinanceira.status == "pago",
+    )
+    if inicio_controle is None:
+        # Sem conta bancária ativa não há saldo informado: vale todo o histórico pago.
+        realizado_res = await db.execute(
+            select(func.coalesce(func.sum(valor_assinado), 0)).where(
+                *pagas, ContaFinanceira.data_pagamento < window_start,
+            )
+        )
+        saldo_acumulado += float(realizado_res.scalar() or 0)
+    else:
+        data_ref = func.coalesce(ContaBancaria.data_saldo_inicial, literal(inicio_controle, Date))
+        antes_da_janela = (ContaFinanceira.data_pagamento >= data_ref) & (ContaFinanceira.data_pagamento < window_start)
+        antes_do_saldo = (ContaFinanceira.data_pagamento >= window_start) & (ContaFinanceira.data_pagamento < data_ref)
+        realizado_res = await db.execute(
+            select(
+                func.coalesce(func.sum(case((antes_da_janela, valor_assinado), else_=0)), 0),
+                func.coalesce(func.sum(case((antes_do_saldo, valor_assinado), else_=0)), 0),
+            )
+            .select_from(ContaFinanceira)
+            .outerjoin(
+                ContaBancaria,
+                (ContaBancaria.id == ContaFinanceira.conta_bancaria_id)
+                & (ContaBancaria.tenant_id == tenant_id)
+                & ContaBancaria.deleted_at.is_(None),
+            )
+            .where(*pagas)
+        )
+        somar, descontar = realizado_res.one()
+        saldo_acumulado += float(somar or 0) - float(descontar or 0)
 
     rows: list[FluxoCaixaMes] = []
     for ano, mes, first, last in periods:
@@ -1121,6 +1159,7 @@ async def get_fluxo_de_caixa(
                     a_pagar += valor
 
         saldo = receitas - despesas
+        saldo_anterior = saldo_acumulado
         saldo_acumulado += saldo
 
         rows.append(FluxoCaixaMes(
@@ -1130,6 +1169,7 @@ async def get_fluxo_de_caixa(
             receitas=round(receitas, 2),
             despesas=round(despesas, 2),
             saldo=round(saldo, 2),
+            saldo_anterior=round(saldo_anterior, 2),
             saldo_acumulado=round(saldo_acumulado, 2),
             a_receber=round(a_receber, 2),
             a_pagar=round(a_pagar, 2),

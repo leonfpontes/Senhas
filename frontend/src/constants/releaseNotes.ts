@@ -22,6 +22,19 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.8.3',
+    date: '2026-10-26',
+    title: 'Saldo do fluxo de caixa batendo com o banco',
+    highlights: [
+      'Cada conta bancária agora tem a data do saldo inicial ("Saldo em"). O Fluxo de caixa parte desse saldo e só soma o que foi pago a partir dessa data. Mensalidades e lançamentos mais antigos já estão dentro do saldo informado e não contam de novo.',
+      'A tabela do Fluxo de caixa ganhou a coluna "Saldo anterior": o quanto o mês começou, que é o que sobrou do mês anterior.',
+      'Estoque ganhou o item "Grupos" no menu e um botão "Grupos" na tela de Itens, para criar grupos como Velas e Bebidas.',
+    ],
+    fixes: [
+      'As contas já cadastradas ficam com a data em que foram criadas. Se o saldo informado era de outro dia, é só editar a conta em Configuração financeira → Contas bancárias e ajustar o "Saldo em".',
+    ],
+  },
+  {
     version: '2.8.2',
     date: '2026-10-23',
     title: 'Painel ou Área do Médium: você escolhe ao entrar',
