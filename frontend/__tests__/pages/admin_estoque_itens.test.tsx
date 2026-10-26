@@ -108,4 +108,11 @@ describe('Estoque — Itens', () => {
     render(<EstoqueRelatorioRedirectPage />);
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/admin/estoque/itens?criticos=1'));
   });
+
+  it('leva para a tela de Grupos (pelo cabeçalho e pelo formulário do item)', async () => {
+    render(<AdminEstoqueItensPage />);
+    expect(await screen.findByRole('button', { name: /Grupos/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Novo item/ }));
+    expect(await screen.findByRole('link', { name: /Crie em Estoque → Grupos/ })).toHaveAttribute('href', '/admin/estoque/grupos');
+  });
 });

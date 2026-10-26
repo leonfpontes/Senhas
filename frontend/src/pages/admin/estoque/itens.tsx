@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
@@ -13,6 +14,7 @@ import {
   Camera,
   CheckCircle2,
   Download,
+  Layers,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -488,6 +490,10 @@ function AdminEstoqueItensContent() {
                 <span className="hidden sm:inline">Exportar CSV</span>
                 <span className="sm:hidden">CSV</span>
               </Button>
+              <Button variant="outline" onClick={() => router.push('/admin/estoque/grupos')}>
+                <Layers />
+                Grupos
+              </Button>
               {canInsert && (
                 <Button data-tour="estoque-itens-novo" onClick={openCreate}>
                   <Plus />
@@ -585,6 +591,12 @@ function AdminEstoqueItensContent() {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Falta um grupo?{' '}
+              <Link href="/admin/estoque/grupos" className="text-brand underline-offset-2 hover:underline">
+                Crie em Estoque → Grupos
+              </Link>
+            </p>
           </div>
           <TextField label="Descrição" multiline rows={2} value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
