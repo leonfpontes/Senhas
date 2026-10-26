@@ -21,6 +21,7 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Tags,
   Trash2,
 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
@@ -563,6 +564,13 @@ function LancamentosContent() {
     </div>
   );
 
+  // Mesmo mês e lado na tela Por categoria.
+  const mesSelecionado = monthRangeIso(`${anoFilter}-${mesFilter.padStart(2, '0')}`);
+  const linkPorCategoria = {
+    pathname: '/admin/financeiro/por-categoria',
+    query: { inicio: mesSelecionado.start, fim: mesSelecionado.end, lado: tipo === 'receber' ? 'receitas' : 'despesas' },
+  };
+
   // ── Gates ──────────────────────────────────────────────────────────────────
 
   if (!planAllows) return <PlanLocked feature="Lançamentos financeiros" minPlan={minPlanFor('contas_financeiras').label} />;
@@ -581,6 +589,12 @@ function LancamentosContent() {
             <Button variant="outline" onClick={fetchAll} disabled={loading} aria-label="Atualizar">
               <RefreshCw className={loading ? 'animate-spin' : undefined} />
               <span className="hidden sm:inline">Atualizar</span>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={linkPorCategoria}>
+                <Tags />
+                <span className="hidden sm:inline">Por categoria</span>
+              </Link>
             </Button>
             {canInsert && (
               <Button onClick={openCreate}>

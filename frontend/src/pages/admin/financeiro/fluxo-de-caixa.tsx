@@ -10,7 +10,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ArrowDownToLine, ArrowUpFromLine, Download, FileText, Loader2, RefreshCw, Scale, Wallet } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowDownToLine, ArrowUpFromLine, Download, FileText, Loader2, RefreshCw, Scale, Tags, Wallet } from 'lucide-react';
 import {
   Bar,
   CartesianGrid,
@@ -370,6 +371,12 @@ function FluxoDeCaixaContent() {
             <Button variant="outline" onClick={fetchAll} disabled={loading} aria-label="Atualizar">
               <RefreshCw className={loading ? 'animate-spin' : undefined} />
               <span className="hidden sm:inline">Atualizar</span>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={{ pathname: '/admin/financeiro/por-categoria', query: { inicio: periodo.inicio, fim: periodo.fim } }}>
+                <Tags />
+                <span className="hidden sm:inline">Por categoria</span>
+              </Link>
             </Button>
             <Button variant="outline" onClick={openPdfPreview} disabled={loading || dados.length === 0}>
               <FileText />

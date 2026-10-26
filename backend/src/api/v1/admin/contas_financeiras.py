@@ -12,6 +12,7 @@ Routes:
   POST   /api/v1/admin/financeiro/contas/{id}/cancelar            — Cancel an open entry
   POST   /api/v1/admin/financeiro/contas/{id}/reabrir             — Estorna baixa / reabre cancelado
   GET    /api/v1/admin/financeiro/fluxo-de-caixa                  — Monthly cash flow
+  GET    /api/v1/admin/financeiro/por-categoria                   — Receitas/despesas por categoria
   GET    /api/v1/admin/financeiro/categorias                      — List categories (?incluir_inativos)
   POST   /api/v1/admin/financeiro/categorias                      — Create category
   PUT    /api/v1/admin/financeiro/categorias/{id}                 — Update category (inclui ativo)
@@ -233,6 +234,36 @@ class FluxoCaixaMes(BaseModel):
     saldo_acumulado: float  # running total
     a_receber: float        # pendente/vencido com vencimento no mês
     a_pagar: float          # pendente/vencido com vencimento no mês
+
+
+class CategoriaTotal(BaseModel):
+    categoria_id: Optional[UUID]   # None = lançamentos sem categoria
+    nome: str
+    cor: Optional[str]
+    realizado: float               # pago no período (pela data de pagamento)
+    qtd_realizado: int
+    em_aberto: float               # pendente/vencido com vencimento no período
+    qtd_em_aberto: int
+    percentual: float              # % do realizado do tipo no período (0–100)
+    por_mes: List[float]           # realizado em cada mês de `meses`
+
+
+class MesRef(BaseModel):
+    ano: int
+    mes: int
+    mes_label: str
+
+
+class PorCategoriaOut(BaseModel):
+    data_inicio: date
+    data_fim: date
+    meses: List[MesRef]
+    receitas: List[CategoriaTotal]
+    despesas: List[CategoriaTotal]
+    total_receitas: float
+    total_despesas: float
+    total_a_receber: float
+    total_a_pagar: float
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1202,3 +1233,151 @@ async def get_fluxo_de_caixa(
         ))
 
     return rows
+
+
+# ── Por categoria ─────────────────────────────────────────────────────────────
+
+_SEM_CATEGORIA = "Sem categoria"
+
+
+@router.get(
+    "/por-categoria",
+    response_model=PorCategoriaOut,
+    dependencies=[Depends(require_group_permission(PermissionFeature.CONTAS_FINANCEIRAS, "view"))],
+)
+async def get_por_categoria(
+    data_inicio: Optional[date] = Query(None, description="Primeiro dia do intervalo (padrão: 1º do mês atual)"),
+    data_fim: Optional[date] = Query(None, description="Último dia do intervalo (padrão: fim do mês atual)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Receitas e despesas agrupadas por categoria no intervalo.
+
+    Mesmas regras do Fluxo de caixa, para os totais baterem: `realizado` é o que foi pago no
+    intervalo (pela data de pagamento, valor pago); `em_aberto` é o pendente/vencido com
+    vencimento no intervalo. Cancelados não entram. Lançamentos sem categoria vêm numa linha
+    "Sem categoria"; categoria desativada ou excluída continua aparecendo pelo nome.
+    """
+    tenant_id = current_user.tenant_id
+    hoje = today_local()
+    inicio = data_inicio or date(hoje.year, hoje.month, 1)
+    fim = data_fim or date(hoje.year, hoje.month, calendar.monthrange(hoje.year, hoje.month)[1])
+    if fim < inicio:
+        raise HTTPException(status_code=422, detail="data_fim deve ser >= data_inicio.")
+    if (fim.year - inicio.year) * 12 + fim.month - inicio.month >= 60:
+        raise HTTPException(status_code=422, detail="Intervalo máximo de 60 meses.")
+
+    meses: list[MesRef] = []
+    cur = date(inicio.year, inicio.month, 1)
+    while cur <= fim:
+        meses.append(MesRef(ano=cur.year, mes=cur.month, mes_label=f"{_MES_LABELS[cur.month - 1]}/{str(cur.year)[2:]}"))
+        cur = _somar_meses(cur, 1, 1)
+    idx_mes = {(m.ano, m.mes): i for i, m in enumerate(meses)}
+
+    base = (
+        ContaFinanceira.tenant_id == tenant_id,
+        ContaFinanceira.deleted_at.is_(None),
+    )
+    ano_pg = func.extract("year", ContaFinanceira.data_pagamento)
+    mes_pg = func.extract("month", ContaFinanceira.data_pagamento)
+    pagos_res = await db.execute(
+        select(
+            ContaFinanceira.tipo,
+            ContaFinanceira.categoria_id,
+            ano_pg,
+            mes_pg,
+            func.coalesce(func.sum(func.coalesce(ContaFinanceira.valor_pago, ContaFinanceira.valor)), 0),
+            func.count(ContaFinanceira.id),
+        )
+        .where(
+            *base,
+            ContaFinanceira.status == "pago",
+            ContaFinanceira.data_pagamento >= inicio,
+            ContaFinanceira.data_pagamento <= fim,
+        )
+        .group_by(ContaFinanceira.tipo, ContaFinanceira.categoria_id, ano_pg, mes_pg)
+    )
+    abertos_res = await db.execute(
+        select(
+            ContaFinanceira.tipo,
+            ContaFinanceira.categoria_id,
+            func.coalesce(func.sum(ContaFinanceira.valor), 0),
+            func.count(ContaFinanceira.id),
+        )
+        .where(
+            *base,
+            ContaFinanceira.status.in_(_EM_ABERTO),
+            ContaFinanceira.data_vencimento >= inicio,
+            ContaFinanceira.data_vencimento <= fim,
+        )
+        .group_by(ContaFinanceira.tipo, ContaFinanceira.categoria_id)
+    )
+
+    # (tipo, categoria_id) -> acumuladores
+    grupos: dict[tuple[str, Optional[UUID]], dict[str, Any]] = {}
+
+    def _grupo(tipo: Any, categoria_id: Optional[UUID]) -> dict[str, Any]:
+        chave = (_valor(tipo), categoria_id)
+        if chave not in grupos:
+            grupos[chave] = {"realizado": 0.0, "qtd_realizado": 0, "em_aberto": 0.0, "qtd_em_aberto": 0,
+                             "por_mes": [0.0] * len(meses)}
+        return grupos[chave]
+
+    for tipo, categoria_id, ano, mes, total, qtd in pagos_res.all():
+        g = _grupo(tipo, categoria_id)
+        g["realizado"] += float(total or 0)
+        g["qtd_realizado"] += int(qtd or 0)
+        g["por_mes"][idx_mes[(int(ano), int(mes))]] += float(total or 0)
+    for tipo, categoria_id, total, qtd in abertos_res.all():
+        g = _grupo(tipo, categoria_id)
+        g["em_aberto"] += float(total or 0)
+        g["qtd_em_aberto"] += int(qtd or 0)
+
+    # Nome/cor das categorias usadas — inclusive desativadas ou excluídas, que ainda têm lançamentos.
+    ids = {cid for _, cid in grupos if cid is not None}
+    categorias: dict[UUID, CategoriaFinanceira] = {}
+    if ids:
+        cat_res = await db.execute(
+            select(CategoriaFinanceira).where(
+                CategoriaFinanceira.tenant_id == tenant_id,
+                CategoriaFinanceira.id.in_(ids),
+            )
+        )
+        categorias = {c.id: c for c in cat_res.scalars().all()}
+
+    def _lista(tipo: str) -> tuple[list[CategoriaTotal], float, float]:
+        itens = [(cid, g) for (t, cid), g in grupos.items() if t == tipo]
+        total_realizado = sum(g["realizado"] for _, g in itens)
+        total_aberto = sum(g["em_aberto"] for _, g in itens)
+        out: list[CategoriaTotal] = []
+        for cid, g in itens:
+            cat = categorias.get(cid) if cid is not None else None
+            out.append(CategoriaTotal(
+                categoria_id=cid,
+                nome=cat.nome if cat else _SEM_CATEGORIA,
+                cor=cat.cor if cat else None,
+                realizado=round(g["realizado"], 2),
+                qtd_realizado=g["qtd_realizado"],
+                em_aberto=round(g["em_aberto"], 2),
+                qtd_em_aberto=g["qtd_em_aberto"],
+                percentual=round(g["realizado"] / total_realizado * 100, 1) if total_realizado else 0.0,
+                por_mes=[round(v, 2) for v in g["por_mes"]],
+            ))
+        # Maior realizado primeiro; "Sem categoria" por último no empate; depois o nome.
+        out.sort(key=lambda c: (-c.realizado, -c.em_aberto, c.categoria_id is None, c.nome.lower()))
+        return out, round(total_realizado, 2), round(total_aberto, 2)
+
+    receitas, total_receitas, total_a_receber = _lista("receber")
+    despesas, total_despesas, total_a_pagar = _lista("pagar")
+
+    return PorCategoriaOut(
+        data_inicio=inicio,
+        data_fim=fim,
+        meses=meses,
+        receitas=receitas,
+        despesas=despesas,
+        total_receitas=total_receitas,
+        total_despesas=total_despesas,
+        total_a_receber=total_a_receber,
+        total_a_pagar=total_a_pagar,
+    )

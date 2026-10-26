@@ -1340,6 +1340,12 @@ Incluir obrigatoriamente:
   099; soma para frente, desconta para tras). Pago antes da data do saldo NAO entra — ja esta no saldo
   informado (antes somava o historico inteiro e contava em dobro). Lancamento com `conta_bancaria_id`
   usa a data dessa conta; sem conta, a mais antiga. Cada mes traz `saldo_anterior` (abertura do mes).
+- **Por categoria** (`GET /financeiro/por-categoria`, CONTAS_FINANCEIRAS:view; tela `/admin/financeiro/por-categoria`):
+  receitas e despesas agrupadas por categoria no intervalo, com as MESMAS regras do fluxo (realizado = pago pela
+  `data_pagamento` com `valor_pago`; em aberto = pendente/vencido pelo `data_vencimento`; cancelado fora), entao os
+  totais batem com o fluxo do mesmo periodo. Sem categoria vira a linha "Sem categoria"; categoria desativada ou
+  excluida continua aparecendo pelo nome. `por_mes` alinhado com `meses`. Relatorio: PDF em `lib/pdf/porCategoriaPdf`
+  (base `pdfDoc`; mes a mes em paisagem quando ha mais de um mes) e CSV `;` em `lib/financeiroPorCategoria`.
 - **Analytics**: `total_cancelled` conta status CANCELLED (era emitidos − usados) e ha `total_no_show`;
   limites de data em dias inteiros de Brasilia (`core.tz.local_day_bounds_utc`). O toggle
   `enable_analytics` saiu da tela de configuracao (era salvo e lido por ninguem; coluna mantida).
