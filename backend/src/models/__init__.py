@@ -48,6 +48,7 @@ from .push_inscricoes import PushInscricao
 from .materiais import MaterialCorrente, MaterialGrupo, MaterialTipo
 from .ficha_espiritual import FichaCampo, FichaSugestao, FichaValor, MediumMarco
 from .mensalidade_gateway import MensalidadeCobranca, MensalidadeGateway
+from .mensalidade_chaves_pix import MensalidadeChavePix, MensalidadeChavePixGrupo
 
 __all__ = [
     "Base",
@@ -139,4 +140,6 @@ __all__ = [
     "PlatformRecibo",
     "MensalidadeGateway",
     "MensalidadeCobranca",
+    "MensalidadeChavePix",
+    "MensalidadeChavePixGrupo",
 ]

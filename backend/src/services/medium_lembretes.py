@@ -432,20 +432,27 @@ async def mensalidades_a_lembrar(
     return out
 
 
-async def troca_do_pix(db: AsyncSession, tenant_id: uuid.UUID, agora: datetime) -> Optional[datetime]:
-    """Quando a casa trocou a chave PIX, se foi há menos de 2 dias e a mensalidade está ativa."""
-    row = (
-        await db.execute(
-            select(MensalidadeConfig.pix_alterado_em, MensalidadeConfig.pix_chave, MensalidadeConfig.ativo).where(
-                MensalidadeConfig.tenant_id == tenant_id
-            )
-        )
-    ).first()
-    if row is None or row[0] is None or not (row[1] or "").strip() or not row[2]:
-        return None
-    if row[0] < agora - JANELA_EVENTO or row[0] > agora:
-        return None
-    return row[0]
+async def trocas_do_pix(
+    db: AsyncSession, tenant_id: uuid.UUID, agora: datetime, medium_ids
+) -> dict[uuid.UUID, datetime]:
+    """Médium → quando a chave PIX DELE mudou, se foi há menos de 2 dias e a mensalidade está ativa.
+
+    A chave de cada médium é a do grupo da corrente ou a do terreiro
+    (`services/mensalidade_chaves_pix`): trocar a chave de um grupo avisa só quem está nele.
+    """
+    from .mensalidade_chaves_pix import pix_por_medium
+
+    config = (
+        await db.execute(select(MensalidadeConfig).where(MensalidadeConfig.tenant_id == tenant_id))
+    ).scalar_one_or_none()
+    if config is None or not config.ativo:
+        return {}
+    out: dict[uuid.UUID, datetime] = {}
+    for medium_id, pix in (await pix_por_medium(db, tenant_id, config, medium_ids)).items():
+        quando = pix.alterado_em if pix is not None else None
+        if quando is not None and agora - JANELA_EVENTO <= quando <= agora:
+            out[medium_id] = quando
+    return out
 
 
 # ── Atividades e escalas ────────────────────────────────────────────────────

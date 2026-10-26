@@ -408,6 +408,23 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
   `services/pix_brcode.build_static_brcode` (+ `txid_mensalidade`), testado contra os exemplos do
   Manual de Padroes para Iniciacao do Pix (BCB v2.10.0) — nunca montar o payload no front.
+- **Chave PIX por grupo da corrente + conta bancaria (migracao 100)**: casa que recebe em mais de uma conta
+  (TUCCCO: PJ Sicredi + "Alternativa" Inter). `mensalidade_configs.pix_conta_bancaria_id` = conta onde cai a
+  chave do terreiro (campo `conta_bancaria_id` no PUT `/config/pix`). Chaves extras em `mensalidade_chaves_pix`
+  (apelido unico por terreiro, mesmos campos/validacao da chave do terreiro, `conta_bancaria_id`) ligadas a
+  grupos por `mensalidade_chave_pix_grupos` (PK `grupo_id`: um grupo, no maximo uma chave). Rotas em
+  `admin/mensalidade_chaves_pix.py`: `GET/POST /config/pix/chaves`, `PUT/DELETE /config/pix/chaves/{id}`
+  (FINANCEIRO view/insert/edit/delete + `mensalidade_mediun`; POST/PUT com senha, `require_not_impersonated`,
+  10/h, auditoria `mensalidade_pix_grupo` mascarada, e-mail aos admins quando a chave muda; DELETE sem senha,
+  so auditoria — os grupos voltam para a chave do terreiro). Qual chave vale para o medium:
+  `services/mensalidade_chaves_pix.py` (grupo nao arquivado com chave → a do grupo; varios → a cadastrada
+  primeiro, listada em `conflitos`; senao a do terreiro). Usada pela Area (lista, PIX do mes, Inicio) e pelo
+  lembrete `pix_alterado` (`trocas_do_pix`, por medium: trocar a chave de um grupo ou pôr grupo novo nela
+  avisa so quem esta nele). Espelho em contas a receber (`mensalidade_contas_service.sync_pagamento`): a conta
+  a receber vai para a conta bancaria da chave do medium (associado: a do terreiro); mes ja pago mantem a conta
+  em que caiu; baixa do gateway (F-02) fica sem conta. `GET /fluxo-de-caixa?conta_bancaria_id=` mostra so os
+  lancamentos e o saldo daquela conta. Tela: `ChavesPixGruposCard` abaixo do `PixConfigCard`; filtro de
+  conta no Fluxo de caixa. Testes: `tests/integration_pg/test_pix_por_grupo.py`.
 - **Mensalidade com baixa automatica — gateway da casa (F-02/AM-22, decisao do dono de 2026-10-09: cada casa
   escolhe Stripe Connect ou Mercado Pago)**: `admin/mensalidade_gateway.py` — `GET /admin/financeiro/gateway`
   (FINANCEIRO view + `mensalidade_mediun`), `POST .../gateway/stripe/conectar` e `.../stripe/atualizar`
@@ -1115,7 +1132,7 @@ Incluir obrigatoriamente:
 - **Espelho em contas a receber** (`services/mensalidade_contas_service.py`, `external_ref = mensalidade:{mediun|associado}:{id}:{YYYY-MM}`): PAGO grava `valor_pago` informado (sem ele, o vigente); PENDENTE → pendente/vencido; ISENTO cancela a conta do mes. Cadastro de medium/associado (nao isento) cria a conta do mes seguinte; inativar (referencia = `data_saida`), excluir ou marcar `mensalidade_isento` cancela as contas pendentes dos meses seguintes. Datas de "hoje" via `core.tz.today_local()` (Brasilia). Nos Lancamentos essas contas sao somente leitura: PUT/baixa/DELETE → 409 e a listagem traz `origem_mensalidade: true` (a tela mostra "Editar em Mensalidades").
 - **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
 - **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
-- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX da mensalidade" (`components/financeiro/PixConfigCard.tsx`) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola.
+- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX do terreiro" (`components/financeiro/PixConfigCard.tsx`, com a conta bancaria onde ela cai — migracao 100) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola. Chaves por grupo da corrente: card `ChavesPixGruposCard` logo abaixo (§3.3).
 - **Comprovante**: BYTEA no banco, limite 5MB pelo painel (2 MB pela Area do Medium), tipos aceitos: jpeg/png/webp/pdf.
 - **Comprovante enviado pelo medium (AM-11/AM-12, migracao 072)**: o medium envia pela Area e o registro do mes
   fica PENDENTE (sem valor novo no ENUM; `valor_vigente` capturado no 1o registro, como no painel). Desde a 092
@@ -1518,7 +1535,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   também pelo Perfil. `sw.js` sem mudança (nunca cacheia `/api/*`).
 - **Configuração da Área e chave PIX (AM-10)**: aba "Área do Médium" em `/admin/config`
   (`components/admin/AreaMediumConfigSection.tsx`, só com `can('area_medium')`, salva à parte) e card
-  "Chave PIX da mensalidade" em Financeiro → Configuração → Mensalidade. Backend e regras em §3.3.
+  "Chave PIX do terreiro" (+ "Chaves PIX por grupo da corrente", migração 100) em Financeiro → Configuração →
+  Mensalidade. Backend e regras em §3.3.
 - **Convite (AM-03)**: tela Médiuns ganha a coluna "Acesso à Área" (Sem acesso · Convite enviado · Ativo),
   a ação "Acesso à Área" na linha (sheet `components/admin/mediuns/AcessoAreaSheet`: e-mail mascarado,
   mensagem pronta, "Enviar pelo WhatsApp" abre o `wa.me`, "Copiar link do convite", cancelar convite, tirar

@@ -293,6 +293,7 @@ async def _espelhar(
     pagamento: MensalidadePagamento,
     dia_vencimento: int,
     criado_por: Optional[uuid.UUID],
+    conta_automatica: bool = True,
 ) -> None:
     """Espelho em contas a receber do mês PAGO (falha não derruba a baixa — fica no log)."""
     from src.models import Medium
@@ -317,6 +318,7 @@ async def _espelhar(
                 data_pagamento=data.astimezone(APP_TZ) if data is not None else None,
                 dia_vencimento=dia_vencimento,
                 criado_por=criado_por,
+                conta_automatica=conta_automatica,
             )
     except Exception:
         logger.exception("Falha ao espelhar a mensalidade em contas a receber (médium %s)", pagamento.mediun_id)
@@ -352,7 +354,15 @@ async def fechar_se_quitado(
     pagamento.registrado_por = user_id
     pagamento.updated_at = utc_now()
     await db.flush()
-    await _espelhar(db, tenant_id=tenant_id, pagamento=pagamento, dia_vencimento=dia_vencimento, criado_por=user_id)
+    await _espelhar(
+        db,
+        tenant_id=tenant_id,
+        pagamento=pagamento,
+        dia_vencimento=dia_vencimento,
+        criado_por=user_id,
+        # Fechado pela cobrança automática: o dinheiro está na conta do provedor, não numa chave.
+        conta_automatica=origem != "gateway",
+    )
     return saldo, True
 
 

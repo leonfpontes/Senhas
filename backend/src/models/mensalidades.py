@@ -82,6 +82,14 @@ class MensalidadeConfig(TimestampedModel):
     pix_cidade: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
     pix_instrucoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     pix_alterado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Conta bancária onde cai o PIX da chave do terreiro (migração 100): o espelho da
+    # mensalidade paga em contas a receber vai para ela, e o Fluxo de caixa por conta a soma.
+    # Grupos da corrente podem pagar em outra chave/conta (`mensalidade_chaves_pix`).
+    pix_conta_bancaria_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contas_bancarias.id", ondelete="SET NULL", name="fk_mensalidade_configs_pix_conta_bancaria"),
+        nullable=True,
+    )
 
     tenant = relationship("Tenant", backref="mensalidade_config")
 

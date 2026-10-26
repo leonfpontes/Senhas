@@ -6,7 +6,7 @@ real em tests/integration_pg/test_am10_config_pix.py.
 import pytest
 
 from src.api.dependencies import require_not_impersonated
-from src.api.v1.admin import area_medium_config, mensalidade_pix
+from src.api.v1.admin import area_medium_config, mensalidade_chaves_pix, mensalidade_pix
 from src.core.errors import ValidationError
 from src.services.email.templates.pix_chave_alterada import (
     pix_chave_alterada_subject,
@@ -39,6 +39,10 @@ def _group_guards(route):
         (area_medium_config.router, "/config/area-medium", "PUT", "configuracoes", "edit", "area_medium"),
         (mensalidade_pix.router, "/config/pix", "GET", "financeiro", "view", "mensalidade_mediun"),
         (mensalidade_pix.router, "/config/pix", "PUT", "financeiro", "edit", "mensalidade_mediun"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves", "GET", "financeiro", "view", "mensalidade_mediun"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves", "POST", "financeiro", "insert", "mensalidade_mediun"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves/{chave_id}", "PUT", "financeiro", "edit", "mensalidade_mediun"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves/{chave_id}", "DELETE", "financeiro", "delete", "mensalidade_mediun"),
     ],
 )
 def test_rotas_com_grupo_e_plano(router, path, method, feature, acao, plano):
@@ -47,9 +51,23 @@ def test_rotas_com_grupo_e_plano(router, path, method, feature, acao, plano):
     assert plan_gate_features(router, path, method) == [plano]
 
 
-def test_troca_da_chave_recusa_impersonacao():
-    route = _route(mensalidade_pix.router, "/config/pix", "PUT")
+@pytest.mark.parametrize(
+    "router, path, method",
+    [
+        (mensalidade_pix.router, "/config/pix", "PUT"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves", "POST"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves/{chave_id}", "PUT"),
+        (mensalidade_chaves_pix.router, "/config/pix/chaves/{chave_id}", "DELETE"),
+    ],
+)
+def test_troca_da_chave_recusa_impersonacao(router, path, method):
+    route = _route(router, path, method)
     assert require_not_impersonated in [d.dependency for d in route.dependencies]
+
+
+def test_chave_de_grupo_exige_senha_no_corpo():
+    assert mensalidade_chaves_pix.ChavePixBody.model_fields["senha"].is_required()
+    assert "senha" not in mensalidade_chaves_pix.ChavePixOut.model_fields
 
 
 def test_put_pix_exige_senha_no_corpo():

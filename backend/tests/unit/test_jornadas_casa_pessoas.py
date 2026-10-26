@@ -46,6 +46,64 @@ def _conta(ref, status="pendente"):
 # ── mensalidade_contas_service ────────────────────────────────────────────────
 
 class TestSyncPagamento:
+    @pytest.fixture(autouse=True)
+    def _conta_destino(self):
+        """Conta bancária da chave PIX da pessoa (migração 100): os testes abaixo escolhem."""
+        with patch(
+            "src.services.mensalidade_contas_service._conta_destino", new=AsyncMock(return_value=None)
+        ) as destino:
+            self.destino = destino
+            yield destino
+
+    @pytest.mark.asyncio
+    async def test_pago_vai_para_a_conta_da_chave_do_medium(self):
+        from src.services.mensalidade_contas_service import sync_pagamento
+
+        conta_inter = UUID("00000000-0000-0000-0000-0000000000c1")
+        self.destino.return_value = conta_inter
+        db = _db_returning(_scalar(None), _scalar(MagicMock(id="cat")))
+        await sync_pagamento(
+            db=db, tenant_id=TENANT_ID, tipo_pessoa="mediun", pessoa_id=PESSOA_ID, pessoa_nome="Pai",
+            mes_date=date(2026, 3, 1), status_mensalidade="PAGO", valor=Decimal("100"),
+            data_pagamento=datetime(2026, 3, 5), dia_vencimento=10, criado_por=USER_ID,
+        )
+        nova = db.add.call_args_list[-1][0][0]
+        assert nova.conta_bancaria_id == conta_inter
+        self.destino.assert_awaited_once_with(db, TENANT_ID, "mediun", PESSOA_ID)
+
+    @pytest.mark.asyncio
+    async def test_mes_ja_pago_mantem_a_conta_em_que_caiu(self):
+        from src.services.mensalidade_contas_service import sync_pagamento
+
+        conta_pj = UUID("00000000-0000-0000-0000-0000000000c2")
+        conta = _conta("mensalidade:mediun:x:2026-03", status="pago")
+        conta.conta_bancaria_id = conta_pj
+        self.destino.return_value = UUID("00000000-0000-0000-0000-0000000000c1")
+        db = _db_returning(_scalar(conta), _scalar(MagicMock(id="cat")))
+        await sync_pagamento(
+            db=db, tenant_id=TENANT_ID, tipo_pessoa="mediun", pessoa_id=PESSOA_ID, pessoa_nome="Pai",
+            mes_date=date(2026, 3, 1), status_mensalidade="PAGO", valor=Decimal("100"),
+            valor_pago=Decimal("120"), data_pagamento=datetime(2026, 3, 5), dia_vencimento=10, criado_por=USER_ID,
+        )
+        assert conta.conta_bancaria_id == conta_pj
+        assert conta.valor_pago == Decimal("120")
+        self.destino.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_baixa_do_gateway_nao_cai_em_conta_da_casa(self):
+        from src.services.mensalidade_contas_service import sync_pagamento
+
+        conta = _conta("mensalidade:mediun:x:2026-03")
+        conta.conta_bancaria_id = UUID("00000000-0000-0000-0000-0000000000c1")
+        db = _db_returning(_scalar(conta), _scalar(MagicMock(id="cat")))
+        await sync_pagamento(
+            db=db, tenant_id=TENANT_ID, tipo_pessoa="mediun", pessoa_id=PESSOA_ID, pessoa_nome="Pai",
+            mes_date=date(2026, 3, 1), status_mensalidade="PAGO", valor=Decimal("100"),
+            data_pagamento=datetime(2026, 3, 5), dia_vencimento=10, criado_por=None, conta_automatica=False,
+        )
+        assert conta.conta_bancaria_id is None
+        self.destino.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_pago_grava_valor_pago_do_formulario(self):
         from src.services.mensalidade_contas_service import sync_pagamento

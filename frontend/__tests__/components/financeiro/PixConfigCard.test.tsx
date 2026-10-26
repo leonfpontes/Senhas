@@ -110,6 +110,7 @@ describe('PixConfigCard', () => {
         nome_recebedor: 'Casa de Oxalá',
         cidade: 'São Paulo',
         instrucoes: '',
+        conta_bancaria_id: null,
         senha: 'senha-errada',
       },
       { skipAutoLogout: true },

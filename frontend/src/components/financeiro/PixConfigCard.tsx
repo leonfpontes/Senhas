@@ -9,6 +9,10 @@
  * - Salvar pede a senha (ConfirmDialog). O PUT vai com `skipAutoLogout`: senha errada é 401
  *   de regra de negócio e não pode derrubar a sessão. Todos os administradores recebem
  *   e-mail quando a chave muda (decisão D-05).
+ * - Conta bancária (migração 100): em qual conta cai esta chave. A mensalidade paga vira conta a
+ *   receber nessa conta e o Fluxo de caixa por conta a soma. Grupos da corrente que pagam em outra
+ *   conta ficam em `ChavesPixGruposCard`. As opções vêm de `/config/pix/chaves` (FINANCEIRO), não
+ *   de `/contas-bancarias` (CONTAS_FINANCEIRAS).
  */
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -36,7 +40,16 @@ import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/serv
 import { useSnackbar } from '@/contexts/SnackbarContext';
 
 export const PIX_CONFIG_URL = '/api/v1/admin/financeiro/config/pix';
-const INSTRUCOES_MAX = 500;
+export const PIX_CHAVES_URL = '/api/v1/admin/financeiro/config/pix/chaves';
+export const INSTRUCOES_MAX = 500;
+/** Valor do Select quando a chave não está ligada a nenhuma conta. */
+export const SEM_CONTA = '__sem_conta__';
+
+export interface ContaBancariaOpcao {
+  id: string;
+  nome: string;
+  banco: string | null;
+}
 
 export interface PixConfigApi {
   configurada: boolean;
@@ -49,6 +62,8 @@ export interface PixConfigApi {
   alterado_em: string | null;
   brcode_previa: string | null;
   valor_previa: number | null;
+  conta_bancaria_id: string | null;
+  conta_bancaria_nome: string | null;
 }
 
 interface FormState {
@@ -57,9 +72,51 @@ interface FormState {
   nome: string;
   cidade: string;
   instrucoes: string;
+  conta: string;
 }
 
-const EMPTY: FormState = { tipo: 'cpf', chave: '', nome: '', cidade: '', instrucoes: '' };
+const EMPTY: FormState = { tipo: 'cpf', chave: '', nome: '', cidade: '', instrucoes: '', conta: SEM_CONTA };
+
+/** Select da conta bancária onde cai a chave (usado aqui e nas chaves dos grupos). */
+export function ContaBancariaSelect({
+  id,
+  value,
+  onChange,
+  contas,
+  nomeAtual,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  contas: ContaBancariaOpcao[];
+  /** Nome da conta salva, quando ela não está mais entre as ativas. */
+  nomeAtual?: string | null;
+}) {
+  const fora = value !== SEM_CONTA && !contas.some((c) => c.id === value);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>Conta onde o PIX cai</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full" aria-label="Conta onde o PIX cai">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={SEM_CONTA}>Sem conta definida</SelectItem>
+          {fora && <SelectItem value={value}>{nomeAtual ?? 'Conta atual'}</SelectItem>}
+          {contas.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.banco ? `${c.nome} (${c.banco})` : c.nome}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        A mensalidade paga nesta chave entra no saldo dessa conta no Fluxo de caixa. Cadastre as contas em Configuração
+        financeira → Contas bancárias.
+      </p>
+    </div>
+  );
+}
 
 function toForm(data: PixConfigApi): FormState {
   if (!data.configurada || !data.tipo) return EMPTY;
@@ -69,6 +126,7 @@ function toForm(data: PixConfigApi): FormState {
     nome: data.nome_recebedor ?? '',
     cidade: data.cidade ?? '',
     instrucoes: data.instrucoes ?? '',
+    conta: data.conta_bancaria_id ?? SEM_CONTA,
   };
 }
 
@@ -119,6 +177,7 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
   const [senha, setSenha] = useState('');
   const [senhaError, setSenhaError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [contas, setContas] = useState<ContaBancariaOpcao[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,10 +192,16 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
       })
       .catch(() => !cancelled && setLoadError(true))
       .finally(() => !cancelled && setLoading(false));
+    if (canEdit) {
+      apiClient
+        .get<{ contas_bancarias: ContaBancariaOpcao[] }>(PIX_CHAVES_URL)
+        .then((res) => !cancelled && setContas(res.data?.contas_bancarias ?? []))
+        .catch(() => undefined); // sem a lista, o Select mostra só a conta salva
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canEdit]);
 
   if (loading) return <Skeleton className="h-40 w-full" aria-label="Carregando a chave PIX" />;
   if (loadError || !data) {
@@ -179,6 +244,7 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
           nome_recebedor: form.nome,
           cidade: form.cidade,
           instrucoes: form.instrucoes,
+          conta_bancaria_id: form.conta === SEM_CONTA ? null : form.conta,
           senha,
         },
         // 401 aqui é "senha errada", não sessão expirada: não pode deslogar.
@@ -210,10 +276,11 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <KeyRound className="size-4 text-brand" aria-hidden /> Chave PIX da mensalidade
+          <KeyRound className="size-4 text-brand" aria-hidden /> Chave PIX do terreiro
         </CardTitle>
         <CardDescription>
           Para onde vai o dinheiro quando o médium usa “Pagar com PIX”. Sem taxa: o pagamento cai direto na conta da chave.
+          Vale para toda a corrente, menos os grupos que têm chave própria (abaixo).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -223,6 +290,9 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
             <strong>{data.tipo ? PIX_TIPO_LABEL[data.tipo] : ''}</strong> ·{' '}
             <span className="font-mono">{data.chave ?? data.chave_mascarada}</span>
             {data.alterado_em && <span className="text-muted-foreground"> · alterada em {formatDateBr(data.alterado_em)}</span>}
+            {data.conta_bancaria_nome && (
+              <span className="text-muted-foreground"> · cai na conta {data.conta_bancaria_nome}</span>
+            )}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">Nenhuma chave cadastrada. Sem chave, a Área mostra “Combine o pagamento com a casa”.</p>
@@ -286,6 +356,13 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
               maxLength={INSTRUCOES_MAX}
               placeholder="Ex.: depois de pagar, envie o comprovante pela Área."
               helperText={`Aparece junto do PIX na Área do Médium. ${form.instrucoes.length}/${INSTRUCOES_MAX}`}
+            />
+            <ContaBancariaSelect
+              id="pix-conta"
+              value={form.conta}
+              onChange={(v) => set('conta', v)}
+              contas={contas}
+              nomeAtual={data.conta_bancaria_nome}
             />
             <div className="flex flex-wrap items-center justify-end gap-3">
               <span className="text-xs text-muted-foreground">Salvar pede a sua senha e avisa todos os administradores por e-mail.</span>
