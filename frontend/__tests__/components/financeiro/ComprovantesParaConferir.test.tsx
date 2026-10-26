@@ -201,7 +201,8 @@ describe('conferência', () => {
     render(<ConferirComprovanteSheet alvo={ALVO} onClose={jest.fn()} canEdit onDone={jest.fn()} />);
     const sheet = await screen.findByTestId('sheet-conferir-comprovante');
     const campo = (await within(sheet).findByLabelText('Quanto entrou na conta da casa')) as HTMLInputElement;
-    expect(campo.value).toMatch(/20,00/);
+    // O valor que falta chega com o histórico (fetch): o campo pode aparecer antes de ser preenchido.
+    await waitFor(() => expect(campo.value).toMatch(/20,00/));
   });
 
   it('não confirmar: motivo rápido ou texto → PATCH .../nao-confirmar', async () => {
