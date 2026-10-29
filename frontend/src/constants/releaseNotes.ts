@@ -24,11 +24,16 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: '2.11.0',
     date: '2026-10-29',
-    title: 'Lista do que repor no estoque',
+    title: 'Avisos para médiuns escolhidos, lista do que repor e mais',
     highlights: [
-      'Em Estoque → Itens, o botão "PDF para repor" gera um PDF com os itens que acabaram (zerados ou negativos) e os que estão abaixo do mínimo, prontos para levar na compra.',
-      'Para cada item o PDF mostra o saldo, o mínimo, quanto falta e quanto custa repor (quando o item tem custo cadastrado), com o total no fim.',
-      'Se você escolher um grupo no filtro, o PDF sai só com os itens daquele grupo.',
+      'Avisos da Área do Médium agora podem ir para médiuns escolhidos um a um: em Avisos, escolha "Médiuns específicos" e marque quem deve receber. Só eles veem o aviso e recebem o e-mail, e o "lido por" conta só os escolhidos.',
+      'Em Estoque → Itens, o botão "PDF para repor" gera um PDF com os itens que acabaram (zerados ou negativos) e os que estão abaixo do mínimo, com saldo, mínimo, quanto falta e quanto custa repor. Com um grupo escolhido no filtro, o PDF sai só com aquele grupo.',
+      'O PDF do Fluxo de caixa agora traz, depois do resumo, cada lançamento recebido e pago de cada mês, com data, descrição, categoria, conta e valor. É o detalhamento que o contador pede.',
+      'Mensalidades mudou de lugar no menu: agora fica dentro de Financeiro.',
+      'Na lista de senhas e no detalhe da senha, quem deixou e-mail ganha um botão de enviar e-mail, ao lado de ligar e WhatsApp.',
+    ],
+    fixes: [
+      'O PIX copia e cola e o QR da mensalidade eram recusados por alguns bancos. O código foi simplificado para o app do banco aceitar.',
     ],
   },
   {
