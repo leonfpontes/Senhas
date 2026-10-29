@@ -518,13 +518,18 @@ function AdminTicketsContent() {
       },
       {
         id: 'telefone',
-        header: 'Telefone',
+        header: 'Contato',
         enableSorting: false,
         cell: ({ row }) =>
-          row.original.consulente_telefone ? (
+          row.original.consulente_telefone || row.original.consulente_email ? (
             <span className="flex items-center gap-2 whitespace-nowrap">
               {row.original.consulente_telefone}
-              <ContactActions telefone={row.original.consulente_telefone} nome={row.original.consulente_nome} />
+              <ContactActions
+                telefone={row.original.consulente_telefone}
+                email={row.original.consulente_email}
+                nome={row.original.consulente_nome}
+                assunto={`Senha ${numeroDaSenha(row.original)}`}
+              />
             </span>
           ) : (
             <span className="text-muted-foreground">—</span>
@@ -570,10 +575,15 @@ function AdminTicketsContent() {
       <span className="font-mono text-3xl leading-none font-black tabular-nums">{numeroDaSenha(t)}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold">{t.consulente_nome || '—'}</p>
-        {t.consulente_telefone && (
+        {(t.consulente_telefone || t.consulente_email) && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="truncate">{t.consulente_telefone}</span>
-            <ContactActions telefone={t.consulente_telefone} nome={t.consulente_nome} />
+            {t.consulente_telefone && <span className="truncate">{t.consulente_telefone}</span>}
+            <ContactActions
+              telefone={t.consulente_telefone}
+              email={t.consulente_email}
+              nome={t.consulente_nome}
+              assunto={`Senha ${numeroDaSenha(t)}`}
+            />
           </p>
         )}
         <div className="mt-1.5 flex flex-wrap items-center gap-1">

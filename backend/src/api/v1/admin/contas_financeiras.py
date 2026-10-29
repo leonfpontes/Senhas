@@ -223,6 +223,17 @@ class ResumoFinanceiro(BaseModel):
     total_receber_pago_mes: float
 
 
+class FluxoLancamento(BaseModel):
+    """Lançamento realizado (pago) no mês — o detalhe que o contador pede no PDF."""
+    id: UUID
+    tipo: str                           # receber | pagar
+    data_pagamento: date
+    descricao: str
+    categoria_nome: Optional[str]
+    conta_bancaria_nome: Optional[str]
+    valor: float                        # valor pago (valor_pago, ou valor quando vazio)
+
+
 class FluxoCaixaMes(BaseModel):
     ano: int
     mes: int
@@ -234,6 +245,8 @@ class FluxoCaixaMes(BaseModel):
     saldo_acumulado: float  # running total
     a_receber: float        # pendente/vencido com vencimento no mês
     a_pagar: float          # pendente/vencido com vencimento no mês
+    # recebidos e pagos do mês, por data de pagamento (somam receitas/despesas)
+    lancamentos: List[FluxoLancamento] = []
 
 
 class CategoriaTotal(BaseModel):
@@ -1059,7 +1072,8 @@ async def get_fluxo_de_caixa(
     db: AsyncSession = Depends(get_db),
 ):
     """Retorna o fluxo de caixa mensal: receitas realizadas, despesas realizadas,
-    projeção de a receber / a pagar, saldo e saldo acumulado.
+    projeção de a receber / a pagar, saldo e saldo acumulado. Cada mês traz também os
+    lançamentos pagos nele (recebidos e pagos, por data de pagamento) para o detalhamento do PDF.
 
     Aceita data_inicio + data_fim (date range) ou meses (legado, padrão 12). Com intervalo, o
     primeiro e o último mês são recortados pelas datas exatas (antes o mês inteiro entrava).
@@ -1111,7 +1125,10 @@ async def get_fluxo_de_caixa(
     window_start = periods[0][2]
     window_end = periods[-1][3]
 
-    stmt = select(ContaFinanceira).where(
+    stmt = select(ContaFinanceira).options(
+        selectinload(ContaFinanceira.categoria),
+        selectinload(ContaFinanceira.conta_bancaria),
+    ).where(
         ContaFinanceira.tenant_id == tenant_id,
         ContaFinanceira.deleted_at.is_(None),
         *da_conta,
@@ -1197,6 +1214,7 @@ async def get_fluxo_de_caixa(
         despesas = 0.0
         a_receber = 0.0
         a_pagar = 0.0
+        lancamentos: list[FluxoLancamento] = []
 
         for c in all_contas:
             status_val = _valor(c.status)
@@ -1209,6 +1227,15 @@ async def get_fluxo_de_caixa(
                     receitas += valor_pago
                 else:
                     despesas += valor_pago
+                lancamentos.append(FluxoLancamento(
+                    id=c.id,
+                    tipo=tipo,
+                    data_pagamento=c.data_pagamento,
+                    descricao=c.descricao,
+                    categoria_nome=c.categoria.nome if c.categoria else None,
+                    conta_bancaria_nome=c.conta_bancaria.nome if c.conta_bancaria else None,
+                    valor=round(valor_pago, 2),
+                ))
             elif status_val in _EM_ABERTO and c.data_vencimento and first <= c.data_vencimento <= last:
                 if tipo == "receber":
                     a_receber += valor
@@ -1230,6 +1257,7 @@ async def get_fluxo_de_caixa(
             saldo_acumulado=round(saldo_acumulado, 2),
             a_receber=round(a_receber, 2),
             a_pagar=round(a_pagar, 2),
+            lancamentos=sorted(lancamentos, key=lambda l: (l.data_pagamento, l.descricao.lower())),
         ))
 
     return rows

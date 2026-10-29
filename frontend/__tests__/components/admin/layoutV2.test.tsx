@@ -112,13 +112,13 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByRole('link', { name: /Mensalidades/ })).not.toBeInTheDocument();
   });
 
-  it('operador com financeiro:view vê Mensalidades e a Configuração financeira (antes: escondidas por !isOperator)', () => {
+  it('operador com financeiro:view vê Mensalidades (dentro de Financeiro) e a Configuração financeira (antes: escondidas por !isOperator)', () => {
     mockGroupCan.mockImplementation((f: string, a: string) => f === 'financeiro' && a === 'view');
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
     withSidebar(<AdminSidebar isOperator />);
     const nav = screen.getByTestId('admin-sidebar');
-    expect(within(nav).getByRole('link', { name: /Mensalidades/ })).toHaveAttribute('href', '/admin/financeiro/mensalidades');
     fireEvent.click(within(nav).getByRole('button', { name: /Financeiro/ }));
+    expect(within(nav).getByRole('link', { name: /Mensalidades/ })).toHaveAttribute('href', '/admin/financeiro/mensalidades');
     expect(within(nav).getByRole('link', { name: /Configuração financeira/ })).toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: /Lançamentos/ })).not.toBeInTheDocument();
   });

@@ -840,6 +840,7 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
 | Method | Path | Group action |
 |---|---|---|
 | GET | `/api/v1/admin/comunicados` | `view` |
+| GET | `/api/v1/admin/comunicados/mediuns` (active médiuns for the individual aviso: `[{ "id", "nome", "tem_acesso" }]`) | `view` |
 | GET | `/api/v1/admin/comunicados/{id}` | `view` |
 | GET | `/api/v1/admin/comunicados/{id}/leituras` | `view` |
 | POST | `/api/v1/admin/comunicados` (201) | `insert` |
@@ -865,7 +866,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
 }
 ```
 - **Body** (POST; PUT is partial): `titulo` (≤ 120), `corpo` (≤ 5000), `publico`
-  (`todos` | `atendimento` | `cambones` | `grupos`; other values → 422), `grupo_ids` (only with
+  (`todos` | `atendimento` | `cambones` | `grupos` | `mediuns`; other values → 422), `medium_ids` (only with
+  `publico: "mediuns"`, the individual aviso: one or more active médiuns of the tenant — empty, inactive or
+  another tenant's médium → 422; ignored for the other audiences; on PUT, sent = replaces the list, and
+  switching to another audience clears it), `grupo_ids` (only with
   `publico: "grupos"`, AM-23: at least one active group of the tenant — empty, archived or another
   tenant's group → 422; ignored for the other audiences; on PUT, sent = replaces the groups, and
   switching to another audience clears them), `fixado`, `publicar_em` (absent/null =
@@ -880,9 +884,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   `http(s)://`/`www.` addresses.
 - `situacao`: `agendado` (before `publicar_em`), `publicado`, `expirado` (after `expira_em`).
 - `grupos`: `[{ "id", "nome", "cor" }]` — the active groups chosen (empty for the other audiences).
+- `mediuns`: `[{ "id", "nome" }]` — the active médiuns chosen (empty for the other audiences).
 - `leituras.total` ("lido por N de M") counts only médiuns who can read it: active, in the audience
   (`atendimento` = `mediuns.is_atendimento`, `cambones` = not, `grupos` = members of at least one of the
-  aviso's active groups), and with access to the Área (linked to an active account).
+  aviso's active groups, `mediuns` = the médiuns chosen), and with access to the Área (linked to an active account).
 - `GET /{id}/leituras` → `{ "total", "lidos", "leram": [{ "medium_id", "nome", "lido_em" }],
   "nao_leram": [{ "medium_id", "nome", "lido_em": null }] }` (D-28; only names — no contact data).
 - Another tenant's id → 404. Audited as `comunicado` (create/update/delete; title, audience, group
@@ -2114,14 +2119,14 @@ Besides `require_medium`, these routes need the **mensalidade module visible** i
 {
   "mes": "2026-10", "valor": 50.0,
   "copia_e_cola": "00020126...6304ABCD",
-  "txid": "MENS2026100A1B2C3D4E",
   "tipo": "cpf", "chave": "12345678909", "nome_recebedor": "Casa de Oxala", "cidade": "Sao Paulo",
   "instrucoes": null, "chave_alterada_em": null
 }
 ```
 The BR Code is built on the server (`services/pix_brcode.build_static_brcode`) with the **missing**
-value of the month (partial payment, 092), txid `MENS` + AAAAMM + 10 hex of the médium id (`txid_mensalidade`) and the description
-"Mensalidade MM/AAAA"; the same text is the QR payload. Errors: 404 `MES_SEM_MENSALIDADE` (month
+value of the month (partial payment, 092), txid `***` and no description (26-02): the receiving bank
+may refuse a txid it did not issue (Inter refused the per-group key code in 10/2026); the receipt sent
+through the Área identifies the payment. The same text is the QR payload. Errors: 404 `MES_SEM_MENSALIDADE` (month
 outside the list), 409 `MES_FECHADO` (`paga`, `isento` or `em_conferencia` — `details.status`), 409
 `PIX_NAO_CONFIGURADO`, 409 `MENSALIDADE_SEM_VALOR`, 409 `SEM_VALOR_EM_ABERTO` (nothing missing although the
 month record is still pending), 422 `MES_INVALIDO`.

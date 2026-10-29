@@ -21,7 +21,7 @@ from sqlalchemy import select
 from src.core.tz import today_local
 from src.models.audit_logs import AuditLog
 from src.models.consulentes import Consulente
-from src.models.contas_financeiras import ContaBancaria, ContaFinanceira
+from src.models.contas_financeiras import CategoriaFinanceira, ContaBancaria, ContaFinanceira
 from src.models.permission_groups import PermissionFeature
 from src.models.tickets import Ticket, TicketStatus
 from src.models.users import UserRole
@@ -391,6 +391,44 @@ async def test_fluxo_usa_a_data_da_conta_do_lancamento(client, db):
     resp = await client.get(f"{BASE}/fluxo-de-caixa?data_inicio=2026-04-01&data_fim=2026-04-30", headers=admin.headers)
     (abril,) = resp.json()
     assert abril["saldo_anterior"] == 1560.0
+
+
+async def test_fluxo_detalha_lancamentos_pagos_do_mes(client, db):
+    """Detalhamento mensal do PDF (pedido do contador): cada recebido e pago do mês, por data de pagamento."""
+    tenant, admin = await _admin(db)
+    pj = ContaBancaria(tenant_id=tenant.id, nome="PJ", saldo_inicial=0, data_saldo_inicial=date(2026, 1, 1))
+    cat = CategoriaFinanceira(tenant_id=tenant.id, nome="Energia", tipo="pagar")
+    db.add_all([pj, cat])
+    await db.flush()
+    db.add_all([
+        ContaFinanceira(tenant_id=tenant.id, tipo="pagar", descricao="Conta de luz", valor=120,
+                        data_vencimento=date(2026, 4, 5), status="pago", data_pagamento=date(2026, 4, 8),
+                        valor_pago=125.5, categoria_id=cat.id, conta_bancaria_id=pj.id),
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Doação", valor=300,
+                        data_vencimento=date(2026, 4, 2), status="pago", data_pagamento=date(2026, 4, 2)),
+        # em aberto e pago em outro mês não entram no detalhe de abril
+        ContaFinanceira(tenant_id=tenant.id, tipo="pagar", descricao="Aluguel", valor=800,
+                        data_vencimento=date(2026, 4, 10), status="pendente"),
+        ContaFinanceira(tenant_id=tenant.id, tipo="receber", descricao="Venceu em abril, pago em maio", valor=50,
+                        data_vencimento=date(2026, 4, 28), status="pago", data_pagamento=date(2026, 5, 3), valor_pago=50),
+    ])
+    await db.commit()
+
+    resp = await client.get(f"{BASE}/fluxo-de-caixa?data_inicio=2026-04-01&data_fim=2026-05-31", headers=admin.headers)
+    assert resp.status_code == 200, resp.text
+    abril, maio = resp.json()
+    assert [(l["tipo"], l["descricao"], l["valor"]) for l in abril["lancamentos"]] == [
+        ("receber", "Doação", 300.0),
+        ("pagar", "Conta de luz", 125.5),
+    ]
+    luz = abril["lancamentos"][1]
+    assert luz["data_pagamento"] == "2026-04-08"
+    assert (luz["categoria_nome"], luz["conta_bancaria_nome"]) == ("Energia", "PJ")
+    assert abril["lancamentos"][0]["categoria_nome"] is None
+    # o detalhe fecha com os totais do mês
+    assert sum(l["valor"] for l in abril["lancamentos"] if l["tipo"] == "receber") == abril["receitas"]
+    assert sum(l["valor"] for l in abril["lancamentos"] if l["tipo"] == "pagar") == abril["despesas"]
+    assert [l["descricao"] for l in maio["lancamentos"]] == ["Venceu em abril, pago em maio"]
 
 
 async def test_conta_bancaria_grava_data_do_saldo_inicial(client, db):

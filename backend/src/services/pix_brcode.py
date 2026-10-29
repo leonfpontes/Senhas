@@ -25,14 +25,16 @@ Exemplo do manual (§2.6.3), usado nos testes:
 ``00020126580014br.gov.bcb.pix0136123e4567-e12b-12d1-a456-4266554400005204000053039865802BR5913Fulano de Tal6008BRASILIA62070503***63041D3D``
 
 Nome e cidade saem sem acento e em maiúsculas (ASCII): o tamanho do campo EMV é
-contado em caracteres e alguns apps recusam UTF-8 nesses campos. O ID 01 (Point
+contado em caracteres e alguns apps recusam UTF-8 nesses campos.
+
+A mensalidade (Área do Médium) gera o código SEM txid (``***``) e sem descrição: o banco que
+recebe pode tratar um txid que ele não emitiu como cobrança inexistente e recusar o pagamento
+(a chave celular da TUCCCO no Inter, 10/2026, só funcionava digitada). O ID 01 (Point
 of Initiation Method) é omitido: no QR estático ele é opcional ("11" = reutilizável).
 """
 from __future__ import annotations
 
 import re
-import uuid
-from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional, Union
 
@@ -70,15 +72,6 @@ def _formatar_valor(valor: Union[Decimal, float, int, str]) -> str:
     if len(texto) > _VALOR_MAX_LEN:
         raise ValueError("Valor do PIX grande demais para o BR Code.")
     return texto
-
-
-def txid_mensalidade(mes: date, medium_id: uuid.UUID) -> str:
-    """txid de 20 caracteres que identifica o mês e o médium: ``MENS`` + AAAAMM + 10 hex do id.
-
-    Só letras e dígitos (regra do txid no QR estático, §2.6.2). O id inteiro não
-    cabe (25 no máximo); 10 hex bastam para o terreiro achar o médium no extrato.
-    """
-    return f"MENS{mes.year:04d}{mes.month:02d}{medium_id.hex[:10].upper()}"
 
 
 def build_static_brcode(

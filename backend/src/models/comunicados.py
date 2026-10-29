@@ -8,8 +8,9 @@ seguem `comunicados`.
   (`uq_comunicado_leituras_comunicado_medium`). O dirigente vê quem leu e quem não leu (D-28).
 
 `publico` é texto com CHECK (não ENUM do Postgres) para crescer sem `ALTER TYPE`:
-`todos | atendimento | cambones | grupos`. Com `grupos` (AM-23, migração 075) os grupos escolhidos
-ficam em `comunicado_grupos` (`models/corrente_grupos.py`).
+`todos | atendimento | cambones | grupos | mediuns`. Com `grupos` (AM-23, migração 075) os grupos
+escolhidos ficam em `comunicado_grupos` (`models/corrente_grupos.py`); com `mediuns` (migração 101)
+os médiuns escolhidos, um ou mais, ficam em `comunicado_mediuns` (aviso individual).
 """
 from __future__ import annotations
 
@@ -39,12 +40,14 @@ from .base import Base, SoftDeleteModel
 class ComunicadoPublico(str, enum.Enum):
     """Quem recebe o aviso. `atendimento` = médiuns de atendimento (`is_atendimento`);
     `cambones` = quem é só cambone (`is_atendimento` falso); `grupos` = quem está em algum dos
-    grupos da corrente escolhidos (`comunicado_grupos`, AM-23)."""
+    grupos da corrente escolhidos (`comunicado_grupos`, AM-23); `mediuns` = só os médiuns
+    escolhidos um a um (`comunicado_mediuns`)."""
 
     TODOS = "todos"
     ATENDIMENTO = "atendimento"
     CAMBONES = "cambones"
     GRUPOS = "grupos"
+    MEDIUNS = "mediuns"
 
 
 PUBLICOS = tuple(p.value for p in ComunicadoPublico)
@@ -58,7 +61,7 @@ class Comunicado(SoftDeleteModel):
         Index("ix_comunicados_tenant_id", "tenant_id"),
         Index("ix_comunicados_tenant_publicar_em", "tenant_id", "publicar_em"),
         CheckConstraint(
-            "publico IN ('todos', 'atendimento', 'cambones', 'grupos')", name="ck_comunicados_publico"
+            "publico IN ('todos', 'atendimento', 'cambones', 'grupos', 'mediuns')", name="ck_comunicados_publico"
         ),
     )
 
@@ -109,3 +112,26 @@ class ComunicadoLeitura(Base):
 
     def __repr__(self) -> str:
         return f"<ComunicadoLeitura(comunicado_id={self.comunicado_id}, medium_id={self.medium_id})>"
+
+
+class ComunicadoMedium(Base):
+    """Para quais médiuns vai um aviso com `publico = 'mediuns'` (aviso individual)."""
+
+    __tablename__ = "comunicado_mediuns"
+    __table_args__ = (
+        Index("ix_comunicado_mediuns_tenant_id", "tenant_id"),
+        Index("ix_comunicado_mediuns_medium_id", "medium_id"),
+    )
+
+    comunicado_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("comunicados.id", ondelete="CASCADE"), primary_key=True
+    )
+    medium_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mediuns.id", ondelete="CASCADE"), primary_key=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<ComunicadoMedium(comunicado_id={self.comunicado_id}, medium_id={self.medium_id})>"

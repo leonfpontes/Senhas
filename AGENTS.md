@@ -406,7 +406,7 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   mascarada. Validacao/normalizacao no formato do DICT em `services/pix_chave.py` (CPF/CNPJ com DV,
   CNPJ alfanumerico incluso; e-mail minusculo; celular `+55DD9…`; EVP com hifens) e espelho em
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
-  `services/pix_brcode.build_static_brcode` (+ `txid_mensalidade`), testado contra os exemplos do
+  `services/pix_brcode.build_static_brcode`, testado contra os exemplos do
   Manual de Padroes para Iniciacao do Pix (BCB v2.10.0) — nunca montar o payload no front.
 - **Chave PIX por grupo da corrente + conta bancaria (migracao 100)**: casa que recebe em mais de uma conta
   (TUCCCO: PJ Sicredi + "Alternativa" Inter). `mensalidade_configs.pix_conta_bancaria_id` = conta onde cai a
@@ -1049,7 +1049,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `098_waitlist_confirmation_minutes` (2026-10-22, prazo da fila de espera com tempo quebrado:
+- Head atual: `101_comunicado_mediuns` (2026-10-29, aviso para médiuns específicos: tabela `comunicado_mediuns`
+  (PK `comunicado_id` + `medium_id`, `tenant_id`) e `mediuns` no CHECK `ck_comunicados_publico`; downgrade arquiva os
+  avisos com esse público antes de voltar o CHECK), apos `100_mensalidade_chaves_pix_grupos` (2026-10-26, chave PIX
+  por grupo da corrente ligada a uma conta bancária), apos `099_conta_bancaria_data_saldo_inicial` (2026-10-26,
+  `contas_bancarias.data_saldo_inicial`), apos `098_waitlist_confirmation_minutes` (2026-10-22, prazo da fila de espera com tempo quebrado:
   `giras.waitlist_confirmation_hours` vira `waitlist_confirmation_minutes` (valores existentes × 60); downgrade volta
   para horas arredondando para cima — §11.3), apos `097_platform_recibos` (2026-10-22, recibos da plataforma: tabela `platform_recibos` — sem
   isolamento por tenant, so super-admin; unico `(ano, numero)`, `tenant_id` SET NULL; downgrade remove a tabela —
@@ -1340,6 +1344,9 @@ Incluir obrigatoriamente:
   099; soma para frente, desconta para tras). Pago antes da data do saldo NAO entra — ja esta no saldo
   informado (antes somava o historico inteiro e contava em dobro). Lancamento com `conta_bancaria_id`
   usa a data dessa conta; sem conta, a mais antiga. Cada mes traz `saldo_anterior` (abertura do mes).
+  Cada mes traz tambem `lancamentos` (recebidos e pagos pela `data_pagamento`: data, descricao, categoria,
+  conta, valor pago — somam `receitas`/`despesas`). O PDF do fluxo (pedido do contador da TUCCCO, out/26) e o
+  resumo em foto (html2canvas) + as paginas desses lancamentos em texto (autotable, `lib/pdf/fluxoLancamentosPdf`).
 - **Por categoria** (`GET /financeiro/por-categoria`, CONTAS_FINANCEIRAS:view; tela `/admin/financeiro/por-categoria`):
   receitas e despesas agrupadas por categoria no intervalo, com as MESMAS regras do fluxo (realizado = pago pela
   `data_pagamento` com `valor_pago`; em aberto = pendente/vencido pelo `data_vencimento`; cancelado fora), entao os
@@ -1370,7 +1377,9 @@ Incluir obrigatoriamente:
 - **Listagens sem corte silencioso**: telas de Cursos, Participantes, Estoque (itens e movimentações) usam
   `services/fetchAllPages.ts` (pede `skip`/`limit` no máximo do endpoint até uma página vir incompleta). As queries
   têm desempate por `id` no `ORDER BY` para o offset não repetir/pular linha.
-- **Estoque**: CSV de posição exige `export_csv` também no backend; `ItemUpdate.estoque_minimo >= 0`; editar grupo
+- **Estoque**: CSV de posição exige `export_csv` também no backend; o "PDF para repor" (`lib/pdf/estoqueCriticoPdf.ts`)
+  é gerado no navegador com os itens já carregados (zerados — com ou sem mínimo —, negativos e abaixo do mínimo)
+  e usa o mesmo gate `export_csv` na tela; `ItemUpdate.estoque_minimo >= 0`; editar grupo
   com `descricao: null` limpa o campo (`model_dump(exclude_unset=True)`); o "saldo após" do `MovimentacaoDrawer` na
   edição desfaz a movimentação original antes de aplicar os valores novos (`saldoAposMovimentacao`).
 - **Meu Site — lock otimista**: toda resposta que muda o site (PUT/GET `/sections`, `publish`, `unpublish`,
@@ -1581,7 +1590,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `lib/autolink`: só `http(s)://`/`www.` viram link, `rel=noopener noreferrer nofollow`). Barra inferior:
   aba de módulo fora de `me.modulos` some (`MEDIUM_TABS[].modulo`) e a aba Avisos tem selo com
   `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; público "Grupos da corrente" (AM-23,
-  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. "Avisar por e-mail também" (AM-15): caixa no drawer
+  abaixo) = `publico = 'grupos'` + `comunicado_grupos`; público "Médiuns específicos" (aviso individual, migração
+  101) = `publico = 'mediuns'` + `comunicado_mediuns` (`medium_ids` no corpo, médiuns ativos do terreiro; opções em
+  `GET /admin/comunicados/mediuns`, COMUNICADOS view; estudos/documentos recusam esse público). "Avisar por e-mail também" (AM-15): caixa no drawer
   (só com insert ao criar / edit ao editar), `avisar_email` no corpo; o agendador manda (abaixo).
 - **Grupos da corrente (AM-23)**: migração `075_corrente_grupos` (§11.8; tabelas em `docs/database.md`), API
   `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, regras em §3.3 e `docs/api.md` §14). Cor = chave

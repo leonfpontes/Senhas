@@ -500,6 +500,35 @@ async def test_aviso_por_email_vai_ao_publico_com_area(client, db):
     assert [m for m in nada.mensagens if "aviso" in m.subject] == []
 
 
+async def test_aviso_individual_por_email_vai_so_ao_escolhido(client, db):
+    tenant, admin = await _terreiro(db, plan=PlanType.BASIC)
+    hoje = _hoje()
+    await _medium(db, tenant, "Ana Paula")
+    bia, bia_m = await _medium(db, tenant, "Bia Souza")
+    resp = await client.post(
+        AVISOS,
+        headers=admin.headers,
+        json={
+            "titulo": "Conversa com o pai",
+            "corpo": "Passe aqui no sábado.",
+            "publico": "mediuns",
+            "medium_ids": [str(bia_m.id)],
+            "avisar_email": True,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    agora = _brt(hoje, 12)
+    await db.execute(
+        update(Comunicado)
+        .where(Comunicado.tenant_id == tenant.id)
+        .values(publicar_em=agora - timedelta(hours=1), avisar_email_em=agora - timedelta(hours=1))
+    )
+    await db.commit()
+    caixa = Caixa()
+    await processar_terreiro(tenant.id, agora, caixa)
+    assert [m.to_email for m in caixa.mensagens] == [_email(bia)]
+
+
 async def test_modulo_de_avisos_desligado_nao_manda_aviso(client, db):
     tenant, admin = await _terreiro(db, plan=PlanType.BASIC)
     ana, _ = await _medium(db, tenant, "Ana Paula")

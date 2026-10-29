@@ -89,7 +89,7 @@ def test_publico_do_medium_de_atendimento_e_do_cambone():
     assert medium_no_publico("todos", True) and medium_no_publico("todos", False)
     assert medium_no_publico("atendimento", True) and not medium_no_publico("atendimento", False)
     assert medium_no_publico("cambones", False) and not medium_no_publico("cambones", True)
-    assert {p.value for p in ComunicadoPublico} == {"todos", "atendimento", "cambones", "grupos"}
+    assert {p.value for p in ComunicadoPublico} == {"todos", "atendimento", "cambones", "grupos", "mediuns"}
 
 
 # ── Agenda e validade ───────────────────────────────────────────────────────
@@ -148,6 +148,7 @@ def test_rotas_admin_tem_grupo_comunicados_por_acao_e_plano_area_medium():
     assert plan_gate_features(router) == ["area_medium"]
     esperado = {
         ("GET", "/api/v1/admin/comunicados"): "view",
+        ("GET", "/api/v1/admin/comunicados/mediuns"): "view",
         ("GET", "/api/v1/admin/comunicados/{comunicado_id}"): "view",
         ("GET", "/api/v1/admin/comunicados/{comunicado_id}/leituras"): "view",
         ("POST", "/api/v1/admin/comunicados"): "insert",

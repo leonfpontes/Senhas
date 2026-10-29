@@ -22,8 +22,10 @@ o único parâmetro). Gate além do `require_medium` do router: módulo "mensali
   quais meses aparecem: `services/medium_mensalidade.meses_da_area`.
 - A chave é a do grupo da corrente do médium, quando o grupo tem chave própria; senão a do
   terreiro (`services/mensalidade_chaves_pix.pix_do_medium`, migração 100).
-- O BR Code é montado no servidor (`services/pix_brcode`), com o valor que falta no mês e o txid
-  `MENS` + AAAAMM + 10 hex do id do médium (identifica médium e mês no extrato da casa).
+- O BR Code é montado no servidor (`services/pix_brcode`), com o valor que falta no mês, sem
+  txid (`***`) e sem descrição: o banco que recebe pode recusar um txid que ele não emitiu (o
+  Inter recusou o código da chave por grupo em 10/2026); quem identifica o pagamento é o
+  comprovante enviado aqui.
 - Envio do comprovante: JPEG/PNG/WebP/PDF até 2 MB, conferido pelos bytes; recusado sob
   impersonação (o suporte vê, não envia em nome do médium); 20 envios/hora por IP; auditoria
   sem o conteúdo do arquivo.
@@ -78,12 +80,11 @@ from src.services.medium_mensalidade import (
     MAX_COMPROVANTE_MEDIUM_BYTES,
     ComprovanteInvalido,
     chave_alterada_recente,
-    descricao_pix,
     meses_da_area,
     parse_mes,
     validar_comprovante,
 )
-from src.services.pix_brcode import build_static_brcode, txid_mensalidade
+from src.services.pix_brcode import build_static_brcode
 
 router = APIRouter()
 
@@ -171,7 +172,6 @@ class PixDoMes(BaseModel):
     mes: str
     valor: float
     copia_e_cola: str
-    txid: str
     tipo: Optional[str] = None
     chave: str
     nome_recebedor: Optional[str] = None
@@ -391,7 +391,7 @@ async def pix_do_mes(
     ctx: MediumContext = Depends(require_modulo_mensalidade),
     db: AsyncSession = Depends(get_db),
 ) -> PixDoMes:
-    """PIX copia e cola (e o texto do QR) do mês em aberto, com o valor que FALTA e o txid do mês."""
+    """PIX copia e cola (e o texto do QR) do mês em aberto, com o valor que FALTA."""
     mes_date = _parse_mes(mes)
     config, sit, _ = await _mes_da_area(db, ctx, mes_date)
     if sit.status not in STATUS_EM_ABERTO:
@@ -406,15 +406,12 @@ async def pix_do_mes(
             details={"error_code": "PIX_NAO_CONFIGURADO"},
         )
     _exigir_valor_em_aberto(sit)
-    txid = txid_mensalidade(mes_date, ctx.medium.id)
     try:
         copia_e_cola = build_static_brcode(
             chave=pix.chave,
             nome_recebedor=pix.nome_recebedor or "",
             cidade=pix.cidade or "",
             valor=sit.valor,
-            txid=txid,
-            descricao=descricao_pix(mes_date),
         )
     except ValueError:
         raise ConflictError(
@@ -425,7 +422,6 @@ async def pix_do_mes(
         mes=sit.mes,
         valor=sit.valor,
         copia_e_cola=copia_e_cola,
-        txid=txid,
         tipo=pix.tipo,
         chave=pix.chave,
         nome_recebedor=pix.nome_recebedor,

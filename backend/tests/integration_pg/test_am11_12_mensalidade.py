@@ -2,7 +2,7 @@
 
 - Meses do médium com status calculado (pendente, atrasada, em conferência, não confirmada, paga,
   isento), o corrente primeiro, sem campos internos;
-- PIX copia e cola só para mês em aberto e com chave cadastrada (valor e txid do mês);
+- PIX copia e cola só para mês em aberto e com chave cadastrada (valor do mês, txid ***);
 - comprovante → "em conferência" (sem marcar pago); a casa confirma (POST de registro → PAGO +
   espelho em contas a receber) ou não confirma com motivo (PATCH .../recusa) e o médium reenvia;
 - isolamento por médium e por terreiro; PAGO/ISENTO recusam envio; > 2 MB e tipo errado
@@ -30,7 +30,7 @@ from src.models.subscriptions import PlanType
 from src.models.tenant_config import TenantConfig
 from src.models.users import UserRole
 from src.security.jwt import create_access_token
-from src.services.pix_brcode import crc16_ccitt, txid_mensalidade
+from src.services.pix_brcode import crc16_ccitt
 
 from .factories import create_tenant, create_user, grant
 
@@ -174,18 +174,17 @@ async def test_casa_que_acabou_de_configurar_nao_cobra_meses_anteriores(client, 
 # ── AM-11: PIX do mês ─────────────────────────────────────────────────────────
 
 
-async def test_pix_so_para_mes_em_aberto_com_valor_e_txid(client, db, hoje):
+async def test_pix_so_para_mes_em_aberto_com_valor(client, db, hoje):
     tenant, actor, medium = await _cenario(db)
     await _pagamento(db, tenant, medium, date(2026, 8, 1), MensalidadeStatus.PAGO, valor_vigente=Decimal("50.00"))
 
     resp = await client.get(_pix("2026-10"), headers=actor.headers)
     assert resp.status_code == 200, resp.text
     pix = resp.json()
-    txid = txid_mensalidade(date(2026, 10, 1), medium.id)
-    assert pix["txid"] == txid and txid.startswith("MENS202610")
+    assert "txid" not in pix
     code = pix["copia_e_cola"]
     assert "0014br.gov.bcb.pix" in code and "12345678909" in code
-    assert "540550.00" in code and f"0520{txid}" in code
+    assert "540550.00" in code and "62070503***" in code
     assert code[-4:] == crc16_ccitt(code[:-4])
     assert pix["valor"] == 50.0 and pix["nome_recebedor"] == "Casa de Oxala"
 

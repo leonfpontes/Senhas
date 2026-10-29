@@ -8,7 +8,8 @@ Tudo é "meu" (§6.6): o terreiro vem de `ctx.tenant_id` e o médium de `ctx.med
 são sempre filtradas por `ctx.medium.id`. Um aviso só aparece quando é do terreiro, não foi
 arquivado, já foi publicado (`publicar_em`), ainda não saiu do ar (`expira_em`) e é para o
 público do médium (`services/comunicados.publicos_do_medium`, ou — público `grupos`, AM-23 — o
-médium está num dos grupos ativos do aviso). Fora disso, 404 — o médium não fica sabendo que
+médium está num dos grupos ativos do aviso; público `mediuns` — o médium foi escolhido no aviso
+individual). Fora disso, 404 — o médium não fica sabendo que
 existe aviso agendado ou para outro público.
 
 Módulo "avisos" desligado pela casa (AM-10, `tenant_configs.area_medium_avisos`) → 403 neutro.
@@ -34,6 +35,7 @@ from src.models import (
     Comunicado,
     ComunicadoGrupo,
     ComunicadoLeitura,
+    ComunicadoMedium,
     ComunicadoPublico,
     CorrenteGrupo,
     CorrenteGrupoMembro,
@@ -87,7 +89,8 @@ class LidoResponse(BaseModel):
 
 
 def _no_publico_do_medium(ctx: MediumContext):
-    """Condição "o aviso é para mim": público fixo do médium ou um dos grupos ativos dele."""
+    """Condição "o aviso é para mim": público fixo do médium, um dos grupos ativos dele ou ele
+    escolhido no aviso individual."""
     nos_meus_grupos = exists(
         select(ComunicadoGrupo.comunicado_id)
         .join(CorrenteGrupoMembro, CorrenteGrupoMembro.grupo_id == ComunicadoGrupo.grupo_id)
@@ -101,9 +104,17 @@ def _no_publico_do_medium(ctx: MediumContext):
             CorrenteGrupo.arquivado_em.is_(None),
         )
     )
+    para_mim = exists(
+        select(ComunicadoMedium.comunicado_id).where(
+            ComunicadoMedium.comunicado_id == Comunicado.id,
+            ComunicadoMedium.tenant_id == ctx.tenant_id,
+            ComunicadoMedium.medium_id == ctx.medium.id,
+        )
+    )
     return or_(
         Comunicado.publico.in_(publicos_do_medium(ctx.medium.is_atendimento)),
         and_(Comunicado.publico == ComunicadoPublico.GRUPOS.value, nos_meus_grupos),
+        and_(Comunicado.publico == ComunicadoPublico.MEDIUNS.value, para_mim),
     )
 
 

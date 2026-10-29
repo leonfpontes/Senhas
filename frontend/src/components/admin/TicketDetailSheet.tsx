@@ -1,6 +1,6 @@
 /**
  * TicketDetailSheet — detalhe de uma senha num Sheet lateral (tela cheia no celular): número
- * grande, consulente com ligar/WhatsApp, prioridade, status, atendimento e o rastreio do
+ * grande, consulente com ligar/WhatsApp/e-mail, prioridade, status, atendimento e o rastreio do
  * e-mail (TicketEmailPanel, o mesmo da página /admin/tickets/[ticketId]/email).
  *
  * As ações (editar atendimento, excluir) chegam prontas do chamador, que já aplicou os
@@ -46,6 +46,13 @@ export function telLink(telefone: string): string | null {
   return digits.length >= 8 ? `tel:${digits}` : null;
 }
 
+/** Link mailto: com assunto opcional; null quando o texto não parece um e-mail. */
+export function mailtoLink(email: string, assunto?: string): string | null {
+  const addr = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) return null;
+  return assunto ? `mailto:${addr}?subject=${encodeURIComponent(assunto)}` : `mailto:${addr}`;
+}
+
 export interface TicketDetailSheetProps {
   ticket: TicketDetail | null;
   onOpenChange: (open: boolean) => void;
@@ -56,10 +63,23 @@ export interface TicketDetailSheetProps {
   onDelete?: () => void;
 }
 
-export function ContactActions({ telefone, nome }: { telefone: string; nome?: string | null }) {
-  const tel = telLink(telefone);
-  const wa = whatsappLink(telefone);
+export function ContactActions({
+  telefone,
+  email,
+  nome,
+  assunto,
+}: {
+  telefone?: string | null;
+  email?: string | null;
+  nome?: string | null;
+  /** Assunto do e-mail (ex.: "Senha 012"). */
+  assunto?: string;
+}) {
+  const tel = telefone ? telLink(telefone) : null;
+  const wa = telefone ? whatsappLink(telefone) : null;
+  const mail = email ? mailtoLink(email, assunto) : null;
   const quem = nome ? ` ${nome}` : '';
+  if (!tel && !wa && !mail) return null;
   return (
     <span className="inline-flex gap-1">
       {tel && (
@@ -73,6 +93,13 @@ export function ContactActions({ telefone, nome }: { telefone: string; nome?: st
         <Button asChild size="icon-sm" variant="outline" onClick={(e) => e.stopPropagation()}>
           <a href={wa} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp de${quem || ' consulente'}`}>
             <MessageCircle aria-hidden />
+          </a>
+        </Button>
+      )}
+      {mail && (
+        <Button asChild size="icon-sm" variant="outline" onClick={(e) => e.stopPropagation()}>
+          <a href={mail} aria-label={`Enviar e-mail para${quem || ' consulente'}`}>
+            <Mail aria-hidden />
           </a>
         </Button>
       )}
@@ -130,7 +157,9 @@ export function TicketDetailSheet({ ticket, onOpenChange, priorityLabel, showEma
                 )}
                 {ticket.consulente_email && (
                   <Row label="E-mail">
-                    <a href={`mailto:${ticket.consulente_email}`} className="inline-flex items-center gap-1.5 break-all text-brand">
+                    <a
+                      href={mailtoLink(ticket.consulente_email, `Senha ${numeroDaSenha(ticket)}`) ?? `mailto:${ticket.consulente_email}`}
+                      className="inline-flex items-center gap-1.5 break-all text-brand">
                       <Mail className="size-4 shrink-0" aria-hidden /> {ticket.consulente_email}
                     </a>
                   </Row>
