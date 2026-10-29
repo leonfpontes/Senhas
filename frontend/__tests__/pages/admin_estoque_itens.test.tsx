@@ -41,6 +41,12 @@ jest.mock('@/contexts/SnackbarContext', () => {
   return { useSnackbar: () => s };
 });
 
+const mockGerarPdf = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/pdf/estoqueCriticoPdf', () => ({
+  ...jest.requireActual('@/lib/pdf/estoqueCriticoPdf'),
+  gerarEstoqueCriticoPdf: (...a: unknown[]) => mockGerarPdf(...a),
+}));
+
 import AdminEstoqueItensPage, { saldoStatus } from '@/pages/admin/estoque/itens';
 import EstoqueRelatorioRedirectPage from '@/pages/admin/estoque/relatorio';
 
@@ -107,6 +113,28 @@ describe('Estoque — Itens', () => {
     mockQuery = { criticos: '1' };
     render(<EstoqueRelatorioRedirectPage />);
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/admin/estoque/itens?criticos=1'));
+  });
+
+  it('"PDF para repor" gera o PDF com os itens carregados e a marca do terreiro', async () => {
+    render(<AdminEstoqueItensPage />);
+    await screen.findByText('Vela branca');
+    fireEvent.click(screen.getByRole('button', { name: /PDF para repor/ }));
+    await waitFor(() => expect(mockGerarPdf).toHaveBeenCalledTimes(1));
+    const [itens, brand, opts] = mockGerarPdf.mock.calls[0];
+    expect(itens).toHaveLength(3);
+    expect(brand).toMatchObject({ nome: 'Terreiro' });
+    expect(opts).toEqual({ grupo: null });
+  });
+
+  it('"PDF para repor" com estoque em dia avisa e não gera', async () => {
+    mockGet.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/api/v1/admin/estoque/itens' ? [ITENS[0]] : [] }),
+    );
+    render(<AdminEstoqueItensPage />);
+    await screen.findByText('Vela branca');
+    fireEvent.click(screen.getByRole('button', { name: /PDF para repor/ }));
+    await waitFor(() => expect(jest.requireMock('@/contexts/SnackbarContext').useSnackbar().showInfo).toHaveBeenCalled());
+    expect(mockGerarPdf).not.toHaveBeenCalled();
   });
 
   it('leva para a tela de Grupos (pelo cabeçalho e pelo formulário do item)', async () => {

@@ -1370,7 +1370,9 @@ Incluir obrigatoriamente:
 - **Listagens sem corte silencioso**: telas de Cursos, Participantes, Estoque (itens e movimentações) usam
   `services/fetchAllPages.ts` (pede `skip`/`limit` no máximo do endpoint até uma página vir incompleta). As queries
   têm desempate por `id` no `ORDER BY` para o offset não repetir/pular linha.
-- **Estoque**: CSV de posição exige `export_csv` também no backend; `ItemUpdate.estoque_minimo >= 0`; editar grupo
+- **Estoque**: CSV de posição exige `export_csv` também no backend; o "PDF para repor" (`lib/pdf/estoqueCriticoPdf.ts`)
+  é gerado no navegador com os itens já carregados (zerados — com ou sem mínimo —, negativos e abaixo do mínimo)
+  e usa o mesmo gate `export_csv` na tela; `ItemUpdate.estoque_minimo >= 0`; editar grupo
   com `descricao: null` limpa o campo (`model_dump(exclude_unset=True)`); o "saldo após" do `MovimentacaoDrawer` na
   edição desfaz a movimentação original antes de aplicar os valores novos (`saldoAposMovimentacao`).
 - **Meu Site — lock otimista**: toda resposta que muda o site (PUT/GET `/sections`, `publish`, `unpublish`,

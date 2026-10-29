@@ -1,6 +1,7 @@
 /**
  * Admin Estoque — Itens: cadastro, saldo com status, filtro "Críticos", exportação CSV
- * (absorveu `/admin/estoque/relatorio`) e ação "Movimentar" na linha.
+ * (absorveu `/admin/estoque/relatorio`), PDF dos itens para repor (`lib/pdf/estoqueCriticoPdf`)
+ * e ação "Movimentar" na linha.
  */
 'use client';
 
@@ -14,6 +15,7 @@ import {
   Camera,
   CheckCircle2,
   Download,
+  FileText,
   Layers,
   Loader2,
   MoreHorizontal,
@@ -54,6 +56,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Toggle } from '@/components/ui/toggle';
 import { formatBRL, todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
+import { useTenant } from '@/providers/ThemeProvider';
+import { gerarEstoqueCriticoPdf, itensParaRepor } from '@/lib/pdf/estoqueCriticoPdf';
 
 const UNIDADES = ['UN', 'KG', 'G', 'L', 'ML', 'M', 'CM', 'CX', 'PCT', 'RO'] as const;
 type Unidade = (typeof UNIDADES)[number];
@@ -143,7 +147,8 @@ function AdminEstoqueItensContent() {
   const router = useRouter();
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
-  const { showSuccess, showError } = useSnackbar();
+  const { showSuccess, showError, showInfo } = useSnackbar();
+  const { tenantName, logoUrl, config } = useTenant();
   const canView = canGroup('estoque', 'view');
   const canInsert = canGroup('estoque', 'insert');
   const canEdit = canGroup('estoque', 'edit');
@@ -154,6 +159,7 @@ function AdminEstoqueItensContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [filterGrupo, setFilterGrupo] = useState('all');
   const [search, setSearch] = useState('');
   const [somenteCriticos, setSomenteCriticos] = useState(false);
@@ -356,6 +362,33 @@ function AdminEstoqueItensContent() {
     }
   };
 
+  // ── PDF dos itens para repor (zerados, negativos ou abaixo do mínimo) ─
+
+  const handleExportPdf = async () => {
+    if (!canView) return;
+    if (!can('export_csv')) {
+      showError(`Exportação disponível a partir do plano ${minPlanFor('export_csv').label}.`);
+      return;
+    }
+    if (itensParaRepor(items).length === 0) {
+      showInfo('Estoque em dia: nenhum item zerado ou abaixo do mínimo.');
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      const grupo = filterGrupo !== 'all' ? grupos.find((g) => g.id === filterGrupo)?.nome ?? null : null;
+      await gerarEstoqueCriticoPdf(
+        items,
+        { nome: tenantName ?? 'Terreiro', logoUrl: logoUrl ?? undefined, primaryColor: config?.colors?.primary ?? '#15803d' },
+        { grupo },
+      );
+    } catch {
+      showError('Não foi possível gerar o PDF do estoque.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   // ── Derivados ───────────────────────────────────────────────────────
 
   const counts = useMemo(() => {
@@ -489,6 +522,11 @@ function AdminEstoqueItensContent() {
                 {exporting ? <Loader2 className="animate-spin" /> : <Download />}
                 <span className="hidden sm:inline">Exportar CSV</span>
                 <span className="sm:hidden">CSV</span>
+              </Button>
+              <Button variant="outline" onClick={handleExportPdf} disabled={exportingPdf || loading || items.length === 0}>
+                {exportingPdf ? <Loader2 className="animate-spin" /> : <FileText />}
+                <span className="hidden sm:inline">PDF para repor</span>
+                <span className="sm:hidden">PDF</span>
               </Button>
               <Button variant="outline" onClick={() => router.push('/admin/estoque/grupos')}>
                 <Layers />
