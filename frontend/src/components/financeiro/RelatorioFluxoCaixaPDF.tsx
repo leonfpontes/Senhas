@@ -378,6 +378,10 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
           </table>
         </div>
 
+        <div style={{ fontSize: 9.5, color: '#555', marginBottom: 24 }}>
+          Cada lançamento recebido e pago de cada mês, com data, descrição, categoria e valor, vem nas páginas seguintes.
+        </div>
+
         {/* ── NOTA PROJEÇÃO ── */}
         {projecoes.length > 0 && r2 !== null && (
           <div style={{ background: '#FFFBEE', border: '1px solid #F0DC8A', borderRadius: 6, padding: '8px 12px', marginBottom: 24, fontSize: 9.5, color: '#7A5C00' }}>
@@ -391,7 +395,7 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
         {/* ── FOOTER ── */}
         <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid #DDE1F0', display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#AAA' }}>
           <span>Senhas — Sistema de Gestão para Terreiros</span>
-          <span>Gerado em {geradoEm} · Página 1 de 1</span>
+          <span>Gerado em {geradoEm}</span>
         </div>
       </div>
     );

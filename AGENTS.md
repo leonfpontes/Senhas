@@ -1340,6 +1340,9 @@ Incluir obrigatoriamente:
   099; soma para frente, desconta para tras). Pago antes da data do saldo NAO entra — ja esta no saldo
   informado (antes somava o historico inteiro e contava em dobro). Lancamento com `conta_bancaria_id`
   usa a data dessa conta; sem conta, a mais antiga. Cada mes traz `saldo_anterior` (abertura do mes).
+  Cada mes traz tambem `lancamentos` (recebidos e pagos pela `data_pagamento`: data, descricao, categoria,
+  conta, valor pago — somam `receitas`/`despesas`). O PDF do fluxo (pedido do contador da TUCCCO, out/26) e o
+  resumo em foto (html2canvas) + as paginas desses lancamentos em texto (autotable, `lib/pdf/fluxoLancamentosPdf`).
 - **Por categoria** (`GET /financeiro/por-categoria`, CONTAS_FINANCEIRAS:view; tela `/admin/financeiro/por-categoria`):
   receitas e despesas agrupadas por categoria no intervalo, com as MESMAS regras do fluxo (realizado = pago pela
   `data_pagamento` com `valor_pago`; em aberto = pendente/vencido pelo `data_vencimento`; cancelado fora), entao os
