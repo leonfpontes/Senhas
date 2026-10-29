@@ -3,7 +3,8 @@
  *
  * Presets de período (ToggleGroup) + intervalo personalizado (DateField duplo), KPIs, um gráfico
  * combinado (recebido × pago + saldo acumulado), tabela mensal e exportação em PDF (prévia em
- * Dialog). "Hoje" é sempre no fuso de Brasília (`lib/dateBr`). Filtro por conta bancária: só os
+ * Dialog do resumo; depois dele, páginas com cada lançamento recebido e pago de cada mês — pedido
+ * do contador, `lib/pdf/fluxoLancamentosPdf`). "Hoje" é sempre no fuso de Brasília (`lib/dateBr`). Filtro por conta bancária: só os
  * lançamentos e o saldo daquela conta (as mensalidades caem na conta da chave PIX usada).
  */
 'use client';
@@ -46,6 +47,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { addDaysIso, addMonthsYm, brDateParts, formatBRL, formatDateBr, formatDateTimeBr, monthRangeIso, todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
+import { drawFooters, loadPdfLibs, loadRoundLogo } from '@/lib/pdf/pdfDoc';
+import { anexarLancamentosFluxo, type FluxoLancamento } from '@/lib/pdf/fluxoLancamentosPdf';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -69,6 +72,8 @@ interface FluxoMes {
   saldo_acumulado: number;
   a_receber: number;
   a_pagar: number;
+  /** Recebidos e pagos do mês (pela data de pagamento) — detalhe do PDF. */
+  lancamentos?: FluxoLancamento[];
 }
 
 type Preset = 'mes_atual' | 'mes_anterior' | 'ultimos_90' | 'personalizado';
@@ -160,7 +165,7 @@ export default function FluxoDeCaixaPage() {
 function FluxoDeCaixaContent() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
-  const { tenantName, logoUrl } = useTenant();
+  const { tenantName, logoUrl, config } = useTenant();
   const { profile } = useProfile();
   const { showError } = useSnackbar();
 
@@ -244,8 +249,11 @@ function FluxoDeCaixaContent() {
     if (!relatorioRef.current) return;
     setPdfExporting(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const jsPDF = (await import('jspdf')).default;
+      const [html2canvas, { jsPDF, autoTable }, logoRedondo] = await Promise.all([
+        import('html2canvas').then((m) => m.default),
+        loadPdfLibs(),
+        loadRoundLogo(logoUrl ?? undefined),
+      ]);
       const canvas = await html2canvas(relatorioRef.current, {
         scale: 2,
         useCORS: true,
@@ -268,6 +276,20 @@ function FluxoDeCaixaContent() {
           posY += pageH;
         }
       }
+      const paginasResumo = pdf.getNumberOfPages();
+      const brand = {
+        nome: tenantName ?? 'Meu Terreiro',
+        logoUrl: logoUrl ?? undefined,
+        primaryColor: config?.colors?.primary ?? '#2C3E7A',
+      };
+      const periodoLabel = `${formatDateBr(periodo.inicio)} a ${formatDateBr(periodo.fim)}`;
+      anexarLancamentosFluxo(pdf, autoTable, dados, {
+        brand,
+        logo: logoRedondo,
+        subtitle: contaNome ? `${periodoLabel} · Conta: ${contaNome}` : `${periodoLabel} · Todas as contas`,
+        comConta: !contaNome,
+      });
+      drawFooters(pdf, `${brand.nome} · Fluxo de caixa · gerado em ${new Date().toLocaleString('pt-BR')} · girahub.com.br`, paginasResumo + 1);
       const ym = (iso: string) => iso.slice(0, 7).replace('-', '');
       pdf.save(`relatorio-fluxo-caixa-${ym(periodo.inicio)}-${ym(periodo.fim)}.pdf`);
     } catch {
@@ -275,7 +297,7 @@ function FluxoDeCaixaContent() {
     } finally {
       setPdfExporting(false);
     }
-  }, [periodo, showError]);
+  }, [periodo, showError, dados, tenantName, logoUrl, config, contaNome]);
 
   // ── Derivados ──────────────────────────────────────────────────────────────
 
