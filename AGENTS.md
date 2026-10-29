@@ -406,7 +406,7 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   mascarada. Validacao/normalizacao no formato do DICT em `services/pix_chave.py` (CPF/CNPJ com DV,
   CNPJ alfanumerico incluso; e-mail minusculo; celular `+55DD9…`; EVP com hifens) e espelho em
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
-  `services/pix_brcode.build_static_brcode` (+ `txid_mensalidade`), testado contra os exemplos do
+  `services/pix_brcode.build_static_brcode`, testado contra os exemplos do
   Manual de Padroes para Iniciacao do Pix (BCB v2.10.0) — nunca montar o payload no front.
 - **Chave PIX por grupo da corrente + conta bancaria (migracao 100)**: casa que recebe em mais de uma conta
   (TUCCCO: PJ Sicredi + "Alternativa" Inter). `mensalidade_configs.pix_conta_bancaria_id` = conta onde cai a

@@ -93,7 +93,6 @@ export interface PixDoMes {
   mes: string;
   valor: number;
   copia_e_cola: string;
-  txid: string;
   tipo?: string | null;
   chave: string;
   nome_recebedor?: string | null;

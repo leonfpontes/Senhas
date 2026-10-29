@@ -120,7 +120,6 @@ const PIX_MES = {
   mes: '2026-10',
   valor: 50,
   copia_e_cola: COPIA_E_COLA,
-  txid: 'MENS2026100A1B2C3D4E',
   tipo: 'cpf',
   chave: '12345678909',
   nome_recebedor: 'Casa de Oxala',

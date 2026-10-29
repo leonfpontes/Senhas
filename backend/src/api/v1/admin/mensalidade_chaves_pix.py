@@ -268,7 +268,6 @@ def _previa(chave: MensalidadeChavePix, valor: Decimal) -> Optional[str]:
             nome_recebedor=chave.pix_nome_recebedor,
             cidade=chave.pix_cidade,
             valor=valor,
-            txid="PREVIA" + utc_now().astimezone(APP_TZ).strftime("%Y%m"),
         )
     except ValueError:
         logger.warning("Prévia do BR Code falhou para a chave %s", chave.id)

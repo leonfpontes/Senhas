@@ -149,11 +149,6 @@ def validar_comprovante(content_type: Optional[str], data: bytes, filename: Opti
     return ComprovanteValido(mime=real, filename=_nome_seguro(filename, _TIPOS[real]))
 
 
-def descricao_pix(mes: date) -> str:
-    """Texto curto que alguns bancos mostram no PIX ("Mensalidade 10/2026")."""
-    return f"Mensalidade {mes.month:02d}/{mes.year}"
-
-
 def chave_alterada_recente(alterado_em: Optional[datetime], agora: datetime) -> Optional[datetime]:
     """`alterado_em` se a chave mudou há menos de 30 dias (a tela avisa o médium), senão None."""
     if alterado_em is None:
