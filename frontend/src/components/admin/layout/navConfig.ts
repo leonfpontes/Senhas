@@ -177,9 +177,6 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
-    if (planMensalidade && view('financeiro')) {
-      corrente.push(link('/admin/financeiro/mensalidades', 'Mensalidades', Receipt, { keywords: ['pagamentos', 'contribuição'] }));
-    }
     // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
     if (can('area_medium') && view('comunicados')) {
       corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
@@ -213,6 +210,12 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
         link('/admin/financeiro/por-categoria', 'Por categoria', Tags, {
           keywords: ['categorias', 'relatório financeiro', 'despesas por categoria', 'receitas por categoria'],
         }),
+      );
+    }
+    // Mensalidades mora no Financeiro (pedido do cliente: ficava solta em Corrente). Rota e gate iguais.
+    if (planMensalidade && view('financeiro')) {
+      financeiro.push(
+        link('/admin/financeiro/mensalidades', 'Mensalidades', Receipt, { keywords: ['pagamentos', 'contribuição', 'médiuns', 'associados'] }),
       );
     }
     // A tela se protege por aba (categorias/contas: contas_financeiras; mensalidade: financeiro).
