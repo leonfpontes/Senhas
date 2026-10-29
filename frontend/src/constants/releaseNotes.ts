@@ -22,6 +22,16 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.11.0',
+    date: '2026-10-29',
+    title: 'Lista do que repor no estoque',
+    highlights: [
+      'Em Estoque → Itens, o botão "PDF para repor" gera um PDF com os itens que acabaram (zerados ou negativos) e os que estão abaixo do mínimo, prontos para levar na compra.',
+      'Para cada item o PDF mostra o saldo, o mínimo, quanto falta e quanto custa repor (quando o item tem custo cadastrado), com o total no fim.',
+      'Se você escolher um grupo no filtro, o PDF sai só com os itens daquele grupo.',
+    ],
+  },
+  {
     version: '2.10.0',
     date: '2026-10-26',
     title: 'Mensalidade em mais de uma conta',
