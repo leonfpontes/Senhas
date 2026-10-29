@@ -14,6 +14,10 @@
  * libera para quem tem COMUNICADOS ou MEDIUNS view, sem os nomes dos médiuns); só os membros veem
  * e o "de M" conta só eles.
  *
+ * Público "Médiuns específicos" (aviso individual): escolhe um ou mais médiuns
+ * (`/comunicados/mediuns`, com COMUNICADOS view; avisa quem ainda não tem acesso à Área); só eles
+ * veem e o "de M" conta só eles.
+ *
  * "Avisar por e-mail também" (AM-15): caixa no drawer, só com COMUNICADOS insert (criar) ou edit
  * (editar); o agendador de lembretes manda o aviso por e-mail ao público com acesso à Área.
  */
@@ -64,7 +68,7 @@ const API = '/api/v1/admin/comunicados';
 const TITULO_MAX = 120;
 const CORPO_MAX = 5000;
 
-export type Publico = 'todos' | 'atendimento' | 'cambones' | 'grupos';
+export type Publico = 'todos' | 'atendimento' | 'cambones' | 'grupos' | 'mediuns';
 export type Situacao = 'agendado' | 'publicado' | 'expirado';
 
 export interface Comunicado {
@@ -74,6 +78,8 @@ export interface Comunicado {
   publico: Publico;
   /** Só com publico "grupos" (AM-23): grupos ativos escolhidos. */
   grupos?: GrupoResumo[];
+  /** Só com publico "mediuns" (aviso individual): médiuns ativos escolhidos. */
+  mediuns?: { id: string; nome: string }[];
   fixado: boolean;
   publicar_em: string;
   expira_em: string | null;
@@ -103,6 +109,7 @@ export const PUBLICO_LABEL: Record<Publico, string> = {
   atendimento: 'Médiuns de atendimento',
   cambones: 'Cambones',
   grupos: 'Grupos da corrente',
+  mediuns: 'Médiuns específicos',
 };
 
 const PUBLICO_AJUDA: Record<Publico, string> = {
@@ -110,10 +117,17 @@ const PUBLICO_AJUDA: Record<Publico, string> = {
   atendimento: 'Só quem atende na gira',
   cambones: 'Só quem é cambone',
   grupos: 'Só quem está nos grupos escolhidos (G1, Ogãs…)',
+  mediuns: 'Só os médiuns que você escolher, um ou mais',
 };
 
 interface GrupoOpcao extends GrupoResumo {
   total_membros: number;
+}
+
+interface MediumOpcao {
+  id: string;
+  nome: string;
+  tem_acesso: boolean;
 }
 
 interface FormState {
@@ -121,6 +135,7 @@ interface FormState {
   corpo: string;
   publico: Publico;
   grupo_ids: string[];
+  medium_ids: string[];
   fixado: boolean;
   avisar_email: boolean;
   quando: 'agora' | 'agendar';
@@ -134,6 +149,7 @@ const EMPTY_FORM: FormState = {
   corpo: '',
   publico: 'todos',
   grupo_ids: [],
+  medium_ids: [],
   fixado: false,
   avisar_email: false,
   quando: 'agora',
@@ -157,8 +173,13 @@ function localParaIso(local: string | null): string | null {
 }
 
 /** Linha de situação do aviso na lista e no detalhe. */
-export function descreverPublico(c: Pick<Comunicado, 'publico' | 'grupos'>): string {
+export function descreverPublico(c: Pick<Comunicado, 'publico' | 'grupos' | 'mediuns'>): string {
   if (c.publico === 'todos') return 'Toda a corrente';
+  if (c.publico === 'mediuns') {
+    const nomes = (c.mediuns ?? []).map((m) => m.nome);
+    if (!nomes.length) return 'Só médiuns específicos';
+    return nomes.length <= 3 ? `Só ${nomes.join(', ')}` : `Só ${nomes.slice(0, 2).join(', ')} e mais ${nomes.length - 2}`;
+  }
   if (c.publico === 'grupos') {
     const nomes = (c.grupos ?? []).map((g) => g.nome);
     return nomes.length ? `Só ${nomes.join(', ')}` : 'Só grupos da corrente';
@@ -167,7 +188,7 @@ export function descreverPublico(c: Pick<Comunicado, 'publico' | 'grupos'>): str
 }
 
 export function descreverAviso(
-  c: Pick<Comunicado, 'situacao' | 'publicar_em' | 'expira_em' | 'publico' | 'grupos'>,
+  c: Pick<Comunicado, 'situacao' | 'publicar_em' | 'expira_em' | 'publico' | 'grupos' | 'mediuns'>,
 ): string {
   const partes: string[] = [];
   if (c.situacao === 'agendado') partes.push(`Agendado para ${dataHoraBr(c.publicar_em)}`);
@@ -239,6 +260,7 @@ function AdminComunicadosContent() {
 
   const [detalhe, setDetalhe] = useState<Comunicado | null>(null);
   const [grupoOpcoes, setGrupoOpcoes] = useState<GrupoOpcao[]>([]);
+  const [mediumOpcoes, setMediumOpcoes] = useState<MediumOpcao[]>([]);
   const [excluir, setExcluir] = useState<Comunicado | null>(null);
   const [excluindo, setExcluindo] = useState(false);
 
@@ -270,6 +292,10 @@ function AdminComunicadosContent() {
       .get<GrupoOpcao[]>('/api/v1/admin/corrente-grupos/opcoes')
       .then((res) => setGrupoOpcoes(Array.isArray(res.data) ? res.data : []))
       .catch(() => setGrupoOpcoes([]));
+    apiClient
+      .get<MediumOpcao[]>(`${API}/mediuns`)
+      .then((res) => setMediumOpcoes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setMediumOpcoes([]));
   }, [liberado, canView, canInsert, canEdit]);
 
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -289,6 +315,7 @@ function AdminComunicadosContent() {
       corpo: c.corpo,
       publico: c.publico,
       grupo_ids: (c.grupos ?? []).map((g) => g.id),
+      medium_ids: (c.mediuns ?? []).map((m) => m.id),
       fixado: c.fixado,
       avisar_email: Boolean(c.avisar_email),
       quando: c.situacao === 'agendado' ? 'agendar' : 'agora',
@@ -307,6 +334,11 @@ function AdminComunicadosContent() {
   const corpoErro = touched && !form.corpo.trim() ? 'Escreva o texto do aviso' : undefined;
   const semGrupo = form.publico === 'grupos' && form.grupo_ids.length === 0;
   const gruposErro = touched && semGrupo ? 'Escolha pelo menos um grupo' : undefined;
+  const semMedium = form.publico === 'mediuns' && form.medium_ids.length === 0;
+  const mediunsErro = touched && semMedium ? 'Escolha pelo menos um médium' : undefined;
+  const escolhidosSemAcesso = form.publico === 'mediuns'
+    ? mediumOpcoes.filter((m) => !m.tem_acesso && form.medium_ids.includes(m.id))
+    : [];
   const publicarMs = form.quando === 'agendar' && form.publicar_em ? new Date(form.publicar_em).getTime() : null;
   const agendarErro =
     touched && podeAgendar && form.quando === 'agendar'
@@ -326,7 +358,7 @@ function AdminComunicadosContent() {
   const salvar = async () => {
     setTouched(true);
     if (!form.titulo.trim() || !form.corpo.trim()) return;
-    if (semGrupo) return;
+    if (semGrupo || semMedium) return;
     if (podeAgendar && form.quando === 'agendar' && (!form.publicar_em || (publicarMs ?? 0) <= Date.now())) return;
     if (expiraMs !== null && (expiraMs <= baseMs || expiraMs <= Date.now())) return;
     if (editing ? !canEdit : !canInsert) return;
@@ -340,6 +372,7 @@ function AdminComunicadosContent() {
       expira_em: localParaIso(form.expira_em),
     };
     if (form.publico === 'grupos') payload.grupo_ids = form.grupo_ids;
+    if (form.publico === 'mediuns') payload.medium_ids = form.medium_ids;
     if (podeAgendar) payload.publicar_em = form.quando === 'agendar' ? localParaIso(form.publicar_em) : null;
 
     setSaving(true);
@@ -581,6 +614,38 @@ function AdminComunicadosContent() {
             ) : (
               <p className="rounded-md border p-3 text-sm text-muted-foreground" data-testid="aviso-sem-grupos">
                 Nenhum grupo da corrente ainda. Crie em Médiuns → Grupos.
+              </p>
+            ))}
+          {form.publico === 'mediuns' &&
+            (mediumOpcoes.length > 0 ? (
+              <>
+                <MultiCombobox
+                  label="Médiuns"
+                  required
+                  options={mediumOpcoes.map((m) => ({
+                    value: m.id,
+                    label: m.nome,
+                    description: m.tem_acesso ? undefined : 'Ainda sem acesso à Área',
+                  }))}
+                  value={form.medium_ids}
+                  onChange={(v) => setField('medium_ids', v)}
+                  placeholder="Escolha os médiuns"
+                  searchPlaceholder="Buscar médium..."
+                  emptyText="Nenhum médium encontrado."
+                  countLabel={(n) => `${n} ${n === 1 ? 'médium' : 'médiuns'}`}
+                  error={mediunsErro}
+                />
+                {escolhidosSemAcesso.length > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="aviso-mediuns-sem-acesso">
+                    {escolhidosSemAcesso.length === 1
+                      ? `${escolhidosSemAcesso[0].nome} ainda não tem acesso à Área e só vai ver o aviso depois de entrar.`
+                      : `${escolhidosSemAcesso.length} dos escolhidos ainda não têm acesso à Área e só vão ver o aviso depois de entrar.`}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="rounded-md border p-3 text-sm text-muted-foreground" data-testid="aviso-sem-mediuns">
+                Nenhum médium ativo cadastrado ainda.
               </p>
             ))}
         </fieldset>

@@ -840,6 +840,7 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
 | Method | Path | Group action |
 |---|---|---|
 | GET | `/api/v1/admin/comunicados` | `view` |
+| GET | `/api/v1/admin/comunicados/mediuns` (active médiuns for the individual aviso: `[{ "id", "nome", "tem_acesso" }]`) | `view` |
 | GET | `/api/v1/admin/comunicados/{id}` | `view` |
 | GET | `/api/v1/admin/comunicados/{id}/leituras` | `view` |
 | POST | `/api/v1/admin/comunicados` (201) | `insert` |
@@ -865,7 +866,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
 }
 ```
 - **Body** (POST; PUT is partial): `titulo` (≤ 120), `corpo` (≤ 5000), `publico`
-  (`todos` | `atendimento` | `cambones` | `grupos`; other values → 422), `grupo_ids` (only with
+  (`todos` | `atendimento` | `cambones` | `grupos` | `mediuns`; other values → 422), `medium_ids` (only with
+  `publico: "mediuns"`, the individual aviso: one or more active médiuns of the tenant — empty, inactive or
+  another tenant's médium → 422; ignored for the other audiences; on PUT, sent = replaces the list, and
+  switching to another audience clears it), `grupo_ids` (only with
   `publico: "grupos"`, AM-23: at least one active group of the tenant — empty, archived or another
   tenant's group → 422; ignored for the other audiences; on PUT, sent = replaces the groups, and
   switching to another audience clears them), `fixado`, `publicar_em` (absent/null =
@@ -880,9 +884,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   `http(s)://`/`www.` addresses.
 - `situacao`: `agendado` (before `publicar_em`), `publicado`, `expirado` (after `expira_em`).
 - `grupos`: `[{ "id", "nome", "cor" }]` — the active groups chosen (empty for the other audiences).
+- `mediuns`: `[{ "id", "nome" }]` — the active médiuns chosen (empty for the other audiences).
 - `leituras.total` ("lido por N de M") counts only médiuns who can read it: active, in the audience
   (`atendimento` = `mediuns.is_atendimento`, `cambones` = not, `grupos` = members of at least one of the
-  aviso's active groups), and with access to the Área (linked to an active account).
+  aviso's active groups, `mediuns` = the médiuns chosen), and with access to the Área (linked to an active account).
 - `GET /{id}/leituras` → `{ "total", "lidos", "leram": [{ "medium_id", "nome", "lido_em" }],
   "nao_leram": [{ "medium_id", "nome", "lido_em": null }] }` (D-28; only names — no contact data).
 - Another tenant's id → 404. Audited as `comunicado` (create/update/delete; title, audience, group

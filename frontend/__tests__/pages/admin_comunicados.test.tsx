@@ -396,3 +396,92 @@ describe('Avisos — público "Grupos da corrente" (AM-23)', () => {
     expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/corrente-grupos/opcoes');
   });
 });
+
+describe('Avisos — público "Médiuns específicos" (aviso individual)', () => {
+  const MEDIUNS = [
+    { id: 'm1', nome: 'Ana Paula', tem_acesso: true },
+    { id: 'm2', nome: 'Beto Souza', tem_acesso: false },
+  ];
+  const AVISO_INDIVIDUAL = {
+    ...LISTA[0],
+    id: 'c4',
+    titulo: 'Conversa com o pai',
+    publico: 'mediuns',
+    fixado: false,
+    grupos: [],
+    mediuns: [{ id: 'm1', nome: 'Ana Paula' }],
+    leituras: { lidos: 0, total: 1 },
+  };
+
+  function setupMediuns(lista: unknown[] = [AVISO_INDIVIDUAL], mediuns = MEDIUNS) {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/api/v1/admin/comunicados') return Promise.resolve({ data: lista });
+      if (url === '/api/v1/admin/comunicados/mediuns') return Promise.resolve({ data: mediuns });
+      if (url === '/api/v1/admin/corrente-grupos/opcoes') return Promise.resolve({ data: [] });
+      if (url.endsWith('/leituras')) return Promise.resolve({ data: LEITURAS });
+      return Promise.resolve({ data: {} });
+    });
+    const Page = require('@/pages/admin/comunicados').default;
+    return render(<Page />);
+  }
+
+  it('lista mostra "Só Ana Paula"', async () => {
+    setupMediuns();
+    const [item] = await screen.findAllByTestId('comunicado-item');
+    expect(within(item).getByText(/Só Ana Paula/)).toBeInTheDocument();
+    expect(within(item).getByText('lido por 0 de 1')).toBeInTheDocument();
+  });
+
+  it('publicar para médiuns exige médium, avisa quem não tem acesso e manda medium_ids', async () => {
+    const user = userEvent.setup();
+    setupMediuns([]);
+    await user.click(await screen.findByRole('button', { name: /Novo aviso/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Título/), { target: { value: 'Conversa' } });
+    fireEvent.change(within(dialog).getByLabelText(/Texto/), { target: { value: 'Passe aqui.' } });
+    await user.click(within(dialog).getByLabelText(/Médiuns específicos/));
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publicar aviso' }));
+    });
+    expect(await within(dialog).findByText('Escolha pelo menos um médium')).toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('combobox', { name: /Médiuns/ }));
+    await user.click(await screen.findByText('Beto Souza'));
+    expect(within(dialog).getByTestId('aviso-mediuns-sem-acesso')).toHaveTextContent('Beto Souza ainda não tem acesso');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publicar aviso' }));
+    });
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/admin/comunicados', {
+      titulo: 'Conversa',
+      corpo: 'Passe aqui.',
+      publico: 'mediuns',
+      medium_ids: ['m2'],
+      fixado: false,
+      avisar_email: false,
+      expira_em: null,
+      publicar_em: null,
+    });
+  });
+
+  it('editar aviso individual vem com o médium escolhido', async () => {
+    setupMediuns();
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Conversa com o pai' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Tirar Ana Paula' })).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).toMatchObject({ publico: 'mediuns', medium_ids: ['m1'] });
+  });
+
+  it('quem só vê avisos não busca a lista de médiuns', async () => {
+    mockGroupCan.mockImplementation((_f: string, a: string) => a === 'view');
+    setupMediuns();
+    await screen.findAllByTestId('comunicado-item');
+    expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/comunicados/mediuns');
+  });
+});

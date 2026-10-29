@@ -41,6 +41,20 @@ def test_publico_grupos_vale_para_quem_esta_em_algum_grupo_do_aviso():
     assert not medium_no_publico("atendimento", False, {G1}, {G1})
 
 
+def test_publico_mediuns_vale_so_para_os_escolhidos():
+    ana, beto = uuid.uuid4(), uuid.uuid4()
+    assert ComunicadoPublico.MEDIUNS.value == "mediuns"
+    assert medium_no_publico("mediuns", True, frozenset(), frozenset(), ana, {ana})
+    assert medium_no_publico("mediuns", False, {G1}, frozenset(), beto, {ana, beto})
+    assert not medium_no_publico("mediuns", True, frozenset(), frozenset(), beto, {ana})
+    # Sem id do médium ou sem ninguém escolhido, não alcança ninguém.
+    assert not medium_no_publico("mediuns", True, frozenset(), frozenset(), None, {ana})
+    assert not medium_no_publico("mediuns", True, frozenset(), frozenset(), ana, frozenset())
+    # Grupos e públicos fixos não olham a lista de médiuns.
+    assert not medium_no_publico("grupos", True, frozenset(), {G1}, ana, {ana})
+    assert medium_no_publico("todos", True, frozenset(), frozenset(), beto, {ana})
+
+
 # ── Nome, cor, descrição ────────────────────────────────────────────────────
 
 
@@ -201,6 +215,14 @@ def real_info():
          "        grupos = await validar_grupos_ativos_do_tenant(db, current_user.tenant_id, body.grupo_ids)\n",
          "        grupos = list(body.grupo_ids)\n",
          {("criar_comunicado", "body.grupo_ids")}),
+        ("comunicados.py",
+         "        medium_ids = await validar_mediuns_ativos_do_tenant(db, current_user.tenant_id, body.medium_ids)\n",
+         "        medium_ids = list(body.medium_ids)\n",
+         {("criar_comunicado", "body.medium_ids")}),
+        ("comunicados.py",
+         "        medium_ids = await validar_mediuns_ativos_do_tenant(db, tenant_id, body.medium_ids)\n",
+         "        medium_ids = list(body.medium_ids)\n",
+         {("editar_comunicado", "body.medium_ids")}),
         ("comunicados.py",
          "        grupos = await validar_grupos_ativos_do_tenant(db, tenant_id, body.grupo_ids)\n",
          "        grupos = list(body.grupo_ids)\n",

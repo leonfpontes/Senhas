@@ -1049,7 +1049,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `098_waitlist_confirmation_minutes` (2026-10-22, prazo da fila de espera com tempo quebrado:
+- Head atual: `101_comunicado_mediuns` (2026-10-29, aviso para médiuns específicos: tabela `comunicado_mediuns`
+  (PK `comunicado_id` + `medium_id`, `tenant_id`) e `mediuns` no CHECK `ck_comunicados_publico`; downgrade arquiva os
+  avisos com esse público antes de voltar o CHECK), apos `100_mensalidade_chaves_pix_grupos` (2026-10-26, chave PIX
+  por grupo da corrente ligada a uma conta bancária), apos `099_conta_bancaria_data_saldo_inicial` (2026-10-26,
+  `contas_bancarias.data_saldo_inicial`), apos `098_waitlist_confirmation_minutes` (2026-10-22, prazo da fila de espera com tempo quebrado:
   `giras.waitlist_confirmation_hours` vira `waitlist_confirmation_minutes` (valores existentes × 60); downgrade volta
   para horas arredondando para cima — §11.3), apos `097_platform_recibos` (2026-10-22, recibos da plataforma: tabela `platform_recibos` — sem
   isolamento por tenant, so super-admin; unico `(ano, numero)`, `tenant_id` SET NULL; downgrade remove a tabela —
@@ -1586,7 +1590,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `lib/autolink`: só `http(s)://`/`www.` viram link, `rel=noopener noreferrer nofollow`). Barra inferior:
   aba de módulo fora de `me.modulos` some (`MEDIUM_TABS[].modulo`) e a aba Avisos tem selo com
   `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; público "Grupos da corrente" (AM-23,
-  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. "Avisar por e-mail também" (AM-15): caixa no drawer
+  abaixo) = `publico = 'grupos'` + `comunicado_grupos`; público "Médiuns específicos" (aviso individual, migração
+  101) = `publico = 'mediuns'` + `comunicado_mediuns` (`medium_ids` no corpo, médiuns ativos do terreiro; opções em
+  `GET /admin/comunicados/mediuns`, COMUNICADOS view; estudos/documentos recusam esse público). "Avisar por e-mail também" (AM-15): caixa no drawer
   (só com insert ao criar / edit ao editar), `avisar_email` no corpo; o agendador manda (abaixo).
 - **Grupos da corrente (AM-23)**: migração `075_corrente_grupos` (§11.8; tabelas em `docs/database.md`), API
   `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, regras em §3.3 e `docs/api.md` §14). Cor = chave

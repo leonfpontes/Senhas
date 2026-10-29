@@ -1555,6 +1555,16 @@ class _FkFunction:
 
     def contains_carrier(self, expr: ast.AST, i: int, whole_body: bool = False) -> bool:
         t = self.tracked[i]
+        if (
+            whole_body
+            and t.field is not None
+            and isinstance(expr, ast.Attribute)
+            and isinstance(expr.value, ast.Name)
+            and self.body_derived.get(expr.value.id) == t.param
+            and expr.attr != t.field
+        ):
+            # `body.outro_campo` não é o body inteiro: validar os médiuns não valida os grupos.
+            whole_body = False
         for n in ast.walk(expr):
             if self._is_carrier_expr(n, t, self.carriers[i]):
                 return True

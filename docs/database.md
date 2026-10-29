@@ -264,7 +264,7 @@ Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/com
 | `tenant_id` | UUID FK → `tenants.id` CASCADE | |
 | `titulo` | `String(120)` | texto simples (HTML e controle removidos ao salvar) |
 | `corpo` | `Text` | texto simples com quebras de linha; ≤ 5000 na API; links só viram clicáveis na tela |
-| `publico` | `String(20)`, padrão `todos` | CHECK `ck_comunicados_publico` em `todos/atendimento/cambones/grupos` (`grupos` entrou na 075, AM-23, com a tabela `comunicado_grupos`) — string, não ENUM do PG, para crescer sem `ALTER TYPE` |
+| `publico` | `String(20)`, padrão `todos` | CHECK `ck_comunicados_publico` em `todos/atendimento/cambones/grupos/mediuns` (`grupos` entrou na 075, AM-23, com a tabela `comunicado_grupos`; `mediuns` na 101, com `comunicado_mediuns`) — string, não ENUM do PG, para crescer sem `ALTER TYPE` |
 | `fixado` | `Boolean`, padrão `false` | primeiro da lista |
 | `publicar_em` | `DateTime(tz)` | agora ou agendado |
 | `expira_em` | `DateTime(tz)` NULL | sai do ar nessa hora |
@@ -367,6 +367,20 @@ próximos cards, para escalas e elegibilidade de atividades (AM-08/AM-25). Model
 
 Downgrade da 075: avisos com público `grupos` são arquivados (soft delete) e voltam a `todos` só para caber
 no CHECK antigo — nunca ficam visíveis para a corrente inteira.
+
+### `comunicado_mediuns` (aviso para médiuns específicos, migração 101)
+
+Avisos com `publico = 'mediuns'` (aviso individual: um ou mais médiuns escolhidos um a um):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `comunicado_id` | UUID FK → `comunicados.id` CASCADE, PK | |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE, PK | médium ativo do mesmo terreiro (conferido na API) |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+
+**Indexes:** `ix_comunicado_mediuns_tenant_id`, `ix_comunicado_mediuns_medium_id`. Médium inativado/excluído deixa
+de contar no público (a linha fica). Downgrade da 101: avisos com público `mediuns` são arquivados e voltam a
+`todos`, como na 075.
 
 ### `atividade_tipos`, `atividade_tipo_grupos`, `funcoes_corrente` e `atividades` (AM-08, migrações 077/078)
 
@@ -1247,6 +1261,8 @@ alembic current
 | `corrente_grupo_membros` | `tenant_id`, `medium_id` | B-tree |
 | `comunicado_grupos` | `(comunicado_id, grupo_id)` | PK |
 | `comunicado_grupos` | `tenant_id`, `grupo_id` | B-tree |
+| `comunicado_mediuns` | `(comunicado_id, medium_id)` | PK |
+| `comunicado_mediuns` | `tenant_id`, `medium_id` | B-tree |
 | `atividade_tipos` | `(tenant_id, lower(nome)) WHERE arquivado_em IS NULL` | UNIQUE parcial (`uq_atividade_tipos_tenant_nome_ativo`) |
 | `atividade_tipos` | `(tenant_id) WHERE natureza = 'gira'` | UNIQUE parcial (`uq_atividade_tipos_gira`) |
 | `atividade_tipos` | `tenant_id` | B-tree |

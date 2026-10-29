@@ -51,6 +51,7 @@ router = APIRouter(
 )
 
 MSG_SEM_GRUPO = "Escolha pelo menos um grupo da corrente."
+MSG_PUBLICO_MEDIUNS = "Estudos e documentos vão para a corrente, um público ou grupos; não para médiuns um a um."
 MSG_ORDEM = "A lista mudou enquanto você arrumava. Recarregue a página e tente de novo."
 
 
@@ -254,6 +255,9 @@ async def criar_material(
     texto = limpar_texto_material(body.texto)
     validar_conteudo(body.tipo.value, url, texto)
     categoria = limpar_categoria(body.categoria)
+    # O público "mediuns" (aviso individual) é só dos avisos; o CHECK de materiais não aceita.
+    if body.publico == ComunicadoPublico.MEDIUNS:
+        raise ValidationError(MSG_PUBLICO_MEDIUNS)
     grupos: list[CorrenteGrupo] = []
     if body.publico == ComunicadoPublico.GRUPOS:
         grupos = await validar_grupos_ativos_do_tenant(db, tenant_id, body.grupo_ids)
@@ -363,6 +367,8 @@ async def editar_material(
     if "publicado" in enviados and body.publicado is not None:
         material.publicado = body.publicado
     if "publico" in enviados and body.publico is not None:
+        if body.publico == ComunicadoPublico.MEDIUNS:
+            raise ValidationError(MSG_PUBLICO_MEDIUNS)
         material.publico = body.publico.value
 
     grupos = grupos_antes
