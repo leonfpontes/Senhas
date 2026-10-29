@@ -450,7 +450,14 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> tupl
         grupos = await membros_por_medium(db, tenant_id) if avisos else {}
         for aviso in avisos:
             for medium_id, d in dest.items():
-                if not medium_no_publico(aviso.publico, d.is_atendimento, grupos.get(medium_id, frozenset()), aviso.grupos):
+                if not medium_no_publico(
+                    aviso.publico,
+                    d.is_atendimento,
+                    grupos.get(medium_id, frozenset()),
+                    aviso.grupos,
+                    medium_id,
+                    aviso.mediuns,
+                ):
                     continue
                 if not quer(medium_id, lm.TIPO_AVISO):
                     continue

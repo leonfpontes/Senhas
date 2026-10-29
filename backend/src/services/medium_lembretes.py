@@ -38,6 +38,7 @@ from ..models import (
     AtividadeTipo,
     Comunicado,
     ComunicadoGrupo,
+    ComunicadoMedium,
     CorrenteGrupo,
     FuncaoCorrente,
     Gira,
@@ -698,6 +699,7 @@ class AvisoPorEmail:
     corpo: str
     publico: str
     grupos: frozenset
+    mediuns: frozenset = frozenset()
 
 
 async def avisos_para_email(db: AsyncSession, tenant_id: uuid.UUID, agora: datetime) -> list[AvisoPorEmail]:
@@ -730,9 +732,23 @@ async def avisos_para_email(db: AsyncSession, tenant_id: uuid.UUID, agora: datet
     )
     for comunicado_id, grupo_id in rows.all():
         grupos.setdefault(comunicado_id, set()).add(grupo_id)
+    mediuns: dict[uuid.UUID, set[uuid.UUID]] = {}
+    rows = await db.execute(
+        select(ComunicadoMedium.comunicado_id, ComunicadoMedium.medium_id).where(
+            ComunicadoMedium.tenant_id == tenant_id,
+            ComunicadoMedium.comunicado_id.in_([c.id for c in comunicados]),
+        )
+    )
+    for comunicado_id, medium_id in rows.all():
+        mediuns.setdefault(comunicado_id, set()).add(medium_id)
     return [
         AvisoPorEmail(
-            id=c.id, titulo=c.titulo, corpo=c.corpo, publico=c.publico, grupos=frozenset(grupos.get(c.id, set()))
+            id=c.id,
+            titulo=c.titulo,
+            corpo=c.corpo,
+            publico=c.publico,
+            grupos=frozenset(grupos.get(c.id, set())),
+            mediuns=frozenset(mediuns.get(c.id, set())),
         )
         for c in sorted(comunicados, key=lambda c: c.publicar_em)
     ]

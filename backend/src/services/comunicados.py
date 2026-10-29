@@ -10,7 +10,8 @@ onde o auditor de tenant confere os filtros; aqui só o que dá para testar sem 
 - **Público** (`publicos_do_medium`, `medium_no_publico`): `todos` vale para todo médium;
   `atendimento` para quem é médium de atendimento (`mediuns.is_atendimento`); `cambones` para
   quem é só cambone; `grupos` (AM-23) para quem está em pelo menos um dos grupos da corrente
-  escolhidos no aviso (`comunicado_grupos`), não importa se atende ou é cambone.
+  escolhidos no aviso (`comunicado_grupos`), não importa se atende ou é cambone; `mediuns` só
+  para os médiuns escolhidos um a um no aviso (`comunicado_mediuns`, aviso individual).
 - **Agenda e validade** (`situacao`, `normalizar_data`): publicado = `publicar_em` já chegou e
   `expira_em` (se houver) ainda não; antes disso "agendado", depois "expirado".
 """
@@ -72,7 +73,11 @@ def medium_no_publico(
     is_atendimento: bool,
     grupos_do_medium: AbstractSet = frozenset(),
     grupos_do_aviso: AbstractSet = frozenset(),
+    medium_id=None,
+    mediuns_do_aviso: AbstractSet = frozenset(),
 ) -> bool:
+    if publico == ComunicadoPublico.MEDIUNS.value:
+        return medium_id is not None and medium_id in mediuns_do_aviso
     if publico == ComunicadoPublico.GRUPOS.value:
         return bool(set(grupos_do_medium) & set(grupos_do_aviso))
     return publico in publicos_do_medium(is_atendimento)

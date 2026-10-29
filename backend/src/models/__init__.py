@@ -28,7 +28,7 @@ from .trial_grants import TrialGrant
 from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
 from .medium_convites import MediumConvite
-from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoPublico
+from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoMedium, ComunicadoPublico
 from .corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
 from .atividades import (
     Atividade,
@@ -92,6 +92,7 @@ __all__ = [
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",
+    "ComunicadoMedium",
     "ComunicadoGrupo",
     "CorrenteGrupo",
     "CorrenteGrupoMembro",
