@@ -2114,14 +2114,14 @@ Besides `require_medium`, these routes need the **mensalidade module visible** i
 {
   "mes": "2026-10", "valor": 50.0,
   "copia_e_cola": "00020126...6304ABCD",
-  "txid": "MENS2026100A1B2C3D4E",
   "tipo": "cpf", "chave": "12345678909", "nome_recebedor": "Casa de Oxala", "cidade": "Sao Paulo",
   "instrucoes": null, "chave_alterada_em": null
 }
 ```
 The BR Code is built on the server (`services/pix_brcode.build_static_brcode`) with the **missing**
-value of the month (partial payment, 092), txid `MENS` + AAAAMM + 10 hex of the médium id (`txid_mensalidade`) and the description
-"Mensalidade MM/AAAA"; the same text is the QR payload. Errors: 404 `MES_SEM_MENSALIDADE` (month
+value of the month (partial payment, 092), txid `***` and no description (26-02): the receiving bank
+may refuse a txid it did not issue (Inter refused the per-group key code in 10/2026); the receipt sent
+through the Área identifies the payment. The same text is the QR payload. Errors: 404 `MES_SEM_MENSALIDADE` (month
 outside the list), 409 `MES_FECHADO` (`paga`, `isento` or `em_conferencia` — `details.status`), 409
 `PIX_NAO_CONFIGURADO`, 409 `MENSALIDADE_SEM_VALOR`, 409 `SEM_VALOR_EM_ABERTO` (nothing missing although the
 month record is still pending), 422 `MES_INVALIDO`.

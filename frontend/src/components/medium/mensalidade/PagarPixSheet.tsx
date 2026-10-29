@@ -3,9 +3,9 @@
  * banco em "PIX copia e cola", enviar o comprovante — e, recolhidos, o QR Code (para pagar de
  * outro aparelho) e a chave da casa (para quem prefere digitar).
  *
- * O código vem pronto do servidor (`GET /api/v1/medium/mensalidades/{mes}/pix`: valor e txid do
- * mês) — a tela nunca monta o BR Code. Sem clipboard (navegador do WhatsApp, por exemplo), o
- * código fica selecionável e a tela pede "toque e segure para copiar".
+ * O código vem pronto do servidor (`GET /api/v1/medium/mensalidades/{mes}/pix`: valor do mês) —
+ * a tela nunca monta o BR Code. Sem clipboard (navegador do WhatsApp, por exemplo), o código fica
+ * selecionável e a tela pede "toque e segure para copiar".
  */
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';

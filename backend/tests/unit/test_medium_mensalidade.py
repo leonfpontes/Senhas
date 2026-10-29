@@ -17,12 +17,11 @@ from src.services.medium_mensalidade import (
     MAX_COMPROVANTE_MEDIUM_BYTES,
     ComprovanteInvalido,
     chave_alterada_recente,
-    descricao_pix,
     meses_da_area,
     parse_mes,
     validar_comprovante,
 )
-from src.services.pix_brcode import build_static_brcode, txid_mensalidade
+from src.services.pix_brcode import build_static_brcode
 
 HOJE = date(2026, 10, 15)
 T0 = datetime(2026, 10, 12, 18, tzinfo=timezone.utc)
@@ -237,22 +236,17 @@ def test_nome_do_arquivo_sem_caminho_nem_caracteres_estranhos():
     assert validar_comprovante("image/jpeg", JPEG, None).filename == "comprovante.jpg"
 
 
-def test_txid_identifica_mes_e_medium_e_cabe_no_br_code():
-    mid = uuid.UUID("0a1b2c3d-4e5f-6789-abcd-ef0123456789")
-    txid = txid_mensalidade(date(2026, 10, 1), mid)
-    assert txid == "MENS2026100A1B2C3D4E"
-    assert len(txid) <= 25 and txid.isalnum()
+def test_br_code_da_mensalidade_sem_txid_nem_descricao():
+    # Chave celular da TUCCCO (Inter): o código com txid próprio e descrição foi recusado.
     code = build_static_brcode(
         chave="+5511999998888",
         nome_recebedor="Tenda Luz da Mata",
         cidade="São Paulo",
         valor=50,
-        txid=txid,
-        descricao=descricao_pix(date(2026, 10, 1)),
     )
-    assert f"0520{txid}" in code
+    assert "26360014br.gov.bcb.pix0114+5511999998888" in code
     assert "540550.00" in code
-    assert "Mensalidade 10/2026" in code
+    assert "62070503***6304" in code
 
 
 def test_chave_alterada_so_aparece_por_30_dias():

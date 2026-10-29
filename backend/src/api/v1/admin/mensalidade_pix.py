@@ -174,7 +174,6 @@ def _response(
                 nome_recebedor=config.pix_nome_recebedor or "",
                 cidade=config.pix_cidade or "",
                 valor=valor,
-                txid="PREVIA" + utc_now().astimezone(APP_TZ).strftime("%Y%m"),
             )
         except ValueError:  # dado antigo inconsistente: mostra a config, sem prévia
             logger.warning("Prévia do BR Code falhou para o tenant %s", config.tenant_id)

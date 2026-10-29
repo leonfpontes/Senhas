@@ -3,13 +3,11 @@
 Os três payloads abaixo são os exemplos publicados no manual (§2.6.3 estático, §2.7.2
 dinâmico e §2.8.5 composto com valor); o CRC16 deles confere a implementação.
 """
-import uuid
-from datetime import date
 from decimal import Decimal
 
 import pytest
 
-from src.services.pix_brcode import build_static_brcode, crc16_ccitt, txid_mensalidade
+from src.services.pix_brcode import build_static_brcode, crc16_ccitt
 
 # Exemplo do manual, §2.6.3 (chave aleatória, sem valor, txid ***).
 MANUAL_ESTATICO = (
@@ -137,9 +135,3 @@ def test_chave_longa_demais_recusa():
     with pytest.raises(ValueError):
         build_static_brcode("a" * 78, "X", "Y")
 
-
-def test_txid_mensalidade():
-    medium_id = uuid.UUID("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0")
-    txid = txid_mensalidade(date(2026, 10, 1), medium_id)
-    assert txid == "MENS2026100F1E2D3C4B"
-    assert len(txid) == 20 and txid.isalnum()
