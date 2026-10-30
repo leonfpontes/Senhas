@@ -582,6 +582,7 @@ function LancamentosContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
+        data-tour="lancamentos-header"
         title="Lançamentos"
         subtitle={texto.subtitulo}
         actions={
@@ -597,7 +598,7 @@ function LancamentosContent() {
               </Link>
             </Button>
             {canInsert && (
-              <Button onClick={openCreate}>
+              <Button onClick={openCreate} data-tour="lancamentos-novo">
                 <Plus />
                 Novo lançamento
               </Button>
@@ -612,6 +613,7 @@ function LancamentosContent() {
         value={tipo}
         onValueChange={(v) => v && setTipo(v as TipoLancamento)}
         aria-label="Tipo de lançamento"
+        data-tour="lancamentos-tipo"
         className="w-full sm:w-auto"
       >
         <ToggleGroupItem value="receber" className="flex-1 sm:flex-none sm:px-4" aria-label="Entradas (contas a receber)">
@@ -624,13 +626,13 @@ function LancamentosContent() {
         </ToggleGroupItem>
       </ToggleGroup>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="lancamentos-kpis">
         <KpiCard label={texto.kpiPendente} value={formatBRL(kpi.pendente)} icon={tipo === 'pagar' ? <ArrowUpFromLine /> : <ArrowDownToLine />} color="var(--warning)" subtitle={`pendente em ${mesRotulo}`} loading={loading} />
         <KpiCard label="Vencido" value={formatBRL(kpi.vencido)} icon={<AlertTriangle />} color="var(--destructive)" subtitle={`em atraso, vencimento em ${mesRotulo}`} loading={loading} />
         <KpiCard label={texto.kpiPago} value={formatBRL(kpi.pago)} icon={<CheckCircle2 />} color="var(--success)" subtitle={mesRotulo} loading={loading} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end" data-tour="lancamentos-filtros">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filtro-mes">Mês</Label>
           <Select value={mesFilter} onValueChange={setMesFilter}>
@@ -694,16 +696,18 @@ function LancamentosContent() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={contas}
-        getRowId={(c) => c.id}
-        loading={loading}
-        pageSize={25}
-        renderCard={renderCard}
-        emptyMessage="Nenhum lançamento neste mês."
-        emptyDescription={canInsert ? 'Use "Novo lançamento" para registrar o primeiro.' : undefined}
-      />
+      <div data-tour="lancamentos-tabela">
+        <DataTable
+          columns={columns}
+          data={contas}
+          getRowId={(c) => c.id}
+          loading={loading}
+          pageSize={25}
+          renderCard={renderCard}
+          emptyMessage="Nenhum lançamento neste mês."
+          emptyDescription={canInsert ? 'Use "Novo lançamento" para registrar o primeiro.' : undefined}
+        />
+      </div>
 
       {/* Sheet — criar/editar */}
       <CrudDrawer

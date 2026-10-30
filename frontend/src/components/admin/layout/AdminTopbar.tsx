@@ -19,6 +19,7 @@ import { useTenant } from '@/providers/ThemeProvider';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
+import { buildGuideSteps } from '@/tours/tourContent';
 import { routeLabel } from '@/constants/routes';
 import { APP_VERSION } from '@/lib/version';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -93,7 +94,8 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
   const { setSteps, setIsOpen, setCurrentStep } = useTour();
   const tourSteps = getAdminTourSteps(router.pathname);
   const handleOpenTour = () => {
-    setSteps?.(tourSteps);
+    // Monta na hora do clique: só entram os passos cujo elemento está na tela agora.
+    setSteps?.(buildGuideSteps(tourSteps));
     setCurrentStep(0);
     setIsOpen(true);
   };

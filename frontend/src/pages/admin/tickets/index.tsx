@@ -605,7 +605,7 @@ function AdminTicketsContent() {
       </div>
 
       {/* ── Busca + filtros ── */}
-      <div className="mb-3 flex gap-2">
+      <div className="mb-3 flex gap-2" data-tour="tickets-busca">
         <TextField
           aria-label="Buscar senha"
           placeholder="Buscar por número, nome ou e-mail…"
@@ -662,6 +662,7 @@ function AdminTicketsContent() {
             variant="outline"
             onClick={handleExportPdf}
             disabled={exporting}
+            data-tour="tickets-pdf"
             aria-label="Exportar PDF"
             title="Baixar o PDF com a listagem completa das senhas desta gira"
           >

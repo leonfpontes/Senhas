@@ -280,11 +280,12 @@ function FichaConfigContent() {
         </Button>
       </div>
       <PageHeader
+        data-tour="ficha-header"
         title="Ficha espiritual"
         subtitle="Os campos da ficha da casa. Cada médium só é preenchido com a autorização dele, e só vê o que a casa liberar."
         actions={
           canInsert ? (
-            <Button onClick={abrirNovo}>
+            <Button onClick={abrirNovo} data-tour="ficha-novo">
               <Plus aria-hidden />
               Novo campo
             </Button>
@@ -336,7 +337,7 @@ function FichaConfigContent() {
           )}
 
           {pendencias.sugestoes.length > 0 && (
-            <section className="flex flex-col gap-2" aria-labelledby="ficha-sugestoes-titulo">
+            <section className="flex flex-col gap-2" aria-labelledby="ficha-sugestoes-titulo" data-tour="ficha-sugestoes">
               <h2 id="ficha-sugestoes-titulo" className="flex items-center gap-2 text-lg font-semibold">
                 <MessageSquarePlus className="size-5 text-muted-foreground" aria-hidden />
                 Sugestões dos médiuns
@@ -371,7 +372,7 @@ function FichaConfigContent() {
             </section>
           )}
 
-          <section className="flex flex-col gap-3" aria-labelledby="ficha-campos-titulo">
+          <section className="flex flex-col gap-3" aria-labelledby="ficha-campos-titulo" data-tour="ficha-campos">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="ficha-campos-titulo" className="text-lg font-semibold">
                 Campos da ficha

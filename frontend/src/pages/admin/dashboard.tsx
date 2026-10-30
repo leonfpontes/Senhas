@@ -215,7 +215,7 @@ function TodayGiraCard({
   const isToday = start.toDateString() === new Date().toDateString();
   const pct = gira.max_tickets ? Math.min(100, (gira.current_count / gira.max_tickets) * 100) : null;
   return (
-    <Card className="mb-6 gap-4 border-primary/50 py-5" data-testid="gira-de-hoje">
+    <Card className="mb-6 gap-4 border-primary/50 py-5" data-testid="gira-de-hoje" data-tour="dashboard-gira-hoje">
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -660,6 +660,7 @@ function DashboardContent() {
           {hasAniversariantes && (
             <SectionCard
               title="Aniversariantes da semana"
+              data-tour="dashboard-aniversariantes"
               action={
                 <Button asChild size="sm" variant="ghost">
                   <Link href="/admin/mediuns">Ver médiuns</Link>

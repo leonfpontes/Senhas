@@ -386,6 +386,7 @@ function FluxoDeCaixaContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
+        data-tour="fluxo-header"
         title="Fluxo de Caixa"
         subtitle="Evolução de receitas, despesas e saldo acumulado"
         actions={
@@ -400,7 +401,7 @@ function FluxoDeCaixaContent() {
                 <span className="hidden sm:inline">Por categoria</span>
               </Link>
             </Button>
-            <Button variant="outline" onClick={openPdfPreview} disabled={loading || dados.length === 0}>
+            <Button variant="outline" onClick={openPdfPreview} data-tour="fluxo-pdf" disabled={loading || dados.length === 0}>
               <FileText />
               Exportar PDF
             </Button>
@@ -408,7 +409,7 @@ function FluxoDeCaixaContent() {
         }
       />
 
-      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end" data-tour="fluxo-periodo">
         <ToggleGroup
           type="single"
           variant="outline"
@@ -465,65 +466,69 @@ function FluxoDeCaixaContent() {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-tour="fluxo-kpis">
         <KpiCard label="Saldo acumulado" value={formatBRL(saldoAtual)} icon={<Wallet />} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="ao fim do período, a partir do saldo informado nas contas" loading={loading} />
         <KpiCard label="Recebido" value={formatBRL(totalReceitas)} icon={<ArrowDownToLine />} color="var(--info)" subtitle="realizado" loading={loading} />
         <KpiCard label="Pago" value={formatBRL(totalDespesas)} icon={<ArrowUpFromLine />} color="var(--warning)" subtitle="realizado" loading={loading} />
         <KpiCard label="Pendentes (líquido)" value={formatBRL(pendenteLiquido)} icon={<Scale />} color={pendenteLiquido >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="a receber − a pagar" loading={loading} />
       </div>
 
-      <ChartCard
-        title="Recebido × pago e saldo acumulado"
-        subtitle="Por mês, no período selecionado"
-        loading={loading}
-        empty={!loading && dados.length === 0}
-        emptyMessage="Sem lançamentos no período."
-        height={280}
-        footer={
-          !loading && projReg && projecoes.length > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Tendência (regressão linear sobre os saldos mensais, R² {(projReg.r2 * 100).toFixed(0)}%): saldo acumulado
-              projetado em {projecoes[PROJ_MESES - 1].mes_label} de{' '}
-              <strong className="text-foreground">{formatBRL(projecoes[PROJ_MESES - 1].valor)}</strong>. Referência
-              indicativa — não considera sazonalidade nem lançamentos futuros.
-            </p>
-          ) : !loading && dados.length > 0 && dados.length < 2 ? (
-            <p className="text-xs text-muted-foreground">São necessários ao menos 2 meses de dados para estimar a tendência.</p>
-          ) : undefined
-        }
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={dados} barCategoryGap="30%" barGap={3} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke={chartTokens.grid} vertical={false} />
-            <XAxis dataKey="mes_label" tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10, fill: chartTokens.tick }} axisLine={false} tickLine={false} width={44} />
-            <ReferenceLine y={0} stroke={chartTokens.border} strokeDasharray="4 2" />
-            <RechartsTooltip
-              contentStyle={chartTooltipStyle}
-              formatter={(v: number, name: string) => [
-                formatBRL(v),
-                name === 'receitas' ? 'Recebido' : name === 'despesas' ? 'Pago' : 'Saldo acumulado',
-              ]}
-            />
-            <Legend
-              formatter={(v) => (v === 'receitas' ? 'Recebido' : v === 'despesas' ? 'Pago' : 'Saldo acumulado')}
-              wrapperStyle={{ fontSize: 12 }}
-            />
-            <Bar dataKey="receitas" name="receitas" fill={chartTokens.info} radius={[4, 4, 0, 0]} maxBarSize={28} />
-            <Bar dataKey="despesas" name="despesas" fill={chartTokens.warning} radius={[4, 4, 0, 0]} maxBarSize={28} />
-            <Line type="monotone" dataKey="saldo_acumulado" name="saldo_acumulado" stroke={chartTokens.primary} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      <div data-tour="fluxo-grafico">
+        <ChartCard
+          title="Recebido × pago e saldo acumulado"
+          subtitle="Por mês, no período selecionado"
+          loading={loading}
+          empty={!loading && dados.length === 0}
+          emptyMessage="Sem lançamentos no período."
+          height={280}
+          footer={
+            !loading && projReg && projecoes.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Tendência (regressão linear sobre os saldos mensais, R² {(projReg.r2 * 100).toFixed(0)}%): saldo acumulado
+                projetado em {projecoes[PROJ_MESES - 1].mes_label} de{' '}
+                <strong className="text-foreground">{formatBRL(projecoes[PROJ_MESES - 1].valor)}</strong>. Referência
+                indicativa — não considera sazonalidade nem lançamentos futuros.
+              </p>
+            ) : !loading && dados.length > 0 && dados.length < 2 ? (
+              <p className="text-xs text-muted-foreground">São necessários ao menos 2 meses de dados para estimar a tendência.</p>
+            ) : undefined
+          }
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={dados} barCategoryGap="30%" barGap={3} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid stroke={chartTokens.grid} vertical={false} />
+              <XAxis dataKey="mes_label" tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10, fill: chartTokens.tick }} axisLine={false} tickLine={false} width={44} />
+              <ReferenceLine y={0} stroke={chartTokens.border} strokeDasharray="4 2" />
+              <RechartsTooltip
+                contentStyle={chartTooltipStyle}
+                formatter={(v: number, name: string) => [
+                  formatBRL(v),
+                  name === 'receitas' ? 'Recebido' : name === 'despesas' ? 'Pago' : 'Saldo acumulado',
+                ]}
+              />
+              <Legend
+                formatter={(v) => (v === 'receitas' ? 'Recebido' : v === 'despesas' ? 'Pago' : 'Saldo acumulado')}
+                wrapperStyle={{ fontSize: 12 }}
+              />
+              <Bar dataKey="receitas" name="receitas" fill={chartTokens.info} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="despesas" name="despesas" fill={chartTokens.warning} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Line type="monotone" dataKey="saldo_acumulado" name="saldo_acumulado" stroke={chartTokens.primary} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
 
-      <DataTable
-        columns={columns}
-        data={tabela}
-        getRowId={(d) => `${d.ano}-${d.mes}`}
-        loading={loading}
-        renderCard={renderCard}
-        emptyMessage="Sem dados no período."
-      />
+      <div data-tour="fluxo-tabela">
+        <DataTable
+          columns={columns}
+          data={tabela}
+          getRowId={(d) => `${d.ano}-${d.mes}`}
+          loading={loading}
+          renderCard={renderCard}
+          emptyMessage="Sem dados no período."
+        />
+      </div>
 
       <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
         <DialogContent className="flex max-h-[95vh] flex-col gap-0 p-0 sm:max-w-[900px]">

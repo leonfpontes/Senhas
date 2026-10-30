@@ -188,11 +188,12 @@ function AtividadesContent() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
+        data-tour="atividades-header"
         title="Atividades e escalas"
         subtitle="Faxina, rituais, reuniões, desenvolvimento… Ficam só na Área do Médium: não vão ao site nem contam no limite de giras."
       />
       <Tabs value={aba} onValueChange={setAba}>
-        <TabsList className="w-full sm:w-auto">
+        <TabsList className="w-full sm:w-auto" data-tour="atividades-abas">
           <TabsTrigger value="agenda">Agenda da casa</TabsTrigger>
           <TabsTrigger value="faxina">Escala de faxina</TabsTrigger>
           <TabsTrigger value="tipos">Tipos e funções</TabsTrigger>
@@ -515,7 +516,7 @@ function AgendaDaCasa({
           </Button>
         </div>
         {canInsert && (
-          <Button onClick={abrirNova} disabled={tiposDeAtividade.length === 0}>
+          <Button onClick={abrirNova} disabled={tiposDeAtividade.length === 0} data-tour="atividades-nova">
             <Plus aria-hidden />
             Nova atividade
           </Button>
@@ -523,7 +524,7 @@ function AgendaDaCasa({
       </div>
 
       {tipos.length > 0 && (
-        <div role="group" aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Filtrar por tipo" className="flex flex-wrap gap-2" data-tour="atividades-filtro">
           {[{ id: '', nome: 'Tudo' }, ...tipos.filter((t) => !t.arquivado_em)].map((t) => (
             <button
               key={t.id || 'tudo'}
@@ -569,7 +570,7 @@ function AgendaDaCasa({
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3" aria-label="Agenda da casa">
+        <ul className="flex flex-col gap-3" aria-label="Agenda da casa" data-tour="atividades-agenda">
           {itens.map((item) => (
             <li key={`${item.origem}-${item.id}`}>
               <Card

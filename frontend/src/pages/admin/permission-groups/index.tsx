@@ -250,6 +250,7 @@ function PermissionGroupsContent() {
   return (
     <div data-slot="page" className="space-y-4">
       <PageHeader
+        data-tour="permissoes-header"
         title="Grupos de permissão"
         subtitle="Cada grupo diz o que os operadores podem fazer. Administradores fazem tudo."
         actions={
@@ -257,7 +258,7 @@ function PermissionGroupsContent() {
             <Button variant="outline" onClick={fetchData} disabled={loading}>
               <RefreshCw /> Atualizar
             </Button>
-            <Button onClick={openCreate} disabled={loading}>
+            <Button onClick={openCreate} disabled={loading} data-tour="permissoes-novo">
               <Plus /> Novo grupo
             </Button>
           </>
@@ -314,14 +315,16 @@ function PermissionGroupsContent() {
               startAdornment={<Search className="size-4 text-muted-foreground" aria-hidden />}
             />
           </div>
-          <DataTable
-            columns={columns}
-            data={filteredGroups}
-            getRowId={(g) => g.id}
-            loading={loading}
-            onRowClick={(g) => router.push(`/admin/permission-groups/${g.id}`)}
-            emptyMessage="Nenhum grupo encontrado na busca."
-          />
+          <div data-tour="permissoes-tabela">
+            <DataTable
+              columns={columns}
+              data={filteredGroups}
+              getRowId={(g) => g.id}
+              loading={loading}
+              onRowClick={(g) => router.push(`/admin/permission-groups/${g.id}`)}
+              emptyMessage="Nenhum grupo encontrado na busca."
+            />
+          </div>
         </>
       )}
 

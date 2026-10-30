@@ -509,12 +509,13 @@ function AdminMateriaisContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
+        data-tour="materiais-header"
         title="Estudos e documentos"
         subtitle="Apostilas, pontos cantados, rezas e vídeos para a corrente, na Área do Médium."
         className="mb-0"
         actions={
           canInsert ? (
-            <Button onClick={abrirNovo}>
+            <Button onClick={abrirNovo} data-tour="materiais-novo">
               <Plus aria-hidden />
               Novo material
             </Button>
@@ -534,20 +535,22 @@ function AdminMateriaisContent() {
           }
         />
       ) : (
-        <DataTable
-          columns={columns}
-          data={lista}
-          getRowId={(m) => m.id}
-          loading={loading}
-          pageSize={300}
-          renderCard={renderCard}
-          emptyIcon={<Library />}
-          emptyMessage="Nenhum material ainda."
-          emptyDescription={
-            canInsert ? 'Publique o primeiro: uma apostila do Drive, um ponto cantado ou um estudo escrito.' : undefined
-          }
-          data-testid="materiais-tabela"
-        />
+        <div data-tour="materiais-tabela">
+          <DataTable
+            columns={columns}
+            data={lista}
+            getRowId={(m) => m.id}
+            loading={loading}
+            pageSize={300}
+            renderCard={renderCard}
+            emptyIcon={<Library />}
+            emptyMessage="Nenhum material ainda."
+            emptyDescription={
+              canInsert ? 'Publique o primeiro: uma apostila do Drive, um ponto cantado ou um estudo escrito.' : undefined
+            }
+            data-testid="materiais-tabela"
+          />
+        </div>
       )}
 
       <CrudDrawer

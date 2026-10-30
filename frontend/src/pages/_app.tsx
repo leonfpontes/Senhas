@@ -16,30 +16,7 @@ import ServiceWorkerRegistrar from '@/components/shared/ServiceWorkerRegistrar';
 import PassagemDeEntrada from '@/components/shared/PassagemDeEntrada';
 import MarketingTags from '@/components/shared/MarketingTags';
 import CookieConsent from '@/components/shared/CookieConsent';
-
-/**
- * Estilos do popover do tour — responsivos.
- * maxWidth usa min() para não transbordar em telas pequenas.
- */
-const tourStyles = {
-  popover: (base: React.CSSProperties) => ({
-    ...base,
-    borderRadius: 12,
-    padding: '20px 22px',
-    maxWidth: 'min(400px, 90vw)',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-    fontSize: '0.93rem',
-    lineHeight: 1.55,
-  }),
-  badge: (base: React.CSSProperties) => ({
-    ...base,
-    backgroundColor: '#7c3aed',
-  }),
-  dot: (base: React.CSSProperties, state?: { current?: boolean }) => ({
-    ...base,
-    backgroundColor: state?.current ? '#7c3aed' : '#d4d4d4',
-  }),
-};
+import { tourStyles } from '@/tours/tourStyles';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (

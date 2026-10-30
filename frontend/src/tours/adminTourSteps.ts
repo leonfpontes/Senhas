@@ -1,421 +1,628 @@
 /**
- * Roteiro de uso do painel admin — linguagem de terreiro.
- * Cada rota tem seus próprios steps com seletores `data-tour="..."`.
+ * Guias das telas do painel (botão "?" no topo) — linguagem de terreiro.
+ *
+ * Cada rota (`router.pathname`) tem os seus passos, ancorados em `data-tour="..."`.
+ * Descreva a tela inteira: o `AdminTopbar` monta o roteiro com `buildGuideSteps`
+ * (`tourContent.tsx`), que tira os passos cujo elemento não está na tela naquele
+ * momento (sem plano, sem permissão, sem dados, aba fechada ou tela de celular).
+ * O primeiro passo de cada tela apresenta a tela e deve existir sempre.
+ *
+ * Mudou a tela? Atualize o guia junto (R-02): o teste `adminTourSteps.test.ts`
+ * confere que toda âncora daqui existe no código.
  */
-import type { StepType } from '@reactour/tour';
+import type { GuideStep } from './tourContent';
 
-type TourStepMap = Record<string, StepType[]>;
+const s = (tour: string, title: string, body: string): GuideStep => ({
+  selector: `[data-tour="${tour}"]`,
+  title,
+  body,
+});
 
-export const adminTourSteps: TourStepMap = {
+export const HELP_STEP = s(
+  'topbar-help',
+  'Um guia em cada tela',
+  'Toda tela do painel tem o seu guia. Sempre que bater uma dúvida, toque neste botão.',
+);
+
+export const adminTourSteps: Record<string, GuideStep[]> = {
   '/admin/dashboard': [
-    {
-      selector: '[data-tour="dashboard-greeting"]',
-      content:
-        'Bem-vindo ao seu painel! Aqui você tem uma visão geral do terreiro — atualizada em tempo real. Use o botão de refresh para recarregar os dados a qualquer momento.',
-    },
-    {
-      selector: '[data-tour="dashboard-kpis"]',
-      content:
-        'Esses quatro cartões mostram o panorama de senhas do terreiro: total emitido, total utilizado, taxa de aproveitamento e entradas presenciais (walk-in). O número menor abaixo indica o movimento de hoje.',
-    },
-    {
-      selector: '[data-tour="dashboard-chart"]',
-      content:
-        'Este gráfico mostra a distribuição de senhas emitidas nos últimos 7 dias — separando senhas comuns, de associados e entradas presenciais. Passe o mouse pelas barras para ver os detalhes de cada dia.',
-    },
-    {
-      selector: '[data-tour="dashboard-peak-hours"]',
-      content:
-        'Veja em quais horários o movimento de emissões é maior. Use essa informação para planejar o horário de abertura das filas nas próximas giras.',
-    },
-    {
-      selector: '[data-tour="dashboard-giras"]',
-      content:
-        'Aqui aparecem as próximas giras do seu terreiro. A barra de progresso mostra quantas senhas já foram retiradas em relação ao limite. Quando a barra fica vermelha, a gira está lotada.',
-    },
-    {
-      selector: '[data-tour="dashboard-estoque"]',
-      content:
-        'Se algum item do estoque estiver abaixo do mínimo configurado, um alerta aparece aqui — separando itens em atenção dos que estão em situação crítica.',
-    },
+    s('dashboard-greeting', 'Seu painel', 'Um resumo do terreiro para o dia. O botão ao lado recarrega os números.'),
+    s(
+      'first-gira-checklist',
+      'Seus primeiros passos',
+      'O roteiro do que falta para o terreiro começar a usar o GiraHub. Cada passo se marca sozinho quando você faz a tarefa.',
+    ),
+    s(
+      'dashboard-gira-hoje',
+      'A próxima gira',
+      'A gira de hoje (ou a próxima) com quantas senhas já saíram. Daqui você abre a Porta, vê as senhas ou compartilha o link no WhatsApp.',
+    ),
+    s(
+      'dashboard-kpis',
+      'Os números das senhas',
+      'Senhas emitidas, atendidas, o comparecimento (quem pegou senha e veio) e quantas pessoas chegaram sem senha. O número menor mostra o movimento de hoje.',
+    ),
+    s(
+      'dashboard-chart',
+      'Últimos 7 dias',
+      'Quantas senhas saíram em cada dia, separando comum, associado e quem chegou sem senha. Toque numa barra para ver o detalhe.',
+    ),
+    s(
+      'dashboard-peak-hours',
+      'Horários de pico',
+      'Em que horário as pessoas mais pegam senha. Ajuda a escolher a hora de abrir o link nas próximas giras.',
+    ),
+    s(
+      'dashboard-giras',
+      'Próximas giras',
+      'A agenda das próximas giras, com a barra de senhas retiradas. Barra cheia quer dizer gira lotada.',
+    ),
+    s(
+      'dashboard-aniversariantes',
+      'Aniversariantes da semana',
+      'Os médiuns que fazem aniversário nesta semana, para a casa não esquecer ninguém.',
+    ),
+    s(
+      'dashboard-estoque',
+      'Alertas de estoque',
+      'Aparece quando vela, erva, bebida ou outro material fica abaixo do mínimo. Em "Ver relatório" você vê o que repor.',
+    ),
+    HELP_STEP,
   ],
 
   '/admin/giras': [
-    {
-      selector: '[data-tour="giras-header"]',
-      content:
-        'Gerencie todas as giras do seu terreiro aqui. Crie novas giras, edite as existentes e controle a abertura de senhas.',
-    },
-    {
-      selector: '[data-tour="giras-nova"]',
-      content:
-        'Clique aqui para cadastrar uma nova gira. Informe o nome, a descrição e a data de início.',
-    },
-    {
-      selector: '[data-tour="giras-usage"]',
-      content:
-        'Esta barra mostra quantas giras já foram criadas no mês em relação ao limite do seu plano.',
-    },
-    {
-      selector: '[data-tour="giras-tabela"]',
-      content:
-        'Aqui está a lista de todas as giras. Você vê o status (aberta ou encerrada), as senhas emitidas e pode acessar as ações de cada gira.',
-    },
-    {
-      selector: '[data-tour="giras-acoes"]',
-      content:
-        'Use o menu de ações (três pontinhos) para editar, configurar senhas, copiar o link de emissão ou encerrar uma gira.',
-    },
+    s('giras-header', 'Giras', 'A agenda do terreiro. Cada gira tem o seu link de senhas, que você manda no grupo de WhatsApp.'),
+    s(
+      'giras-nova',
+      'Nova gira',
+      'Em três passos a gira fica pronta: nome e data, quantas senhas e quando o link abre. O link sai pronto para compartilhar.',
+    ),
+    s('giras-usage', 'Limite do plano', 'Quantas giras você já criou neste mês e quantas o seu plano permite.'),
+    s(
+      'giras-tabela',
+      'Suas giras',
+      'Cada cartão mostra a situação das senhas e um botão com a próxima ação: compartilhar o link, abrir a Porta ou configurar as senhas. As giras que já passaram ficam guardadas no fim da lista.',
+    ),
+    s(
+      'giras-acoes',
+      'Mais ações',
+      'No menu de três pontinhos: compartilhar o link, abrir a Porta, ver as senhas, configurar as senhas, liberar agora, editar ou excluir a gira.',
+    ),
   ],
 
   '/admin/tickets': [
-    {
-      selector: '[data-tour="tickets-header"]',
-      content:
-        'Aqui você visualiza e gerencia as senhas emitidas pelos consulentes para cada gira.',
-    },
-    {
-      selector: '[data-tour="tickets-gira-select"]',
-      content:
-        'Primeiro, escolha a gira que deseja consultar. A lista de senhas será carregada automaticamente.',
-    },
-    {
-      selector: '[data-tour="tickets-filtros"]',
-      content:
-        'Use os filtros para encontrar senhas por situação (aguardando, atendido, cancelado) ou por data de emissão.',
-    },
-    {
-      selector: '[data-tour="tickets-tabela"]',
-      content:
-        'Esta tabela mostra todos os consulentes que retiraram senha: nome, contato, tipo de senha, status e o médium que realizou o atendimento.',
-    },
-    {
-      selector: '[data-tour="tickets-fila-espera"]',
-      content:
-        'Se a fila de espera estiver habilitada nas Configurações (plano Premium), este painel aparece aqui quando houver alguém aguardando vaga. Ao cancelar uma senha oficial, o próximo da fila é promovido automaticamente e avisado por e-mail. Você também pode agir manualmente: o ✓ promove fora da ordem exigindo confirmação do consulente, e o ⚡ libera a senha na hora, sem precisar de confirmação — total autonomia para o operador decidir.',
-    },
+    s('tickets-header', 'Senhas', 'Todas as senhas de uma gira: quem pegou, o contato, a situação e quem atendeu.'),
+    s('tickets-gira-select', 'Escolha a gira', 'Comece por aqui. A lista abaixo mostra as senhas da gira escolhida.'),
+    s('tickets-busca', 'Buscar', 'Ache uma senha pelo número, pelo nome ou pelo e-mail de quem pegou.'),
+    s(
+      'tickets-filtros',
+      'Filtros',
+      'Filtre pela situação (aguardando, atendidas, não veio, canceladas) e pela data das giras.',
+    ),
+    s('tickets-pdf', 'Lista em PDF', 'Baixa a lista completa das senhas da gira, boa para imprimir e deixar na porta.'),
+    s(
+      'tickets-fila-espera',
+      'Fila de espera',
+      'Quando a gira lota e a fila de espera está ligada, quem ficou de fora aparece aqui. Se alguém cancela, o próximo da fila sobe sozinho e recebe um e-mail. Você também pode agir na mão: o ✓ promove pedindo confirmação e o ⚡ libera a senha na hora.',
+    ),
+    s(
+      'tickets-tabela',
+      'A lista',
+      'Toque numa senha para ver os detalhes, anotar o atendimento ou cancelar. Marque várias para agir de uma vez: dar como atendidas ou cancelar.',
+    ),
   ],
 
   '/admin/porta': [
-    {
-      selector: '[data-tour="porta-header"]',
-      content:
-        'A Visão da Porta é a central de atendimento em tempo real. Selecione a gira pelo seletor abaixo do título e a fila é carregada automaticamente. O relógio no canto superior direito mostra o horário da última atualização.',
-    },
-    {
-      selector: '[data-tour="porta-gira-select"]',
-      content:
-        'Escolha a gira que está acontecendo agora. Apenas giras das últimas 24 horas aparecem aqui. O ponto verde ao lado do nome indica gira ativa. Se walk-in estiver habilitado, o botão "Walk-in" aparecerá ao lado do seletor.',
-    },
-    {
-      selector: '[data-tour="porta-stats"]',
-      content:
-        'Resumo da gira: aguardando, atendidos e quem não veio. Toque para ver o resumo completo (chegaram, sem senha, preferenciais, associados) e as senhas finalizadas. Os números se atualizam a cada 8 segundos.',
-    },
-    {
-      selector: '[data-tour="porta-busca"]',
-      content:
-        'Busque qualquer consulente pelo nome para encontrá-lo na fila, mesmo quando a lista estiver longa.',
-    },
-    {
-      selector: '[data-tour="porta-fila"]',
-      content:
-        'A fila de espera lista todos os tickets emitidos. Borda azul = check-in feito (pessoa já chegou). Borda verde = próximo a ser chamado. Use o check-in para confirmar a chegada antes de chamar para o atendimento.',
-    },
-    {
-      selector: '[data-tour="porta-walkin"]',
-      content:
-        'Registre entradas presenciais (walk-in) para quem chegou sem senha pré-emitida. Informe o nome e, opcionalmente, contato e categoria preferencial.',
-    },
+    s(
+      'porta-header',
+      'A Porta',
+      'A tela do dia da gira, feita para usar no celular, em pé na entrada. A parte de cima fica fixa enquanto você rola a fila.',
+    ),
+    s(
+      'porta-gira-select',
+      'Qual gira',
+      'Aparecem as giras de hoje e das próximas horas. Ao lado ficam o som (avisa quando entra alguém na fila), a chamada da corrente, quando o plano tem, e o modo TV para o telão.',
+    ),
+    s(
+      'porta-chamar',
+      'Chamar próximo',
+      'Chama a próxima senha da fila (quem já chegou tem a vez). Você escolhe o médium e o cambone e o atendimento já fica registrado.',
+    ),
+    s('porta-walkin', 'Chegou sem senha?', 'Toque em "Sem senha" para pôr na fila quem chegou sem ter pegado senha pelo link.'),
+    s(
+      'porta-stats',
+      'Resumo',
+      'Quantos aguardam, quantos já foram atendidos e quantos não vieram. Toque para ver o resumo completo e as senhas finalizadas. Atualiza sozinho a cada 8 segundos.',
+    ),
+    s(
+      'porta-duplas',
+      'Duplas da noite',
+      'Marque quais médiuns trabalham hoje e o cambone de cada um. Na hora de chamar, um toque no médium já preenche o cambone.',
+    ),
+    s('porta-busca', 'Buscar', 'Ache qualquer pessoa pelo nome ou pelo número da senha, mesmo com a fila grande.'),
+    s(
+      'porta-fila',
+      'A fila',
+      'No menu de cada senha: Chegou (marca a chegada), Chamar, Não veio e Editar. Errou? Dá para desfazer pelo aviso que aparece logo depois.',
+    ),
   ],
 
   '/admin/users': [
-    {
-      selector: '[data-tour="users-header"]',
-      content:
-        'Aqui você gerencia quem tem acesso ao painel administrativo do terreiro.',
-    },
-    {
-      selector: '[data-tour="users-novo"]',
-      content:
-        'Crie um novo acesso informando e-mail, nome de usuário, senha e o perfil de acesso (Admin ou Operador).',
-    },
-    {
-      selector: '[data-tour="users-filtro"]',
-      content:
-        'Filtre os usuários por perfil: todos, administradores ou operadores.',
-    },
-    {
-      selector: '[data-tour="users-tabela"]',
-      content:
-        'Lista de todos os usuários com acesso ao painel. Você pode editar ou remover um acesso diretamente por aqui.',
-    },
+    s('users-header', 'Pessoas e acessos', 'Quem entra no sistema do terreiro e o que cada pessoa pode fazer.'),
+    s(
+      'users-novo',
+      'Nova pessoa',
+      'Dê acesso a alguém da casa. Administrador faz tudo; operador faz só o que o grupo de permissão dele libera.',
+    ),
+    s('users-filtro', 'Filtro', 'Veja só os administradores ou só os operadores.'),
+    s(
+      'users-tabela',
+      'Quem tem acesso',
+      'Edite ou remova um acesso. Por segurança, ninguém remove o próprio acesso e o último administrador ativo sempre fica.',
+    ),
+  ],
+
+  '/admin/permission-groups': [
+    s(
+      'permissoes-header',
+      'Grupos de permissão',
+      'Cada grupo diz o que os operadores podem ver e fazer em cada parte do sistema. Administradores fazem tudo e não precisam de grupo.',
+    ),
+    s(
+      'permissoes-novo',
+      'Novo grupo',
+      'Por exemplo, um grupo só com a Porta e as Senhas para quem fica na entrada. Depois de criar, você marca o que o grupo pode fazer e quem faz parte dele.',
+    ),
+    s(
+      'permissoes-tabela',
+      'Seus grupos',
+      'Toque num grupo para mudar as permissões e as pessoas. Operador sem grupo não acessa nada; o grupo "Acesso total" recebe os operadores novos.',
+    ),
   ],
 
   '/admin/mediuns': [
-    {
-      selector: '[data-tour="mediuns-header"]',
-      content:
-        'Cadastre e gerencie os médiuns do terreiro. Eles podem ser vinculados aos atendimentos realizados na gira.',
-    },
-    {
-      selector: '[data-tour="mediuns-usage"]',
-      content:
-        'Esta barra mostra quantos médiuns estão cadastrados em relação ao limite do seu plano.',
-    },
-    {
-      selector: '[data-tour="mediuns-busca"]',
-      content:
-        'Busque médiuns pelo nome. Você pode incluir os inativos na pesquisa usando o botão ao lado.',
-    },
-    {
-      selector: '[data-tour="mediuns-novo"]',
-      content:
-        'Cadastre um novo médium informando nome, tipo (atendimento ou cambone), contato e endereço.',
-    },
-    {
-      selector: '[data-tour="mediuns-tabela"]',
-      content:
-        'Lista de todos os médiuns cadastrados com seu tipo e situação (ativo ou inativo).',
-    },
+    s(
+      'mediuns-header',
+      'Médiuns e cambones',
+      'A corrente da casa: quem atende e quem auxilia. Daqui você também chega aos grupos da corrente e à ficha espiritual, quando o plano tem.',
+    ),
+    s('mediuns-usage', 'Limite do plano', 'Quantos médiuns estão cadastrados e quantos o seu plano permite.'),
+    s(
+      'mediuns-busca',
+      'Buscar',
+      'Ache pelo nome. Ao lado, "Incluir inativos" mostra quem saiu da corrente, e o botão de aniversariantes mostra quem faz aniversário na semana.',
+    ),
+    s('mediuns-novo', 'Cadastrar', 'Cadastre médium ou cambone com nome, contato, aniversário e endereço.'),
+    s('mediuns-tabela', 'A corrente', 'Toque numa pessoa para ver e editar o cadastro.'),
+  ],
+
+  '/admin/mediuns/grupos': [
+    s(
+      'grupos-header',
+      'Grupos da corrente',
+      'Separe a corrente em grupos (G1, G2, Ogãs, Desenvolvimento…). Eles servem para mandar avisos e estudos só para quem precisa e para montar a escala de faxina.',
+    ),
+    s('grupos-novo', 'Novo grupo', 'Dê um nome, escolha uma cor e coloque os médiuns. O médium vê só o nome do grupo dele.'),
+    s(
+      'grupos-lista',
+      'Seus grupos',
+      'Edite ou arquive um grupo. Arquivado, ele sai das telas e dos avisos, mas os membros ficam guardados e voltam se você trouxer o grupo de volta.',
+    ),
+  ],
+
+  '/admin/mediuns/ficha': [
+    s(
+      'ficha-header',
+      'Ficha espiritual',
+      'Os campos da ficha espiritual da casa. A ficha de cada médium só é preenchida com a autorização dele, e ele só vê o que a casa liberar.',
+    ),
+    s(
+      'ficha-novo',
+      'Novo campo',
+      'Crie um campo do jeito da casa: texto, data, lista ou sim/não. Você escolhe se o médium vê e se pode sugerir mudança.',
+    ),
+    s(
+      'ficha-sugestoes',
+      'Sugestões dos médiuns',
+      'Quando um médium sugere uma correção na ficha, ela chega aqui. Aceitar grava na ficha; recusar descarta.',
+    ),
+    s(
+      'ficha-campos',
+      'Campos da ficha',
+      'Comece por um modelo de Umbanda ou de Candomblé e ajuste. Arquivar tira o campo da ficha sem apagar o que já foi preenchido.',
+    ),
   ],
 
   '/admin/associados': [
-    {
-      selector: '[data-tour="associados-header"]',
-      content:
-        'Gerencie os associados do terreiro. Consulentes marcados como associados podem ter prioridade no atendimento.',
-    },
-    {
-      selector: '[data-tour="associados-novo"]',
-      content:
-        'Cadastre um novo associado com nome, e-mail e telefone.',
-    },
-    {
-      selector: '[data-tour="associados-tabela"]',
-      content:
-        'Lista de todos os associados cadastrados. Você pode editar ou remover um associado por aqui.',
-    },
+    s(
+      'associados-header',
+      'Associados',
+      'Quem contribui com a casa. Associado pode ter senha especial e prioridade na fila da Porta.',
+    ),
+    s('associados-novo', 'Novo associado', 'Cadastre com nome, e-mail e telefone.'),
+    s(
+      'associados-tabela',
+      'Seus associados',
+      'Edite ou remova um associado. A mensalidade dos associados fica em Financeiro → Mensalidades.',
+    ),
   ],
 
   '/admin/analytics': [
-    {
-      selector: '[data-tour="analytics-header"]',
-      content:
-        'O painel de Analytics apresenta métricas detalhadas de emissão e uso de senhas por período ou por gira específica.',
-    },
-    {
-      selector: '[data-tour="analytics-filtros"]',
-      content:
-        'Defina o intervalo de datas e, opcionalmente, filtre por uma gira. Os gráficos e KPIs se atualizam automaticamente a cada mudança.',
-    },
-    {
-      selector: '[data-tour="analytics-kpis"]',
-      content:
-        'Cinco indicadores rápidos do período: total emitido, total utilizado, taxa de uso (%), cancelados e entradas walk-in.',
-    },
-    {
-      selector: '[data-tour="analytics-chart-line"]',
-      content:
-        'Distribuição diária empilhada por categoria (Comum, Associado e Walk-in). Identifique os dias de pico e o perfil de cada gira.',
-    },
-    {
-      selector: '[data-tour="analytics-chart-pie"]',
-      content:
-        'Proporção entre as categorias de ticket. Quanto maior a fatia de Associados ou Walk-ins, maior é o engajamento fora da lista regular.',
-    },
-    {
-      selector: '[data-tour="analytics-peak"]',
-      content:
-        'Horários de maior emissão ao longo do dia, exibidos como barras de progresso. Use para dimensionar a equipe e planejar a abertura das filas.',
-    },
+    s(
+      'analytics-header',
+      'Analytics',
+      'Os números das senhas por período ou por gira: quantas saíram, quantas foram usadas e em que horário.',
+    ),
+    s(
+      'analytics-filtros',
+      'Período e gira',
+      'Escolha um período pronto ou as suas datas e, se quiser, uma gira só. Tudo abaixo se atualiza na hora.',
+    ),
+    s(
+      'analytics-kpis',
+      'Indicadores',
+      'Total emitido, total utilizado, taxa de uso, cancelados, quem chegou sem senha e o movimento de hoje.',
+    ),
+    s(
+      'analytics-chart-line',
+      'Por dia',
+      'Senhas por dia, separadas em comum, associado e sem senha. Mostra os dias de mais movimento.',
+    ),
+    s('analytics-chart-pie', 'Por categoria', 'A proporção entre senha comum, de associado e de quem chegou sem senha.'),
+    s(
+      'analytics-peak',
+      'Horários de pico',
+      'Em que hora as pessoas mais pegam senha. Ajuda a decidir quando abrir o link e quantas pessoas pôr na porta.',
+    ),
   ],
 
   '/admin/relatorio-gira': [
-    {
-      selector: '[data-tour="relatorio-header"]',
-      content:
-        'O Relatório de Gira reúne todos os atendimentos de uma gira em uma tabela filtrável. Quando uma gira estiver selecionada, os botões de exportação aparecem aqui no canto direito.',
-    },
-    {
-      selector: '[data-tour="relatorio-filtros-gira"]',
-      content:
-        'Comece escolhendo a gira no seletor. Clique em "Filtros de gira" para refinar por período, tipo (ativas/inativas) e status do ticket. O badge vermelho indica quantos filtros estão ativos.',
-    },
-    {
-      selector: '[data-tour="relatorio-kpis"]',
-      content:
-        'Após selecionar uma gira, este painel de números mostra o resumo completo: total de tickets, concluídos, aguardando, em atendimento, no-shows, walk-ins, preferenciais e associados.',
-    },
-    {
-      selector: '[data-tour="relatorio-tabela"]',
-      content:
-        'A tabela lista todos os atendimentos com número da senha, nome do consulente, tag (Comum, Preferencial, Associado ou Walk-in), médium, cambone e observações do atendimento.',
-    },
-    {
-      selector: '[data-tour="relatorio-export"]',
-      content:
-        'Exporte os dados filtrados em CSV (para planilhas) ou em PDF formatado — com logo do terreiro, cores da identidade visual e resumo estatístico da gira.',
-    },
+    s(
+      'relatorio-header',
+      'Relatório de gira',
+      'Tudo o que aconteceu numa gira: cada senha, quem atendeu e as observações.',
+    ),
+    s(
+      'relatorio-filtros-gira',
+      'Escolha a gira',
+      'Escolha a gira no seletor. Em "Filtros de gira" você restringe a lista por período, giras ativas ou não e situação da senha.',
+    ),
+    s(
+      'relatorio-kpis',
+      'Resumo da gira',
+      'Total de senhas, concluídas, aguardando, quem chegou, quem não veio, quem chegou sem senha, preferenciais e associados.',
+    ),
+    s(
+      'relatorio-tabela',
+      'Atendimentos',
+      'Cada atendimento com o número da senha, o nome, o tipo de senha, o médium, o cambone e as observações.',
+    ),
+    s(
+      'relatorio-export',
+      'Exportar',
+      'O CSV abre em planilha. O PDF sai com o logo e as cores do terreiro e o resumo da gira.',
+    ),
   ],
 
   '/admin/audit-trail': [
-    {
-      selector: '[data-tour="audit-header"]',
-      content:
-        'A Auditoria registra cada ação feita no painel: quem fez, o quê, e quando. O botão "Exportar CSV" no canto superior direito baixa todos os registros filtrados.',
-    },
-    {
-      selector: '[data-tour="audit-filtros"]',
-      content:
-        'Filtre por tipo de ação (Criação, Alteração, Exclusão, Login…) ou por tipo de recurso (Usuário, Ticket, Gira, Estoque…). O contador à direita mostra quantos registros combinam com os filtros.',
-    },
-    {
-      selector: '[data-tour="audit-tabela"]',
-      content:
-        'Cada linha mostra data/hora, usuário responsável, ação (com badge colorido por tipo) e recurso afetado. Na coluna Detalhes você vê os valores antes e depois de uma alteração, ou o resumo do evento.',
-    },
-    {
-      selector: '[data-tour="audit-export"]',
-      content:
-        'Exporta todos os registros filtrados em CSV — útil para auditorias externas, compliance ou arquivamento histórico.',
-    },
+    s(
+      'audit-header',
+      'Auditoria',
+      'O registro de tudo o que foi feito no painel: quem fez, o quê e quando.',
+    ),
+    s(
+      'audit-filtros',
+      'Filtros',
+      'Filtre pelo tipo de ação (criação, alteração, exclusão, entrada no sistema…) ou pelo que foi mexido (pessoa, senha, gira, estoque…).',
+    ),
+    s(
+      'audit-tabela',
+      'Registros',
+      'Cada linha mostra data e hora, quem fez, a ação e o que foi afetado. Em Detalhes você vê como estava antes e como ficou.',
+    ),
+    s('audit-export', 'Exportar', 'Baixa os registros filtrados em CSV, para guardar ou mostrar a quem precisar.'),
   ],
 
   '/admin/config': [
-    {
-      selector: '[data-tour="config-header"]',
-      content:
-        'Aqui você personaliza tudo que diz respeito ao seu terreiro — identidade visual, funcionalidades ativas e regras de atendimento. Quando houver mudanças não salvas, uma barra aparece no canto superior direito com os botões Descartar e Salvar.',
-    },
-    {
-      selector: '[data-tour="config-tabs"]',
-      content:
-        'As configurações estão divididas em três abas: Identidade visual (logo e cores), Funcionalidades (módulos do sistema) e Atendimento (regras de fila). Clique em cada aba para navegar.',
-    },
-    {
-      selector: '[data-tour="config-logo"]',
-      content:
-        'Faça o upload do logo do terreiro. Você pode clicar na área pontilhada ou arrastar a imagem direto para ela. Formatos aceitos: JPG, PNG e WEBP (máx. 2 MB).',
-    },
-    {
-      selector: '[data-tour="config-cores"]',
-      content:
-        'Defina as cores da identidade visual: primária, secundária e da fonte. Clique na bolinha colorida para abrir o seletor visual, ou digite o código hexadecimal diretamente. Informe também o endereço do terreiro — ele aparece nos e-mails como botão "Como chegar".',
-    },
-    {
-      selector: '[data-tour="config-preview"]',
-      content:
-        'Este cartão mostra em tempo real como ficará a identidade visual com as cores escolhidas — antes mesmo de salvar. Qualquer mudança nas cores ou no logo é refletida aqui instantaneamente.',
-    },
+    s(
+      'config-header',
+      'Configurações',
+      'A cara e as regras do terreiro. Quando você muda alguma coisa, aparece uma barra no rodapé com Descartar e Salvar.',
+    ),
+    s(
+      'config-tabs',
+      'Abas',
+      'Identidade (nome, logo, cores e endereço), Funções (ligar e desligar partes do sistema), Atendimento (regras da fila) e, quando o plano tem, Área do Médium.',
+    ),
+    s('config-logo', 'Nome e logo', 'Aparecem no painel e nas páginas públicas, como a de pegar senha.'),
+    s(
+      'config-cores',
+      'Cores e endereço',
+      'Use uma paleta pronta ou escolha as suas cores. O endereço vai nos e-mails de confirmação e no botão "Como chegar".',
+    ),
+    s('config-preview', 'Prévia', 'Mostra como fica com as cores e o logo escolhidos, antes de salvar.'),
   ],
 
   '/admin/billing': [
-    {
-      selector: '[data-tour="billing-status"]',
-      content:
-        'O cartão de status mostra seu plano ativo, a data da próxima cobrança e o valor mensal. Se você quiser cancelar a assinatura ou reativar um cancelamento agendado, os botões ficam aqui.',
-    },
-    {
-      selector: '[data-tour="billing-planos"]',
-      content:
-        'Os planos disponíveis: Basic, Pro e Premium, com o que cada um inclui. Durante o mês grátis, o plano em teste mostra “Continuar neste plano” — a cobrança só começa quando o teste acabar.',
-    },
-    {
-      selector: '[data-tour="billing-suporte"]',
-      content:
-        'Ficou com dúvida sobre qual plano escolher? Entre em contato direto pelo WhatsApp — nossa equipe responde rapidamente.',
-    },
+    s('billing-trial', 'Seu mês grátis', 'Quanto falta do teste grátis e o que você já usou do plano.'),
+    s(
+      'billing-status',
+      'Sua assinatura',
+      'O plano, a próxima cobrança e o valor. Aqui você também cancela ou desfaz um cancelamento agendado.',
+    ),
+    s(
+      'billing-planos',
+      'Planos',
+      'Basic, Pro e Premium e o que cada um inclui. No teste grátis, o plano em teste mostra "Continuar neste plano", e a cobrança só começa quando o teste acaba.',
+    ),
+    s('billing-comparativo', 'Comparativo', 'Tudo o que cada plano tem, lado a lado.'),
+    s(
+      'billing-suporte',
+      'Ficou em dúvida?',
+      'Fale com a gente pelo WhatsApp. A equipe responde rápido e ajuda a escolher o plano.',
+    ),
   ],
 
   '/admin/profile': [
-    {
-      selector: '[data-tour="profile-foto"]',
-      content:
-        'Clique para fazer upload de uma foto de perfil. Ela aparece no cabeçalho do painel.',
-    },
-    {
-      selector: '[data-tour="profile-dados"]',
-      content:
-        'Atualize seu nome completo e telefone de contato.',
-    },
-    {
-      selector: '[data-tour="profile-senha"]',
-      content:
-        'Para alterar a sua senha de acesso, informe a senha atual e a nova senha (mínimo 12 caracteres).',
-    },
+    s('profile-foto', 'Sua foto', 'Toque para escolher uma foto. Ela aparece no topo do painel.'),
+    s('profile-dados', 'Seus dados', 'Atualize seu nome e telefone.'),
+    s(
+      'profile-senha',
+      'Trocar a senha',
+      'Informe a senha atual e a nova. Ao trocar, você sai de todos os aparelhos e entra de novo.',
+    ),
   ],
 
   '/admin/estoque/grupos': [
-    {
-      selector: '[data-tour="estoque-grupos-header"]',
-      content:
-        'Os grupos organizam os materiais do terreiro por categoria — por exemplo: velas, ervas, objetos rituais.',
-    },
-    {
-      selector: '[data-tour="estoque-grupos-novo"]',
-      content:
-        'Crie um novo grupo de materiais informando nome e descrição.',
-    },
-    {
-      selector: '[data-tour="estoque-grupos-tabela"]',
-      content:
-        'Lista de todos os grupos cadastrados. Você pode editar ou excluir cada grupo por aqui.',
-    },
+    s(
+      'estoque-grupos-header',
+      'Grupos de material',
+      'Organize o estoque por categoria: velas, ervas, bebidas, objetos rituais…',
+    ),
+    s('estoque-grupos-novo', 'Novo grupo', 'Crie um grupo com nome e descrição.'),
+    s('estoque-grupos-tabela', 'Seus grupos', 'Edite ou exclua cada grupo por aqui.'),
   ],
 
   '/admin/estoque/itens': [
-    {
-      selector: '[data-tour="estoque-itens-header"]',
-      content:
-        'Gerencie os itens do estoque do terreiro — velas, flores, ervas e todos os materiais utilizados nas giras.',
-    },
-    {
-      selector: '[data-tour="estoque-itens-filtro"]',
-      content:
-        'Filtre os itens por grupo para localizar mais facilmente.',
-    },
-    {
-      selector: '[data-tour="estoque-itens-tabela"]',
-      content:
-        'Lista de itens com saldo atual. A cor indica a situação: verde (OK), amarelo (atenção) e vermelho (crítico — abaixo do mínimo).',
-    },
-    {
-      selector: '[data-tour="estoque-itens-novo"]',
-      content:
-        'Cadastre um novo item informando nome, grupo, unidade de medida e estoque mínimo.',
-    },
+    s(
+      'estoque-itens-header',
+      'Itens do estoque',
+      'Velas, flores, ervas e tudo o que a casa usa nas giras. Daqui você também baixa o PDF com o que precisa repor.',
+    ),
+    s(
+      'estoque-rel-kpis',
+      'Situação do estoque',
+      'Quantos itens estão em dia, em atenção e críticos (abaixo do mínimo).',
+    ),
+    s(
+      'estoque-itens-filtro',
+      'Buscar e filtrar',
+      'Ache um item pelo nome, filtre por grupo ou veja só os itens críticos e em atenção.',
+    ),
+    s(
+      'estoque-itens-tabela',
+      'Itens',
+      'O saldo de cada item. A cor diz a situação: verde em dia, amarelo atenção, vermelho crítico.',
+    ),
+    s(
+      'estoque-itens-novo',
+      'Novo item',
+      'Cadastre o item com nome, grupo, unidade e estoque mínimo. Abaixo do mínimo, o painel avisa.',
+    ),
+    s('estoque-rel-export', 'Exportar', 'Baixa a posição do estoque em CSV, para abrir em planilha.'),
   ],
 
   '/admin/estoque/movimentacoes': [
-    {
-      selector: '[data-tour="estoque-mov-header"]',
-      content:
-        'Registre entradas e saídas de materiais do estoque do terreiro.',
-    },
-    {
-      selector: '[data-tour="estoque-mov-nova"]',
-      content:
-        'Clique aqui para registrar uma nova movimentação — informe o item, o tipo (entrada ou saída), a quantidade e o motivo.',
-    },
-    {
-      selector: '[data-tour="estoque-mov-filtros"]',
-      content:
-        'Filtre o histórico de movimentações por item, tipo, período ou responsável.',
-    },
-    {
-      selector: '[data-tour="estoque-mov-tabela"]',
-      content:
-        'Histórico de todas as movimentações. Este registro é imutável — não é possível editar ou excluir movimentações registradas.',
-    },
+    s(
+      'estoque-mov-header',
+      'Movimentações',
+      'O que entrou e saiu do estoque. Cada registro muda o saldo do item.',
+    ),
+    s(
+      'estoque-mov-nova',
+      'Registrar',
+      'Registre uma entrada (compra, doação) ou uma saída (uso na gira), com o item, a quantidade e o motivo.',
+    ),
+    s('estoque-mov-filtros', 'Buscar e filtrar', 'Ache pelo nome do item ou filtre por entrada ou saída.'),
+    s(
+      'estoque-mov-tabela',
+      'Histórico',
+      'Tudo o que foi registrado. Lançou errado? Dá para editar ou excluir o registro.',
+    ),
   ],
 
+  '/admin/financeiro/mensalidades': [
+    s(
+      'mensalidades-header',
+      'Mensalidades',
+      'A cobrança mensal de médiuns e associados. Use as setas para trocar de mês.',
+    ),
+    s(
+      'mensalidades-kpis',
+      'O mês em números',
+      'Quanto era esperado, quanto entrou, quantos estão inadimplentes e quanto ainda está em aberto.',
+    ),
+    s(
+      'mensalidades-comprovantes',
+      'Comprovantes para conferir',
+      'Quando um médium manda o comprovante pela Área do Médium, ele chega aqui para você confirmar.',
+    ),
+    s(
+      'mensalidades-abas',
+      'Médiuns, associados e histórico',
+      'Em cada lista, registre o pagamento, isente ou baixe o comprovante; dá para filtrar por situação e marcar vários de uma vez. O Histórico compara o esperado com o arrecadado nos últimos meses.',
+    ),
+  ],
+
+  '/admin/financeiro/lancamentos': [
+    s(
+      'lancamentos-header',
+      'Lançamentos',
+      'As contas da casa num lugar só: o que entra (doações, festas, mensalidades) e o que sai (aluguel, luz, material).',
+    ),
+    s('lancamentos-tipo', 'Entradas e saídas', 'Alterne entre o que a casa tem a receber e o que tem a pagar.'),
+    s('lancamentos-kpis', 'O mês', 'Quanto está pendente, quanto venceu e quanto já foi pago no mês escolhido.'),
+    s('lancamentos-filtros', 'Filtros', 'Escolha o mês, o ano, a situação e a categoria.'),
+    s(
+      'lancamentos-novo',
+      'Novo lançamento',
+      'Registre a conta com valor, vencimento e categoria. Quando pagar ou receber, é só dar baixa.',
+    ),
+    s(
+      'lancamentos-tabela',
+      'Contas do mês',
+      'As mensalidades entram aqui sozinhas; o pagamento delas é registrado em Mensalidades.',
+    ),
+  ],
+
+  '/admin/financeiro/fluxo-de-caixa': [
+    s(
+      'fluxo-header',
+      'Fluxo de caixa',
+      'Como o dinheiro da casa entrou e saiu, mês a mês, e o saldo acumulado.',
+    ),
+    s(
+      'fluxo-periodo',
+      'Período',
+      'Escolha um período pronto ou as suas datas e, se a casa tiver mais de uma, a conta bancária.',
+    ),
+    s(
+      'fluxo-kpis',
+      'Resumo',
+      'O saldo acumulado, o que foi recebido e pago no período e o saldo das contas ainda pendentes.',
+    ),
+    s('fluxo-grafico', 'Mês a mês', 'Recebido e pago em cada mês, com a linha do saldo acumulado.'),
+    s('fluxo-tabela', 'Tabela', 'Os mesmos números, mês a mês.'),
+    s(
+      'fluxo-pdf',
+      'Relatório em PDF',
+      'Para a diretoria ou o contador: o resumo e, depois, cada lançamento recebido e pago de cada mês.',
+    ),
+  ],
+
+  '/admin/financeiro/por-categoria': [
+    s(
+      'categoria-header',
+      'Por categoria',
+      'Quanto entrou e saiu em cada categoria no período. Os botões do topo baixam a planilha (CSV) ou o PDF.',
+    ),
+    s('categoria-periodo', 'Período', 'Escolha um período pronto ou as suas datas.'),
+    s('categoria-lado', 'Entradas ou saídas', 'Troque entre o que entrou e o que saiu.'),
+    s('categoria-grafico', 'Gráfico', 'Cada barra é uma categoria. Mostra para onde vai e de onde vem o dinheiro da casa.'),
+    s('categoria-tabela', 'Tabela', 'Os valores de cada categoria e, em períodos de até um ano, o que foi realizado mês a mês.'),
+  ],
+
+  '/admin/financeiro/config': [
+    s('fin-config-header', 'Configuração financeira', 'Onde se prepara o financeiro da casa.'),
+    s(
+      'fin-config-abas',
+      'Abas',
+      'Categorias (para organizar os lançamentos) e Contas bancárias (conta, poupança ou o caixa da casa), quando o plano tem, e Mensalidade: valor, dia de vencimento e a chave PIX para a corrente pagar.',
+    ),
+  ],
+
+  '/admin/atividades': [
+    s(
+      'atividades-header',
+      'Atividades e escalas',
+      'Faxina, rituais, reuniões e desenvolvimento. Ficam só na Área do Médium: não vão para o site e não contam no limite de giras.',
+    ),
+    s(
+      'atividades-abas',
+      'Abas',
+      'Agenda da casa, escala de faxina, tipos de atividade e funções, relatórios de presença e as trocas de escala pedidas pelos médiuns.',
+    ),
+    s(
+      'atividades-nova',
+      'Nova atividade',
+      'Escolha o tipo, a data e as orientações para a corrente. Se for só para quem está na escala, você já escolhe os grupos e os médiuns.',
+    ),
+    s('atividades-filtro', 'Filtrar', 'Veja só um tipo de atividade.'),
+    s(
+      'atividades-agenda',
+      'Agenda do mês',
+      'As giras e atividades do mês. Em cada uma: Confirmações (quem vai e quem não vai), Chamada no dia e, quando houver, a Escala por função.',
+    ),
+  ],
+
+  '/admin/comunicados': [
+    s(
+      'avisos-header',
+      'Avisos',
+      'Recados para a corrente, que chegam no celular de cada médium pela Área do Médium.',
+    ),
+    s(
+      'avisos-novo',
+      'Novo aviso',
+      'Escreva o aviso e escolha para quem vai: toda a corrente, alguns grupos ou médiuns específicos. Dá para agendar, fixar no topo e mandar por e-mail também.',
+    ),
+    s(
+      'avisos-lista',
+      'Avisos publicados',
+      'Toque num aviso para ver quem leu e quem ainda não leu. "Lembrar quem não leu" monta uma mensagem pronta para o WhatsApp.',
+    ),
+  ],
+
+  '/admin/materiais': [
+    s(
+      'materiais-header',
+      'Estudos e documentos',
+      'Apostilas, pontos cantados, rezas e vídeos para a corrente estudar pela Área do Médium.',
+    ),
+    s(
+      'materiais-novo',
+      'Novo material',
+      'Publique um link (Drive, YouTube), um texto ou um ponto cantado com a letra. Escolha para quem vai e deixe como rascunho até estar pronto.',
+    ),
+    s('materiais-tabela', 'Seus materiais', 'Use as setas para mudar a ordem em que a corrente vê os materiais.'),
+  ],
+
+  '/admin/cursos-presenciais': [
+    s(
+      'cursos-header',
+      'Cursos presenciais',
+      'As turmas de cursos da casa, cada uma com uma página pública de inscrição.',
+    ),
+    s('cursos-novo', 'Novo curso', 'Cadastre a turma com título, datas e informações para quem for se inscrever.'),
+    s(
+      'cursos-tabela',
+      'Seus cursos',
+      'No menu de cada curso: ver os participantes, copiar o link de inscrição para divulgar, editar ou excluir.',
+    ),
+  ],
+
+  '/admin/meu-site': [
+    s(
+      'site-barra',
+      'Meu Site',
+      'Aqui você monta a página do terreiro na internet. Esta barra mostra se o site está publicado e se as mudanças já foram salvas.',
+    ),
+    s(
+      'site-secoes',
+      'Seções',
+      'As partes do site, na ordem em que aparecem. Mude a ordem, esconda ou adicione seções. Em Histórico você volta a uma versão anterior.',
+    ),
+    s('site-editor', 'Editar', 'Escolha uma seção na lista para mudar os textos e as imagens.'),
+    s('site-previa', 'Prévia', 'Mostra como o site vai ficar, no computador e no celular, antes de publicar.'),
+    s('site-previa-botao', 'Prévia', 'Toque aqui para ver como o site vai ficar antes de publicar.'),
+    s('site-config', 'Configurações do site', 'O endereço do site e como ele aparece no Google.'),
+    s(
+      'site-publicar',
+      'Publicar',
+      'As mudanças ficam num rascunho, salvo sozinho. Só vão para o ar quando você toca em Publicar.',
+    ),
+  ],
+
+  '/admin/suporte': [
+    s(
+      'suporte-header',
+      'Suporte',
+      'Aqui você acompanha, só para leitura, as conversas das pessoas do terreiro com o suporte do GiraHub. Para falar com o suporte, use "Falar com o suporte" no menu do seu perfil.',
+    ),
+  ],
 };
 
-/**
- * Retorna os steps para a rota atual.
- * Normaliza rotas com parâmetros dinâmicos (ex: /admin/tickets/123/email → excluído).
- */
-export function getAdminTourSteps(pathname: string): StepType[] {
+/** Passos do guia da rota (`router.pathname`, com `[id]` nas rotas dinâmicas). */
+export function getAdminTourSteps(pathname: string): GuideStep[] {
   return adminTourSteps[pathname] ?? [];
 }

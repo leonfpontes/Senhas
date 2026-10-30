@@ -263,6 +263,7 @@ function PorCategoriaContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
+        data-tour="categoria-header"
         title="Por categoria"
         subtitle="Quanto entrou e saiu em cada categoria no período"
         actions={
@@ -284,7 +285,7 @@ function PorCategoriaContent() {
         }
       />
 
-      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end" data-tour="categoria-periodo">
         <ToggleGroup
           type="single"
           variant="outline"
@@ -338,6 +339,7 @@ function PorCategoriaContent() {
         value={lado}
         onValueChange={(v) => v && setLado(v as LadoCategoria)}
         aria-label="Entradas ou saídas"
+        data-tour="categoria-lado"
         className="grid w-full grid-cols-2 sm:flex sm:w-auto"
       >
         <ToggleGroupItem value="receitas" className="px-4">
@@ -348,38 +350,42 @@ function PorCategoriaContent() {
         </ToggleGroupItem>
       </ToggleGroup>
 
-      <ChartCard
-        title={`${rot.titulo} por categoria`}
-        subtitle={`${rot.realizado} no período, pela data de pagamento`}
-        loading={loading}
-        empty={!loading && grafico.length === 0}
-        emptyMessage={lado === 'receitas' ? 'Nada recebido no período.' : 'Nada pago no período.'}
-        height={Math.max(160, grafico.length * 36 + 24)}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={grafico} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke={chartTokens.grid} horizontal={false} />
-            <XAxis type="number" tickFormatter={fmtShort} tick={{ fontSize: 10, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
-            <YAxis type="category" dataKey="nome" width={120} tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
-            <RechartsTooltip contentStyle={chartTooltipStyle} formatter={(v: number) => [formatBRL(v), rot.realizado]} cursor={{ fill: 'var(--muted)' }} />
-            <Bar dataKey="realizado" radius={[0, 4, 4, 0]} maxBarSize={24}>
-              {grafico.map((c) => (
-                <Cell key={c.categoria_id ?? 'sem'} fill={cores[itens.indexOf(c)]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      <div data-tour="categoria-grafico">
+        <ChartCard
+          title={`${rot.titulo} por categoria`}
+          subtitle={`${rot.realizado} no período, pela data de pagamento`}
+          loading={loading}
+          empty={!loading && grafico.length === 0}
+          emptyMessage={lado === 'receitas' ? 'Nada recebido no período.' : 'Nada pago no período.'}
+          height={Math.max(160, grafico.length * 36 + 24)}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={grafico} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+              <CartesianGrid stroke={chartTokens.grid} horizontal={false} />
+              <XAxis type="number" tickFormatter={fmtShort} tick={{ fontSize: 10, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="nome" width={120} tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
+              <RechartsTooltip contentStyle={chartTooltipStyle} formatter={(v: number) => [formatBRL(v), rot.realizado]} cursor={{ fill: 'var(--muted)' }} />
+              <Bar dataKey="realizado" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                {grafico.map((c) => (
+                  <Cell key={c.categoria_id ?? 'sem'} fill={cores[itens.indexOf(c)]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
 
-      <DataTable
-        columns={columns}
-        data={itens}
-        getRowId={(c) => c.categoria_id ?? 'sem-categoria'}
-        loading={loading}
-        renderCard={renderCard}
-        emptyMessage={lado === 'receitas' ? 'Nenhuma entrada no período.' : 'Nenhuma saída no período.'}
-        data-testid="tabela-por-categoria"
-      />
+      <div data-tour="categoria-tabela">
+        <DataTable
+          columns={columns}
+          data={itens}
+          getRowId={(c) => c.categoria_id ?? 'sem-categoria'}
+          loading={loading}
+          renderCard={renderCard}
+          emptyMessage={lado === 'receitas' ? 'Nenhuma entrada no período.' : 'Nenhuma saída no período.'}
+          data-testid="tabela-por-categoria"
+        />
+      </div>
       {totais && itens.length > 0 && (
         <p className="text-right text-sm text-muted-foreground" data-testid="total-lado">
           Total: <strong className="text-foreground">{formatBRL(totais.realizado)}</strong> em {totais.qtd}{' '}

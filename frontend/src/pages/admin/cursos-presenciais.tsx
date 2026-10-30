@@ -403,12 +403,13 @@ function CursosPresenciaisContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
+        data-tour="cursos-header"
         title="Cursos presenciais"
         subtitle="Turmas, inscrições públicas e participantes"
         className="mb-0"
         actions={
           canInsert && (
-            <Button onClick={openCreate}>
+            <Button onClick={openCreate} data-tour="cursos-novo">
               <Plus />
               Novo curso
             </Button>
@@ -416,17 +417,19 @@ function CursosPresenciaisContent() {
         }
       />
 
-      <DataTable
-        columns={columns}
-        data={cursos}
-        getRowId={(c) => c.id}
-        loading={loading}
-        pageSize={20}
-        renderCard={renderCard}
-        emptyIcon={<IconCurso />}
-        emptyMessage="Nenhum curso cadastrado."
-        emptyDescription={canInsert ? 'Crie o primeiro curso e compartilhe o link de inscrição.' : undefined}
-      />
+      <div data-tour="cursos-tabela">
+        <DataTable
+          columns={columns}
+          data={cursos}
+          getRowId={(c) => c.id}
+          loading={loading}
+          pageSize={20}
+          renderCard={renderCard}
+          emptyIcon={<IconCurso />}
+          emptyMessage="Nenhum curso cadastrado."
+          emptyDescription={canInsert ? 'Crie o primeiro curso e compartilhe o link de inscrição.' : undefined}
+        />
+      </div>
 
       <CrudDrawer
         title={drawerMode === 'create' ? 'Novo curso' : 'Editar curso'}
