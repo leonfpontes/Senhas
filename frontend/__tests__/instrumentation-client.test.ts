@@ -29,6 +29,7 @@ describe('instrumentation-client', () => {
       'ERR_CANCELED',
       'ResizeObserver loop limit exceeded',
       /^chrome-extension:\/\//,
+      'IABInnerFrame',
     ]);
     expect(options.integrations).toEqual([
       { name: 'Replay', options: { maskAllText: true, blockAllMedia: true } },
