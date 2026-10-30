@@ -31,6 +31,8 @@ Sentry.init({
     'ERR_CANCELED',
     'ResizeObserver loop limit exceeded',
     /^chrome-extension:\/\//,
+    // Script que o navegador do Instagram/Facebook injeta na página (JAVASCRIPT-NEXTJS-8)
+    'IABInnerFrame',
   ],
 
   integrations: [

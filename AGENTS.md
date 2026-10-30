@@ -1971,7 +1971,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   o `_document` não o linka — lá vale o `manifest-medium.webmanifest` da Área, §11.23), ícones gerados
   de `public/favicon.svg` por `scripts/generate-icons.mjs`, `public/sw.js` escrito à mão (sem workbox/next-pwa) registrado por
   `components/shared/ServiceWorkerRegistrar` só em produção + contexto seguro (`?v=<buildId>`; caches antigos apagados no
-  `activate`), `/offline` como fallback de navegação. **Regra: o SW nunca cacheia `/api/*`** (nem `/ws/*`, `/_next/data/*`,
+  `activate`), `/offline` como fallback de navegação — por **redirect** para `/offline?de=<página>` (servir o HTML do
+  `/offline` no endereço da página fazia o Next hidratar com rota ≠ endereço e tentar navegar sem rede: Sentry
+  JAVASCRIPT-NEXTJS-2/4); "Tentar de novo" volta ao `de` (só caminho da origem). **Regra: o SW nunca cacheia `/api/*`** (nem `/ws/*`, `/_next/data/*`,
   POST, outra origem, `Authorization` ou HTML de página) — testado em `__tests__/pwa/sw.test.ts`. Na Porta: `PortaOfflineNotice`
   (offline ou 2 falhas seguidas da fila) e `InstallPortaHint`. Sem sincronização offline de emissão.
 - **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`

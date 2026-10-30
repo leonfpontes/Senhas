@@ -82,7 +82,10 @@ function setup(version = 'build-2') {
     fetch: fetchMock,
     URL,
     Request: FakeRequest,
-    Response: { error: () => ({ type: 'error' }) },
+    Response: {
+      error: () => ({ type: 'error' }),
+      redirect: (url: string, status: number) => ({ type: 'redirect', url, status }),
+    },
     Promise,
     Set,
     Array,
@@ -152,7 +155,7 @@ describe('service worker', () => {
     expect(sw.self.skipWaiting).toHaveBeenCalled();
   });
 
-  it('navegação vai à rede e não guarda o HTML; sem rede devolve /offline', async () => {
+  it('navegação vai à rede e não guarda o HTML; sem rede redireciona para /offline?de=', async () => {
     const sw = setup('build-2');
     await sw.lifecycle('install');
     const shell = sw.stores.get('girahub-shell-build-2')!;
@@ -161,8 +164,18 @@ describe('service worker', () => {
     expect(ok.response.body).toBe('network');
     expect(shell.has('/admin/porta?source=pwa')).toBe(false);
 
+    // Redireciona (não devolve o HTML do /offline no endereço da página): senão o Next hidrata com
+    // rota e endereço divergentes e tenta navegar sem rede (Sentry JAVASCRIPT-NEXTJS-2/4).
     sw.fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    const offline = await sw.dispatchFetch('/admin/porta', { mode: 'navigate' });
+    const redirect = await sw.dispatchFetch('/public/tenda/senha?x=1', { mode: 'navigate' });
+    expect(redirect.response).toEqual({
+      type: 'redirect',
+      url: `${ORIGIN}/offline?de=%2Fpublic%2Ftenda%2Fsenha%3Fx%3D1`,
+      status: 302,
+    });
+
+    sw.fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const offline = await sw.dispatchFetch('/offline?de=%2Fadmin%2Fporta', { mode: 'navigate' });
     expect(offline.response).toBe(shell.get('/offline'));
   });
 

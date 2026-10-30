@@ -81,8 +81,9 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
         // 500 / timeout / rede: ponto de entrada público sem auth — registrar
         // para o Sentry, senão a falha some sem rastro no cliente. O api_client rejeita com um
         // objeto ({ status, message, ... }), não um Error: embrulhar para o Sentry mostrar o status.
+        // Aparelho sem internet não é falha nossa: a tela de erro aparece, mas não vai ao Sentry.
         setErrorKind('error');
-        Sentry.captureException(
+        if (typeof navigator === 'undefined' || navigator.onLine !== false) Sentry.captureException(
           new Error(`Falha ao achar a próxima gira (status ${status ?? 'sem resposta'})`),
           { tags: { area: 'public-emission', slug: tenantSlug, tipo, status: String(status ?? 'sem-resposta') }, extra: { erro: err } },
         );

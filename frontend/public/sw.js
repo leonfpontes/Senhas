@@ -5,8 +5,12 @@
  * O que faz:
  * - Shell estático: `/_next/static/*` (nome com hash, imutável) em cache-first; ícones e manifest
  *   em stale-while-revalidate.
- * - Navegação (HTML): sempre rede. Se a rede falhar, mostra a página `/offline` guardada na
- *   instalação. O HTML das páginas NÃO é guardado.
+ * - Navegação (HTML): sempre rede. Se a rede falhar, redireciona para `/offline?de=<página>`, que é
+ *   servida da cópia guardada na instalação. O HTML das páginas NÃO é guardado. Redireciona em vez
+ *   de devolver o HTML do /offline no endereço da página pedida porque, nesse caso, o Next
+ *   hidratava com rota e endereço divergentes e tentava navegar para a página pedida (sem rede):
+ *   "Invariant: attempted to hard navigate to the same URL" ou a página pedida carregando por cima
+ *   do aviso e falhando na API (Sentry JAVASCRIPT-NEXTJS-2/4).
  *
  * O que NUNCA faz:
  * - Cachear `/api/*`, `/ws/*` ou qualquer coisa fora da origem, nem requisições que não sejam GET,
@@ -111,6 +115,12 @@ async function networkFirstNavigation(event) {
     if (preloaded) return preloaded;
     return await fetch(event.request);
   } catch {
+    const url = new URL(event.request.url);
+    if (url.pathname !== OFFLINE_URL) {
+      const destino = new URL(OFFLINE_URL, self.location.origin);
+      destino.searchParams.set('de', url.pathname + url.search);
+      return Response.redirect(destino.href, 302);
+    }
     const cache = await caches.open(SHELL_CACHE);
     const offline = await cache.match(OFFLINE_URL);
     return offline || Response.error();
