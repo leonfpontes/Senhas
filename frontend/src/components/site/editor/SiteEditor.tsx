@@ -211,7 +211,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-background" data-testid="site-editor">
       {/* ── Barra superior ── */}
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 sm:px-4">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 sm:px-4" data-tour="site-barra">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1">
           <h1 className="sr-only md:not-sr-only md:text-lg md:font-bold">Meu Site</h1>
           {!editor.loading && statusBadge}
@@ -228,18 +228,18 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
             </Button>
           )}
           {!hasPreviewPane && (
-            <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)} disabled={editor.loading}>
+            <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)} disabled={editor.loading} data-tour="site-previa-botao">
               <Eye aria-hidden /> Prévia
             </Button>
           )}
           {canEdit && (
-            <Button variant="ghost" size="icon-sm" onClick={() => setSettingsOpen(true)} aria-label="Configurações do site" disabled={editor.loading}>
+            <Button variant="ghost" size="icon-sm" onClick={() => setSettingsOpen(true)} aria-label="Configurações do site" disabled={editor.loading} data-tour="site-config">
               <Settings2 />
             </Button>
           )}
           {canEdit && (
             <div className="flex flex-col items-end">
-              <Button size="sm" onClick={() => void editor.publish()} disabled={publishDisabled} data-testid="publish-button">
+              <Button size="sm" onClick={() => void editor.publish()} disabled={publishDisabled} data-testid="publish-button" data-tour="site-publicar">
                 {editor.publishing ? <Loader2 className="animate-spin" aria-hidden /> : <CloudUpload aria-hidden />}
                 {publishLabel}
               </Button>
@@ -330,7 +330,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
       ) : (
         <div className="flex min-h-0 flex-1">
           {/* Lista / histórico */}
-          <aside className="flex w-full min-w-0 flex-col md:w-[300px] md:shrink-0 md:border-r md:border-border">
+          <aside className="flex w-full min-w-0 flex-col md:w-[300px] md:shrink-0 md:border-r md:border-border" data-tour="site-secoes">
             <Tabs value={tab} onValueChange={(v) => setTab(v as 'secoes' | 'historico')} className="flex min-h-0 flex-1 flex-col gap-0">
               <TabsList variant="line" className="w-full justify-start border-b border-border px-2">
                 <TabsTrigger value="secoes" className="flex-none">
@@ -360,11 +360,11 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
           </aside>
 
           {/* Editor (≥ 900) */}
-          <main className="@container hidden min-h-0 flex-1 overflow-y-auto bg-muted/30 md:block">{editorPanel}</main>
+          <main className="@container hidden min-h-0 flex-1 overflow-y-auto bg-muted/30 md:block" data-tour="site-editor">{editorPanel}</main>
 
           {/* Prévia (≥ 1200) */}
           {previewSite && (
-            <aside className="hidden min-h-0 w-[42%] max-w-[760px] shrink-0 border-l border-border lg:flex lg:flex-col">
+            <aside className="hidden min-h-0 w-[42%] max-w-[760px] shrink-0 border-l border-border lg:flex lg:flex-col" data-tour="site-previa">
               <SitePreview site={previewSite} viewport={viewport} onViewportChange={setViewport} />
             </aside>
           )}

@@ -786,6 +786,7 @@ function PortaContent() {
                 // em vez de vazar para fora (antes "Chamar próximo · P008" saía pela esquerda).
                 className="h-auto min-h-12 min-w-0 flex-1 py-2 text-base leading-tight font-bold whitespace-normal sm:text-lg"
                 disabled={!next || actionLoading === next?.id}
+                data-tour="porta-chamar"
                 onClick={() => next && setAttendTarget(next)}
               >
                 <Megaphone aria-hidden />
@@ -856,6 +857,7 @@ function PortaContent() {
               className="flex min-h-12 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
               aria-label={`Duplas da noite: ${duplas.length} ${duplas.length === 1 ? 'médium' : 'médiuns'} trabalhando${canEdit ? '. Editar' : ''}`}
               data-testid="porta-duplas"
+              data-tour="porta-duplas"
             >
               <UsersRound className="size-5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="min-w-0 flex-1">
@@ -870,7 +872,7 @@ function PortaContent() {
             </button>
           ) : (
             canEdit && (
-              <div className="flex min-h-12 items-center gap-3 rounded-lg border border-dashed px-3 py-2 text-sm">
+              <div className="flex min-h-12 items-center gap-3 rounded-lg border border-dashed px-3 py-2 text-sm" data-tour="porta-duplas">
                 <UsersRound className="size-5 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="min-w-0 flex-1 text-muted-foreground">
                   Monte as duplas da noite (médium e cambone) para chamar com um toque.

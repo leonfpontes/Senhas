@@ -10,11 +10,14 @@ export interface PageHeaderProps {
   subtitle?: string;
   actions?:  React.ReactNode;
   className?: string;
+  /** Âncora do guia da tela (`tours/adminTourSteps.ts`). */
+  'data-tour'?: string;
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, actions, className }) => (
+export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, actions, className, 'data-tour': dataTour }) => (
   <header
     data-slot="page-header"
+    data-tour={dataTour}
     className={cn(
       'mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center',
       className,

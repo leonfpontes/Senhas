@@ -432,11 +432,12 @@ function AdminComunicadosContent() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
+        data-tour="avisos-header"
         title="Avisos"
         subtitle="Para a corrente, na Área do Médium. Veja quem leu e quem ainda não leu."
         actions={
           canInsert ? (
-            <Button onClick={abrirNovo}>
+            <Button onClick={abrirNovo} data-tour="avisos-novo">
               <Plus aria-hidden />
               Novo aviso
             </Button>
@@ -472,7 +473,7 @@ function AdminComunicadosContent() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3" aria-label="Avisos publicados">
+        <ul className="flex flex-col gap-3" aria-label="Avisos publicados" data-tour="avisos-lista">
           {lista.map((c) => (
             <li key={c.id}>
               <Card className="flex-row items-start gap-2 p-0" data-testid="comunicado-item">

@@ -277,11 +277,12 @@ function GruposContent() {
         </Button>
       </div>
       <PageHeader
+        data-tour="grupos-header"
         title="Grupos da corrente"
-        subtitle="G1, G2, Ogãs, Desenvolvimento… Use nos avisos (e, em breve, nas escalas). O médium vê só o nome do grupo dele."
+        subtitle="G1, G2, Ogãs, Desenvolvimento… Use nos avisos, nos estudos e na escala de faxina. O médium vê só o nome do grupo dele."
         actions={
           canInsert ? (
-            <Button onClick={abrirNovo}>
+            <Button onClick={abrirNovo} data-tour="grupos-novo">
               <Plus aria-hidden />
               Novo grupo
             </Button>
@@ -324,7 +325,7 @@ function GruposContent() {
           }
         />
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2" aria-label="Grupos da corrente">
+        <ul className="grid gap-3 md:grid-cols-2" aria-label="Grupos da corrente" data-tour="grupos-lista">
           {grupos.map((g) => (
             <li key={g.id}>
               <Card

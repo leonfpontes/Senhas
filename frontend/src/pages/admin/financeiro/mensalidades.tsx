@@ -335,6 +335,7 @@ function MensalidadesContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
+        data-tour="mensalidades-header"
         title="Mensalidades"
         subtitle="Cobrança mensal de médiuns e associados"
         actions={<MonthNavigator value={mes} onChange={setMes} onRefresh={reloadAll} refreshing={refreshing} />}
@@ -353,11 +354,15 @@ function MensalidadesContent() {
         </Alert>
       )}
 
-      <CobrancaKpisGrid kpis={kpis} loading={!kpisReady} />
-      <ComprovantesParaConferir enabled={conferencia} refreshKey={filaKey} onConferir={setAlvo} />
+      <div data-tour="mensalidades-kpis">
+        <CobrancaKpisGrid kpis={kpis} loading={!kpisReady} />
+      </div>
+      <div data-tour="mensalidades-comprovantes">
+        <ComprovantesParaConferir enabled={conferencia} refreshKey={filaKey} onConferir={setAlvo} />
+      </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full sm:w-auto">
+        <TabsList className="w-full sm:w-auto" data-tour="mensalidades-abas">
           {showMediuns && <TabsTrigger value="mediuns">Médiuns</TabsTrigger>}
           {showAssoc && <TabsTrigger value="associados">Associados</TabsTrigger>}
           <TabsTrigger value="historico">Histórico</TabsTrigger>

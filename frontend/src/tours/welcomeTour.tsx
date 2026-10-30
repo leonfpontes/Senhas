@@ -28,19 +28,12 @@ import { PRINCIPAL_DOR_OPTIONS, type PrincipalDor } from '@/constants/onboarding
 import { minPlanFor } from '@/constants/plans';
 import { trackEvent } from '@/services/analytics';
 import type { PlanFeatures } from '@/hooks/useSubscription';
+import { CENTER_SELECTOR, CENTER_STEP, TourStepBody as StepBody } from './tourContent';
+
+export { CENTER_SELECTOR };
 
 export const CHECKLIST_SELECTOR = '[data-tour="first-gira-checklist"]';
 export const HELP_BUTTON_SELECTOR = '[data-tour="topbar-help"]';
-/**
- * Passos centralizados apontam para um seletor sem elemento: o reactour então
- * escurece a tela inteira e não rola a página (com `body` ele "destacava" a
- * página toda, sem escurecer, e rolava até o meio dela).
- */
-export const CENTER_SELECTOR = '[data-tour="welcome-tour-center"]';
-// Sem margem: com o padrão, o "buraco" do destaque (tamanho zero, sem elemento)
-// aparecia como um quadradinho claro no canto superior esquerdo.
-const CENTER_STEP = { selector: CENTER_SELECTOR, padding: { mask: 0 } } as const;
-
 export const CREATE_GIRA_HREF = '/admin/giras?nova=1';
 
 export const welcomeTourSeenKey = (userId: string) => `girahub:welcome-tour:seen:${userId}`;
@@ -95,15 +88,6 @@ export interface WelcomeTourContext {
   close: () => void;
   hasChecklist: boolean;
   hasHelpButton: boolean;
-}
-
-function StepBody({ title, children }: { title?: string; children: React.ReactNode }) {
-  return (
-    <div data-slot="tour-step" className="text-sm leading-relaxed">
-      {title && <p className="mb-1.5 text-base font-bold">{title}</p>}
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
 }
 
 function CreateGiraButton({ ctx }: { ctx: WelcomeTourContext }) {

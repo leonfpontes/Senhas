@@ -183,6 +183,7 @@ function AdminSuporteContent() {
   return (
     <div data-slot="page" className="space-y-4">
       <PageHeader
+        data-tour="suporte-header"
         title="Suporte"
         subtitle="Acompanhe as conversas das pessoas do seu terreiro com o suporte. Para falar com o suporte, use “Falar com o suporte” no menu do seu perfil."
       />

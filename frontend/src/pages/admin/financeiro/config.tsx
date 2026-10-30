@@ -845,6 +845,7 @@ function FinanceiroConfigContent() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
+        data-tour="fin-config-header"
         title="Configuração Financeira"
         subtitle={showContas ? 'Categorias, contas bancárias e mensalidades do terreiro' : 'Mensalidades do terreiro'}
         actions={<Settings2 className="size-6 text-brand" aria-hidden />}
@@ -855,7 +856,7 @@ function FinanceiroConfigContent() {
         </p>
       )}
       <Tabs value={activeTab} onValueChange={setTab}>
-        <TabsList className="w-full sm:w-auto">
+        <TabsList className="w-full sm:w-auto" data-tour="fin-config-abas">
           {showContas && <TabsTrigger value="categorias">Categorias</TabsTrigger>}
           {showContas && <TabsTrigger value="contas">Contas bancárias</TabsTrigger>}
           {showMensalidade && <TabsTrigger value="mensalidade">Mensalidade</TabsTrigger>}
