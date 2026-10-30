@@ -1,8 +1,8 @@
 /**
- * Página offline (P-01). O service worker (`public/sw.js`) guarda esta página na instalação e a
- * devolve no lugar de qualquer navegação que falhe por falta de rede — o endereço continua o da
- * página pedida, então "Tentar de novo" recarrega a própria página. Quando a conexão volta, recarrega
- * sozinha. Página estática, sem chamada à API.
+ * Página offline (P-01). O service worker (`public/sw.js`) guarda esta página na instalação e, quando
+ * uma navegação falha por falta de rede, redireciona para `/offline?de=<página pedida>`. "Tentar de
+ * novo" volta para essa página (só caminho da própria origem); quando a conexão volta, volta sozinha.
+ * Sem `de` (acesso direto), vai para a Porta. Página estática, sem chamada à API.
  */
 import React, { useCallback, useEffect } from 'react';
 import Head from 'next/head';
@@ -12,9 +12,15 @@ import { Button } from '@/components/ui/button';
 
 const OFFLINE_MESSAGE = 'Sem conexão. A Porta volta a atualizar sozinha quando a internet voltar.';
 
+/** Página que caiu sem rede (`?de=`) — só caminho da própria origem, nunca um site de fora. */
+export function paginaDeOrigem(search: string): string | null {
+  const de = new URLSearchParams(search).get('de');
+  return de && de.startsWith('/') && !de.startsWith('//') && !de.startsWith('/\\') ? de : null;
+}
+
 function reloadPage() {
-  if (window.location.pathname === '/offline') window.location.assign('/admin/porta');
-  else window.location.reload();
+  if (window.location.pathname !== '/offline') window.location.reload();
+  else window.location.assign(paginaDeOrigem(window.location.search) ?? '/admin/porta');
 }
 
 export default function OfflinePage() {
