@@ -22,8 +22,11 @@ function Tabs({
   )
 }
 
+// `max-w-full overflow-x-auto justify-center-safe`: no celular, abas que não cabem rolam dentro
+// da própria barra, em vez de alargar a página (o navegador afastava o zoom e o painel ficava
+// em ~70% da largura). `center-safe` alinha à esquerda quando transborda, sem cortar a 1ª aba.
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none",
+  "group/tabs-list inline-flex w-fit max-w-full items-center justify-center-safe overflow-x-auto rounded-lg p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none",
   {
     variants: {
       variant: {
