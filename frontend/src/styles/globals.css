@@ -307,6 +307,19 @@
   }
 }
 
+/* Grid sem `grid-cols-*` na base (ex.: `grid gap-3 md:grid-cols-2`) cria no celular uma coluna
+   implícita `auto`, que cresce até o min-content do filho mais largo — um título `truncate`
+   (nowrap) ou uma linha comprida empurrava os cards para fora da tela e o navegador "afastava o
+   zoom" (cabeçalho e banner em ~70% da largura, cards cortados à direita). Aqui a coluna única
+   padrão é `minmax(0, 1fr)`, como faz `grid-cols-1`. Fica em `@layer base`: qualquer
+   `grid-cols-*`/`sm:grid-cols-*` (camada utilities) continua vencendo. Grids que crescem em
+   colunas (`grid-flow-col`/`auto-cols-*`) ficam de fora. Teste: `__tests__/gridMobileOverflow.test.ts`. */
+@layer base {
+  .grid:not([class*='grid-flow-col']):not([class*='auto-cols-']) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @layer base {
   :where([data-slot], [data-slot] *, [data-slot]::before, [data-slot]::after, [data-slot] *::before, [data-slot] *::after) {
     box-sizing: border-box;

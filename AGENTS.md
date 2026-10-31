@@ -1888,6 +1888,12 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   preflight completo do Tailwind, `body` com `--background/--foreground/--font-sans`. Breakpoints iguais aos antigos do
   MUI (`sm 600 / md 900 / lg 1200 / xl 1536`, sem `2xl`). Tokens shadcn em `:root`/`.dark`, mais `--success`, `--warning`,
   `--info` (com `-foreground`) e `--chart-grid`/`--chart-tick`. Fonte da interface: pilha do sistema (sem Roboto global).
+- **Celular sem transbordar (2026-10-31)**: `.grid` sem `grid-cols-*` na base ganha coluna única `minmax(0, 1fr)`
+  (`@layer base` do `globals.css`; utilitários `grid-cols-*`/`md:grid-cols-*` continuam vencendo; `grid-flow-col`/
+  `auto-cols-*` ficam de fora). Antes, `grid gap-3 md:grid-cols-2` criava no celular uma coluna `auto` que crescia até
+  um título `truncate` comprido, a página passava da tela e o navegador afastava o zoom (painel em ~70% da largura,
+  cards cortados). `TabsList` tem `max-w-full overflow-x-auto justify-center-safe`: abas demais rolam na barra.
+  Travado em `__tests__/styles/gridMobileOverflow.test.ts`.
 - **Contraste (2.1.0)** — travado por `__tests__/styles/{contrast,colorUsage}.test.ts` (WCAG AA 4,5:1 nos dois modos):
   - texto na cor da marca é **`text-brand`** (`--primary-text`), nunca `text-primary`: `applyBrand` calcula
     `--brand-text-light`/`--brand-text-dark` escurecendo/clareando a primária até ler no fundo e no `bg-primary/15`;
