@@ -7,6 +7,7 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import HomePage from '@/pages/index';
+import PlanosPage from '@/pages/planos';
 import LoginPage from '@/pages/login';
 import { AREA_MEDIUM_ROW_LABEL } from '@/components/landing/PlanComparisonTable';
 import { FAQ_AREA_MEDIUM, LANDING_FAQ, visibleFaq } from '@/constants/landingFaq';
@@ -71,11 +72,15 @@ describe('AM-24 com a chave desligada (padrão)', () => {
   it('a landing não mostra nada da Área do Médium', () => {
     const { container } = render(<HomePage />);
     expect(screen.queryByRole('button', { name: SOU_MEDIUM })).not.toBeInTheDocument();
-    expect(within(comparativo()).queryByText(/Área do Médium/)).not.toBeInTheDocument();
-    const faq = screen.getByRole('region', { name: /perguntas que todo terreiro faz/i });
-    expect(within(faq).queryByRole('button', { name: FAQ_AREA_MEDIUM.q })).not.toBeInTheDocument();
+    const faq = screen.getByRole('region', { name: /perguntas de quem está chegando/i });
+    expect(within(faq).queryByText(FAQ_AREA_MEDIUM.q)).not.toBeInTheDocument();
     expect(faqLd(container).mainEntity.map((q: { name: string }) => q.name)).not.toContain(FAQ_AREA_MEDIUM.q);
     expect(container).not.toHaveTextContent(/Área do Médium/);
+  });
+
+  it('o comparativo de /planos não tem a linha da Área do Médium', () => {
+    render(<PlanosPage />);
+    expect(within(comparativo()).queryByText(/Área do Médium/)).not.toBeInTheDocument();
   });
 
   it('o FAQ visível é a lista de sempre', () => {
@@ -109,7 +114,7 @@ describe('AM-24 com a chave ligada', () => {
   });
 
   it('o comparativo ganha a linha da Área do Médium, com o plano mínimo de constants/plans.ts', () => {
-    render(<HomePage />);
+    render(<PlanosPage />);
     const row = within(comparativo()).getByRole('rowheader', { name: AREA_MEDIUM_ROW_LABEL }).closest('tr') as HTMLElement;
     const cells = within(row)
       .getAllByRole('cell')
@@ -122,8 +127,8 @@ describe('AM-24 com a chave ligada', () => {
 
   it('o FAQ tem "Os médiuns têm acesso?", igual no JSON-LD', () => {
     const { container } = render(<HomePage />);
-    const faq = screen.getByRole('region', { name: /perguntas que todo terreiro faz/i });
-    expect(within(faq).getByRole('button', { name: 'Os médiuns têm acesso?' })).toBeInTheDocument();
+    const faq = screen.getByRole('region', { name: /perguntas de quem está chegando/i });
+    expect(within(faq).getByText('Os médiuns têm acesso?')).toBeInTheDocument();
     const ld = faqLd(container);
     expect(ld.mainEntity).toHaveLength(LANDING_FAQ.length + 1);
     const item = ld.mainEntity.find((q: { name: string }) => q.name === FAQ_AREA_MEDIUM.q);
