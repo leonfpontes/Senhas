@@ -145,7 +145,8 @@ export default function AdminBilling() {
 
 function BillingContent() {
   const router = useRouter();
-  const { subscription, refresh: refreshSubscription } = useSubscription();
+  const { subscription, refresh: refreshSubscription, beta } = useSubscription();
+  const betaIndicacao = Boolean(beta?.('beta_indicacao_plano'));
 
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [summary, setSummary] = useState<DashboardSummaryLite | null>(null);
@@ -574,6 +575,14 @@ function BillingContent() {
 
         {/* ══ Assinatura ══ */}
         <TabsContent value="assinatura" className="mt-4 flex flex-col gap-5">
+          {/* Beta "Indicação do plano pelo uso" (J1 v2 · 09): o uso real do mês, com a regra do recommendPlan. */}
+          {betaIndicacao && subscription && (
+            <p className="text-[1.0625rem] text-muted-foreground" data-testid="indicacao-pelo-uso">
+              Neste mês a casa fez {usage.girasPerMonth} {usage.girasPerMonth === 1 ? 'gira' : 'giras'} e cadastrou {usage.mediuns}{' '}
+              {usage.mediuns === 1 ? 'médium' : 'médiuns'}. Pelo uso, o {recommended.label} dá conta.
+              <span className="ml-2 text-xs font-medium">beta</span>
+            </p>
+          )}
           {billing && (
             <Card data-tour="billing-status">
               <CardContent className="flex flex-col gap-5 p-5">

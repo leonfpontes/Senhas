@@ -25,3 +25,4 @@ O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda 
 | [Lembrete no dia da gira](beta_lembrete_dia_gira.md) | `beta_lembrete_dia_gira` | Para a gira |
 | [Avisar quem tem senha quando a gira é excluída](beta_avisar_exclusao_gira.md) | `beta_avisar_exclusao_gira` | Para a gira |
 | [Menu que se ajusta ao uso](beta_menu_ajustavel.md) | `beta_menu_ajustavel` | Para o painel |
+| [Indicação do plano pelo uso](beta_indicacao_plano.md) | `beta_indicacao_plano` | Para o painel |

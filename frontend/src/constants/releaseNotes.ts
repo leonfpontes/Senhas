@@ -396,6 +396,7 @@ export const BETA_RELEASE_NOTES: BetaReleaseNote[] = [
   { chave: 'beta_lembrete_dia_gira', date: '2026-11-02', title: 'Lembrete no dia da gira', text: 'Um e-mail pela manhã para quem tem senha, com o horário da gira.' },
   { chave: 'beta_avisar_exclusao_gira', date: '2026-11-02', title: 'Avisar quem tem senha quando a gira é excluída', text: 'Ao excluir, a casa pode mandar um e-mail para quem já pegou senha.' },
   { chave: 'beta_menu_ajustavel', date: '2026-11-02', title: 'Menu que se ajusta ao uso', text: 'O que a casa já usa sobe para o menu, em "Da casa"; cada pessoa põe ou tira módulos na página Módulos.' },
+  { chave: 'beta_indicacao_plano', date: '2026-11-02', title: 'Indicação do plano pelo uso', text: 'Em Conta e plano, uma frase com o uso do mês (giras e médiuns) diz qual plano dá conta.' },
 ];
 
 export function formatReleaseDate(date: string): string {
