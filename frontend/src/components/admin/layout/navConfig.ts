@@ -51,6 +51,7 @@ import { useTenantSupportUnread } from '@/components/support/useTenantSupportUnr
 import type { PermissionFeature } from '@/constants/permissionFeatures';
 import { useGiraContext } from '@/components/admin/GiraContext';
 import { useOnboardingPending } from '@/components/admin/FirstGiraChecklist';
+import { MODULOS, ROTAS_FIXAS } from '@/constants/modulos';
 
 export type NavAction = 'share-link';
 
@@ -272,6 +273,9 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
       conta.push(link('/admin/suporte', 'Ajuda', Headset, { badge: unreadSupport, keywords: ['suporte', 'chat', 'dúvida'] }));
     }
 
+    // Página dos 12 módulos (J1 v2 · 10): "Ver os 12 módulos" na barra; aqui para a busca (⌘K).
+    conta.push(link('/admin/modulos', 'Módulos da casa', Layers, { keywords: ['módulos', 'menu', '12 módulos', 'pôr no menu'] }));
+
     const groups: NavGroupDef[] = [
       { key: 'hoje', label: 'Hoje', items: hoje },
       { key: 'giras', label: 'Giras e senhas', items: girasSenhas },
@@ -281,4 +285,49 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     ];
     return groups.filter((g) => g.items.length > 0);
   }, [isOperator, can, canGroup, birthdayCount, unreadSupport, todayGira, onboardingPending]);
+}
+
+// ─── Barra lateral enxuta (Jornada 1 v2 · 10/11, aprovada em 01/11/2026) ─────────
+// O menu completo acima continua sendo a fonte de plano e permissão (e da busca ⌘K). A barra
+// mostra fixo o dia de gira e, em "Da casa", os módulos de `constants/modulos.ts` que o plano e o
+// perfil liberam — com a beta "Menu que se ajusta ao uso", só os que a casa usa ou a pessoa pôs.
+// "Conta" vai para o menu do avatar. Nada some: o resto está em /admin/modulos e na busca.
+
+export interface SidebarNav {
+  fixos: NavEntry[];
+  daCasa: NavEntry[];
+  /** Links do grupo Conta, para o menu do avatar. */
+  conta: NavLink[];
+}
+
+function caminhoDe(entry: NavEntry): string[] {
+  return entry.kind === 'link' ? [pathOf(entry.href)] : entry.items.map((i) => pathOf(i.href));
+}
+
+export function montarSidebarNav(
+  groups: NavGroupDef[],
+  opts: { ajustavel: boolean; noMenu: (key: string) => boolean },
+): SidebarNav {
+  const todos = groups.flatMap((g) => g.items);
+  const fixos: NavEntry[] = [];
+  for (const rota of ROTAS_FIXAS) {
+    const e = todos.find((x) => x.kind === 'link' && pathOf(x.href) === rota && !x.action);
+    if (e) fixos.push(e);
+  }
+  // Atalhos do dia que já ficavam em "Hoje" (Gira de hoje, Primeiros passos).
+  for (const e of groups.find((g) => g.key === 'hoje')?.items ?? []) {
+    if (!fixos.includes(e) && e.kind === 'link' && pathOf(e.href) !== '/admin/dashboard') fixos.push(e);
+  }
+
+  const daCasa: NavEntry[] = [];
+  for (const m of MODULOS) {
+    if (m.fixo || m.key === 'area-medium') continue;
+    const entradas = todos.filter((e) => !daCasa.includes(e) && caminhoDe(e).some((c) => m.rotas.includes(c)));
+    if (entradas.length === 0) continue;
+    if (opts.ajustavel && !opts.noMenu(m.key)) continue;
+    daCasa.push(...entradas);
+  }
+
+  const conta = (groups.find((g) => g.key === 'conta')?.items ?? []).filter((e): e is NavLink => e.kind === 'link');
+  return { fixos, daCasa, conta };
 }

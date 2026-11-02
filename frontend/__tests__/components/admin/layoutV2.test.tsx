@@ -61,20 +61,48 @@ describe('AdminSidebar', () => {
     mockPlanCan.mockImplementation(() => true);
   });
 
-  it('admin vê os grupos por trabalho, a versão e o plano com "mês grátis"', () => {
+  it('barra enxuta (J1 v2): dia de gira fixo, "Da casa", "Ver os 12 módulos"; Conta sai da barra', () => {
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
     withSidebar(<AdminSidebar isOperator={false} />);
     const nav = screen.getByTestId('admin-sidebar');
-    for (const g of ['Hoje', 'Giras e senhas', 'Corrente', 'Casa', 'Conta']) {
+    for (const g of ['Dia de gira', 'Da casa']) {
       expect(within(nav).getByText(g)).toBeInTheDocument();
     }
-    expect(within(nav).getByRole('link', { name: /Plano e assinatura/ })).toHaveAttribute('href', '/admin/billing');
-    expect(within(nav).getByRole('link', { name: /Pessoas e acessos/ })).toHaveAttribute('href', '/admin/users');
-    expect(within(nav).getByRole('link', { name: /Ajuda/ })).toHaveAttribute('href', '/admin/suporte');
+    for (const [nome, href] of [
+      ['Início', '/admin/dashboard'],
+      ['Giras', '/admin/giras'],
+      ['Porta', '/admin/porta'],
+      ['Senhas', '/admin/tickets'],
+    ]) {
+      expect(within(nav).getByRole('link', { name: new RegExp(`^${nome}`) })).toHaveAttribute('href', href);
+    }
+    expect(within(nav).getByRole('link', { name: /Ver os 12 módulos/ })).toHaveAttribute('href', '/admin/modulos');
+    // Sem a beta do menu ajustável, "Da casa" tem tudo o que o plano e o perfil liberam.
     expect(within(nav).getByRole('link', { name: /Analytics/ })).toHaveAttribute('href', '/admin/analytics');
-    expect(within(nav).getByRole('link', { name: /Auditoria/ })).toHaveAttribute('href', '/admin/audit-trail');
+    expect(within(nav).getByRole('link', { name: /Médiuns/ })).toHaveAttribute('href', '/admin/mediuns');
+    // Conta e plano mora no menu do avatar.
+    expect(within(nav).queryByRole('link', { name: /Plano e assinatura/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Auditoria/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-version')).toHaveTextContent(APP_VERSION_LABEL);
     expect(screen.getByText('Pro · mês grátis')).toBeInTheDocument();
+  });
+
+  it('montarSidebarNav: a conta inteira vai para o avatar, sem perder item', () => {
+    const { montarSidebarNav } = require('@/components/admin/layout/navConfig');
+    const L = (href: string, label: string) => ({ kind: 'link', href, label, icon: () => null });
+    const groups = [
+      { key: 'hoje', label: 'Hoje', items: [L('/admin/dashboard', 'Início'), L('/admin/porta', 'Porta')] },
+      { key: 'giras', label: 'Giras', items: [L('/admin/giras', 'Giras'), L('/admin/tickets', 'Senhas'), L('/admin/analytics', 'Analytics')] },
+      { key: 'conta', label: 'Conta', items: [L('/admin/billing', 'Plano e assinatura'), L('/admin/config', 'Configurações')] },
+    ];
+    const todos = montarSidebarNav(groups, { ajustavel: false, noMenu: () => false });
+    expect(todos.fixos.map((e: { label: string }) => e.label)).toEqual(['Início', 'Giras', 'Porta', 'Senhas']);
+    expect(todos.daCasa.map((e: { label: string }) => e.label)).toEqual(['Analytics']);
+    expect(todos.conta.map((e: { label: string }) => e.label)).toEqual(['Plano e assinatura', 'Configurações']);
+    // Com a beta, só o que a casa usa (ou a pessoa pôs) sobe para "Da casa".
+    const ajustado = montarSidebarNav(groups, { ajustavel: true, noMenu: () => false });
+    expect(ajustado.daCasa).toEqual([]);
+    expect(montarSidebarNav(groups, { ajustavel: true, noMenu: (k: string) => k === 'relatorio' }).daCasa).toHaveLength(1);
   });
 
   it('operador só com a Porta liberada não vê Giras, Senhas nem os grupos sem nada liberado', () => {
@@ -123,13 +151,17 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByRole('link', { name: /Lançamentos/ })).not.toBeInTheDocument();
   });
 
-  it('operador com o grupo configuracoes vê Configurações (a tela gateia por grupo)', () => {
+  it('operador com o grupo configuracoes vê Configurações no menu do avatar (a tela gateia por grupo)', () => {
     mockGroupCan.mockImplementation((feature: string, action: string) => feature === 'configuracoes' && action === 'view');
-    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
-    withSidebar(<AdminSidebar isOperator />);
-    const nav = screen.getByTestId('admin-sidebar');
-    expect(within(nav).getByRole('link', { name: /Configurações/ })).toHaveAttribute('href', '/admin/config');
-    expect(within(nav).queryByText('Perfis de acesso')).not.toBeInTheDocument();
+    const { useAdminNav, montarSidebarNav } = require('@/components/admin/layout/navConfig');
+    let conta: { label: string; href: string }[] = [];
+    function Sonda() {
+      conta = montarSidebarNav(useAdminNav({ isOperator: true }), { ajustavel: false, noMenu: () => false }).conta;
+      return null;
+    }
+    render(<Sonda />);
+    expect(conta.find((l) => l.label === 'Configurações')?.href).toBe('/admin/config');
+    expect(conta.find((l) => l.label === 'Perfis de acesso')).toBeUndefined();
   });
 
   it('"Site do terreiro" segue o grupo site e "Cursos" o grupo cursos_presenciais (T-06)', () => {

@@ -16,6 +16,7 @@ import { useMinhasContas } from '@/hooks/useMinhasContas';
 import { areasHint } from '@/components/auth/AccountChoiceList';
 import { TrocarTerreiroDialog } from '@/components/auth/TrocarTerreiroDialog';
 import { useTenant } from '@/providers/ThemeProvider';
+import type { NavLink } from './navConfig';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
@@ -59,9 +60,11 @@ export const TOPBAR_GIRA_SELECTOR_ROUTES = ['/admin/dashboard'];
 export interface AdminTopbarProps {
   title: string;
   onOpenCommand?: () => void;
+  /** Jornada 1 v2: "Conta e plano" mora no menu do avatar (já filtrado por plano e perfil). */
+  contaLinks?: NavLink[];
 }
 
-export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }) => {
+export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, contaLinks = [] }) => {
   const router = useRouter();
   const { tenantName, logoUrl } = useTenant();
   const { profile } = useProfile();
@@ -256,6 +259,22 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
           <DropdownMenuItem onSelect={() => router.push('/admin/profile')}>
             <User aria-hidden /> Perfil
           </DropdownMenuItem>
+          {contaLinks.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Conta e plano</DropdownMenuLabel>
+              {contaLinks.map((l) => {
+                const Icone = l.icon;
+                return (
+                  <DropdownMenuItem key={l.href} onSelect={() => router.push(l.href)}>
+                    <Icone aria-hidden /> {l.label}
+                    {l.badge ? <span className="ml-auto text-xs font-semibold text-warning-strong">{l.badge}</span> : null}
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onSelect={handleShowOnboarding}>
             <BookOpen aria-hidden /> Mostrar primeiros passos
           </DropdownMenuItem>

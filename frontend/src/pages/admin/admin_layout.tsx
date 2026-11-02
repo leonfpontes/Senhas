@@ -16,7 +16,7 @@ import { AdminThemeProvider } from '@/providers/AdminThemeProvider';
 import { AdminSidebar } from '@/components/admin/layout/AdminSidebar';
 import { AdminTopbar } from '@/components/admin/layout/AdminTopbar';
 import { ImpersonationBanner } from '@/components/admin/layout/ImpersonationBanner';
-import { useAdminNav, type NavAction } from '@/components/admin/layout/navConfig';
+import { useAdminNav, type NavAction, type NavLink } from '@/components/admin/layout/navConfig';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SubscriptionWarningBanner } from '@/components/admin/SubscriptionWarningBanner';
 import { CommandPalette, useCommandPaletteShortcut } from '@/components/admin/CommandPalette';
@@ -194,7 +194,11 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
             tenantLabel={impersonateTenant?.name || '...'}
           />
         )}
-        <AdminTopbar title={title || 'Início'} onOpenCommand={() => setCommandOpen(true)} />
+        <AdminTopbar
+          title={title || 'Início'}
+          onOpenCommand={() => setCommandOpen(true)}
+          contaLinks={(navGroups.find((g) => g.key === 'conta')?.items ?? []).filter((e): e is NavLink => e.kind === 'link')}
+        />
         <SubscriptionWarningBanner />
 
         {permissionsLoading && isOperator && feature ? (
