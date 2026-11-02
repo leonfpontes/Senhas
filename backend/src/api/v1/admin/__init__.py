@@ -32,6 +32,7 @@ from .permission_groups import router as permission_groups_router
 from .contas_financeiras import router as contas_financeiras_router
 from .support_chat import router as support_chat_router
 from .area_medium_config import router as area_medium_config_router
+from .laboratorio import router as laboratorio_router
 from .mensalidade_pix import router as mensalidade_pix_router
 from .mensalidade_chaves_pix import router as mensalidade_chaves_pix_router
 from .mensalidade_comprovantes import router as mensalidade_comprovantes_router
@@ -81,6 +82,7 @@ admin_router.include_router(permission_groups_router)
 admin_router.include_router(contas_financeiras_router)
 admin_router.include_router(support_chat_router)
 admin_router.include_router(area_medium_config_router)
+admin_router.include_router(laboratorio_router)
 admin_router.include_router(mensalidade_pix_router)
 admin_router.include_router(mensalidade_chaves_pix_router)
 admin_router.include_router(mensalidade_comprovantes_router)

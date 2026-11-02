@@ -9,10 +9,11 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, CircleAlert, CloudUpload, DoorOpen, HeartHandshake, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { Check, CircleAlert, CloudUpload, DoorOpen, FlaskConical, HeartHandshake, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader } from '@/components/admin';
 import { AreaMediumConfigSection } from '@/components/admin/AreaMediumConfigSection';
+import { LaboratorioSection } from '@/components/admin/LaboratorioSection';
 import { PermissionDenied, ReadOnlyNotice } from '@/components/gates';
 import { TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -134,7 +135,8 @@ interface Palette {
 
 /** Paletas prontas: cores com contraste bom com a fonte indicada. */
 const PALETTES: Palette[] = [
-  { name: 'Índigo', primary: '#4F46E5', secondary: '#EC4899', font: '#FFFFFF' },
+  // Jornadas v2: o padrão da casa é o verde folha; o antigo Índigo (#4F46E5) passou a significar "sem cor escolhida".
+  { name: 'Folha (padrão)', primary: '#2E6A4E', secondary: '#E9B04A', font: '#FFFFFF' },
   { name: 'Mata', primary: '#15803D', secondary: '#84CC16', font: '#FFFFFF' },
   { name: 'Mar', primary: '#0E7490', secondary: '#38BDF8', font: '#FFFFFF' },
   { name: 'Terra', primary: '#9A3412', secondary: '#F59E0B', font: '#FFFFFF' },
@@ -396,6 +398,11 @@ export default function AdminConfigPage() {
 function AdminConfigContent() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
+  // Laboratório (jornadas v2): a aba só existe para terreiro beta tester (o GET responde 403 sem isso).
+  const [showLab, setShowLab] = useState(false);
+  useEffect(() => {
+    apiClient.get('/api/v1/admin/config/laboratorio').then(() => setShowLab(true)).catch(() => setShowLab(false));
+  }, []);
   const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('configuracoes', 'view');
   const canEdit = canGroup('configuracoes', 'edit');
@@ -616,7 +623,9 @@ function AdminConfigContent() {
       {!canEdit && <ReadOnlyNotice />}
 
       <Tabs defaultValue="identidade" data-tour="config-tabs">
-        <TabsList className={cn('grid w-full', showAreaMedium ? 'max-w-2xl grid-cols-4' : 'max-w-lg grid-cols-3')}>
+        <TabsList className={cn('grid w-full', [
+          'max-w-lg grid-cols-3', 'max-w-2xl grid-cols-4', 'max-w-3xl grid-cols-5',
+        ][Number(showAreaMedium) + Number(showLab)])}>
           <TabsTrigger value="identidade">
             <Palette aria-hidden /> <span className="hidden sm:inline">Identidade</span>
             <span className="sm:hidden">Visual</span>
@@ -632,6 +641,12 @@ function AdminConfigContent() {
             <TabsTrigger value="area-medium">
               <HeartHandshake aria-hidden /> <span className="hidden sm:inline">Área do Médium</span>
               <span className="sm:hidden">Médium</span>
+            </TabsTrigger>
+          )}
+          {showLab && (
+            <TabsTrigger value="laboratorio">
+              <FlaskConical aria-hidden /> <span className="hidden sm:inline">Laboratório (beta)</span>
+              <span className="sm:hidden">Lab</span>
             </TabsTrigger>
           )}
         </TabsList>
@@ -922,6 +937,11 @@ function AdminConfigContent() {
         {showAreaMedium && (
           <TabsContent value="area-medium" className="mt-4">
             <AreaMediumConfigSection canEdit={canEdit} />
+          </TabsContent>
+        )}
+        {showLab && (
+          <TabsContent value="laboratorio" className="mt-4">
+            <LaboratorioSection canEdit={canEdit} />
           </TabsContent>
         )}
       </Tabs>

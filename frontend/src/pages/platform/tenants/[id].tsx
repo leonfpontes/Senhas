@@ -94,6 +94,7 @@ interface TenantInfo {
   self_deactivated_at?: string | null;
   /** Lançamento em piloto da Área do Médium: a plataforma libera por terreiro. */
   area_medium_liberada?: boolean;
+  beta_tester?: boolean;
   /** Cartão recusado, plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
   payment_pending_since?: string | null;
 }
@@ -303,6 +304,22 @@ export default function TenantDetailPage() {
       toast.error(extractApiErrorMessage(err, 'Não foi possível mudar a Área do Médium.'));
     } finally {
       setAreaSaving(false);
+    }
+  };
+
+  // ── Laboratório (jornadas v2): o terreiro testa as betas; a casa liga cada uma nas Configurações ──
+  const [betaSaving, setBetaSaving] = useState(false);
+  const toggleBetaTester = async (ligar: boolean) => {
+    if (!tenant) return;
+    setBetaSaving(true);
+    try {
+      await apiClient.put(`/api/v1/platform/tenants/${tenant.id}`, { beta_tester: ligar });
+      toast.success(ligar ? 'Terreiro marcado como beta tester.' : 'Terreiro deixou de ser beta tester.');
+      load();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Não foi possível mudar o beta tester.'));
+    } finally {
+      setBetaSaving(false);
     }
   };
 
@@ -592,6 +609,32 @@ export default function TenantDetailPage() {
                     checked={!!tenant.area_medium_liberada}
                     onCheckedChange={toggleAreaMedium}
                     disabled={areaSaving || isDeleted}
+                  />
+                </div>
+              ) : (
+                <Skeleton className="h-8 w-full" />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-3 py-4">
+            <CardHeader className="px-4">
+              <CardTitle className="text-base">Beta tester (Laboratório)</CardTitle>
+              <CardDescription>
+                Libera as funcionalidades em teste. A casa liga ou desliga cada uma em Configurações › Laboratório.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4">
+              {tenant ? (
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="beta-tester" className="font-normal">
+                    {tenant.beta_tester ? 'Beta tester' : 'Desligado'}
+                  </Label>
+                  <Switch
+                    id="beta-tester"
+                    checked={!!tenant.beta_tester}
+                    onCheckedChange={toggleBetaTester}
+                    disabled={betaSaving || isDeleted}
                   />
                 </div>
               ) : (

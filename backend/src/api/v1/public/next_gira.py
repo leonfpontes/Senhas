@@ -16,6 +16,7 @@ import logging
 import sentry_sdk
 
 from src.core.config import settings
+from src.services.laboratorio import CATALOGO as _CATALOGO_BETAS, betas_ligadas
 from src.core.database import get_db
 from src.core.public_links import public_tenant_logo_url
 from src.models.giras import Gira
@@ -150,6 +151,10 @@ async def _get_ticket_count(session, tenant_id, gira_id, is_sponsor: bool = Fals
     return max(0, sc.total_emitido - sc.slots_returned)
 
 
+
+# Betas que mudam a página do consulente (o resto do catálogo é do painel).
+BETAS_DO_CONSULENTE = {b.chave for b in _CATALOGO_BETAS if b.grupo == "Para o consulente"}
+
 @router.get("/next-gira")
 async def get_next_gira(
     tenant_slug: str,
@@ -216,6 +221,8 @@ async def get_next_gira(
         waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
         response = _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
         response["use_time_slots"], response["time_slots"] = await _resolve_time_slots(session, tenant.id, gira)
+        # Laboratório (jornadas v2): só as betas do consulente que a casa beta tester ligou.
+        response["betas"] = sorted(b for b in await betas_ligadas(session, tenant.id) if b in BETAS_DO_CONSULENTE)
         return response
 
     except HTTPException:
@@ -264,6 +271,8 @@ async def get_gira_by_id(
         waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
         response = _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
         response["use_time_slots"], response["time_slots"] = await _resolve_time_slots(session, tenant.id, gira)
+        # Laboratório (jornadas v2): só as betas do consulente que a casa beta tester ligou.
+        response["betas"] = sorted(b for b in await betas_ligadas(session, tenant.id) if b in BETAS_DO_CONSULENTE)
         return response
 
     except HTTPException:

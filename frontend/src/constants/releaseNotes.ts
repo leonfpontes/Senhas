@@ -376,6 +376,28 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 /** "6 de outubro de 2026" ou, para versões agrupadas por mês, "outubro de 2026". */
+/**
+ * Notas da versão · Beta testers (jornadas v2): o canal das betas do Laboratório, visto só por
+ * terreiro beta tester. Uma entrada por beta quando ela nasce ou muda (docs/betas/).
+ */
+export interface BetaReleaseNote {
+  chave: string;
+  date: string;
+  title: string;
+  text: string;
+}
+
+export const BETA_RELEASE_NOTES: BetaReleaseNote[] = [
+  { chave: 'beta_receber_senha_de_novo', date: '2026-11-02', title: 'Receber a senha de novo', text: 'O consulente pede o bilhete de novo no link da gira, e ele chega só no e-mail.' },
+  { chave: 'beta_bilhete_offline', date: '2026-11-02', title: 'Bilhete sem internet', text: 'O bilhete fica guardado no celular e abre no portão sem sinal.' },
+  { chave: 'beta_senha_para_outra_pessoa', date: '2026-11-02', title: 'Senha para outra pessoa', text: 'Quem preenche pega a senha de quem vai, e a senha chega no e-mail de quem preencheu.' },
+  { chave: 'beta_repetir_gira', date: '2026-11-02', title: 'Repetir a gira em outra data', text: 'Cria a mesma gira, com as mesmas senhas, em outro dia.' },
+  { chave: 'beta_cartaz_portao', date: '2026-11-02', title: 'Cartaz do portão', text: 'PDF com o QR do link do terreiro, para imprimir e colar no portão.' },
+  { chave: 'beta_lembrete_dia_gira', date: '2026-11-02', title: 'Lembrete no dia da gira', text: 'Um e-mail pela manhã para quem tem senha, com o horário da gira.' },
+  { chave: 'beta_avisar_exclusao_gira', date: '2026-11-02', title: 'Avisar quem tem senha quando a gira é excluída', text: 'Ao excluir, a casa pode mandar um e-mail para quem já pegou senha.' },
+  { chave: 'beta_menu_ajustavel', date: '2026-11-02', title: 'Menu que se ajusta ao uso', text: 'O que a casa já usa sobe para o menu, em "Da casa"; cada pessoa põe ou tira módulos na página Módulos.' },
+];
+
 export function formatReleaseDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number);
   const month = MONTHS[(m ?? 1) - 1];
