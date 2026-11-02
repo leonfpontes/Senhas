@@ -12,7 +12,7 @@ export interface ReadOnlyNoticeProps {
 }
 
 export const READ_ONLY_MESSAGE =
-  'Você tem acesso somente leitura a este módulo. Peça a um administrador para liberar edição no seu grupo de permissão.';
+  'Você tem acesso somente leitura a este módulo. Peça a um administrador para liberar edição no seu perfil de acesso.';
 
 export function ReadOnlyNotice({ message = READ_ONLY_MESSAGE, className }: ReadOnlyNoticeProps) {
   return (

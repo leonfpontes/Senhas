@@ -36,7 +36,7 @@ interface UserItem {
 
 export default function PermissionGroupsPage() {
   return (
-    <AdminLayout title="Grupos de permissão">
+    <AdminLayout title="Perfis de acesso">
       <PermissionGroupsGate />
     </AdminLayout>
   );
@@ -46,7 +46,7 @@ function PermissionGroupsGate() {
   const { profile, loading } = useProfile();
   if (loading && !profile) return <Skeleton className="h-40 w-full" />;
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
-  if (!isAdmin) return <PermissionDenied message="Só administradores mudam os grupos de permissão." />;
+  if (!isAdmin) return <PermissionDenied message="Só administradores mudam os perfis de acesso." />;
   return <PermissionGroupsContent />;
 }
 
@@ -250,7 +250,7 @@ function PermissionGroupsContent() {
   return (
     <div data-slot="page" className="space-y-4">
       <PageHeader
-        title="Grupos de permissão"
+        title="Perfis de acesso"
         subtitle="Cada grupo diz o que os operadores podem fazer. Administradores fazem tudo."
         actions={
           <>

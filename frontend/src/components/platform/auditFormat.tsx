@@ -94,7 +94,7 @@ export const FIELD_LABELS: Record<string, string> = {
   validate_associado_on_emit: 'Validar associado na emissão',
   walk_in_limit: 'Limite walk-in',
   slug: 'Slug',
-  role: 'Papel',
+  role: 'Tipo de acesso',
   status: 'Status',
   tipo: 'Tipo',
   numero: 'Número',

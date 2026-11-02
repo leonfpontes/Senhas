@@ -274,7 +274,7 @@ function AdminUsersContent() {
             showError(
               extractApiErrorMessage(
                 err,
-                'A pessoa foi criada, mas não deu para trocar o grupo. Ajuste em Grupos de permissão.',
+                'A pessoa foi criada, mas não deu para trocar o grupo. Ajuste em Perfis de acesso.',
               ),
             );
           }
@@ -335,7 +335,7 @@ function AdminUsersContent() {
       },
       {
         accessorKey: 'role',
-        header: 'Perfil de acesso',
+        header: 'Tipo de acesso',
         meta: { mobile: true },
         cell: ({ row }) => (
           <Badge variant={row.original.role === 'admin' ? 'default' : 'outline'}>{roleLabel(row.original.role)}</Badge>
@@ -408,11 +408,11 @@ function AdminUsersContent() {
             <>
               <div data-tour="users-filtro">
                 <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as 'all' | Role)}>
-                  <SelectTrigger className="w-44" aria-label="Filtrar por perfil de acesso">
-                    <SelectValue placeholder="Perfil de acesso" />
+                  <SelectTrigger className="w-44" aria-label="Filtrar por tipo de acesso">
+                    <SelectValue placeholder="Tipo de acesso" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os perfis</SelectItem>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
                     <SelectItem value="admin">Administradores</SelectItem>
                     <SelectItem value="operator">Operadores</SelectItem>
                   </SelectContent>
@@ -499,7 +499,7 @@ function AdminUsersContent() {
         </div>
 
         <fieldset className="m-0 min-w-0 space-y-2 border-0 p-0">
-          <legend className="mb-2 p-0 text-sm font-medium">Perfil de acesso</legend>
+          <legend className="mb-2 p-0 text-sm font-medium">Tipo de acesso</legend>
           <RadioGroup
             value={formData.role}
             onValueChange={(v) => setField('role', v as Role)}
@@ -549,7 +549,7 @@ function AdminUsersContent() {
             <p className="text-xs text-muted-foreground">
               Os grupos ficam em{' '}
               <Link href="/admin/permission-groups" className="underline underline-offset-4">
-                Grupos de permissão
+                Perfis de acesso
               </Link>
               .
             </p>

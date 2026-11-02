@@ -210,7 +210,7 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
         # Fetch group
         group = await self.get_by_id(group_id, tenant_id)
         if not group:
-            raise NotFoundError("Grupo de permissão")
+            raise NotFoundError("Perfil de acesso")
             
         # Optimistic locking check (T3)
         if group.version != expected_version:
@@ -244,7 +244,7 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
         # Fetch group
         group = await self.get_by_id(group_id, tenant_id)
         if not group:
-            raise NotFoundError("Grupo de permissão")
+            raise NotFoundError("Perfil de acesso")
 
         # Fetch and validate user (T2)
         user_stmt = select(User).where(
@@ -259,7 +259,7 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
 
         # Prevent adding administrators to groups (as they bypass group checks anyway)
         if user.is_admin:
-            raise ForbiddenError("Administradores não precisam pertencer a grupos de permissão.")
+            raise ForbiddenError("Administradores não precisam pertencer a perfis de acesso.")
         # Conta só da Área do Médium (AM-02) não tem acesso ao painel: grupo não faz
         # sentido. Para dar acesso, adicione-a em Usuários (vira operador).
         if user.role == UserRole.MEDIUM:

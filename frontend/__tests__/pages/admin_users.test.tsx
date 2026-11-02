@@ -83,7 +83,7 @@ describe('Admin Users Page', () => {
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
-    // "Perfil de acesso" em português, sem "role"
+    // "Tipo de acesso" em português, sem "role"
     expect(screen.getByText('Administrador')).toBeInTheDocument();
     expect(screen.getByText('Operador')).toBeInTheDocument();
     expect(screen.queryByText(/role/i)).not.toBeInTheDocument();

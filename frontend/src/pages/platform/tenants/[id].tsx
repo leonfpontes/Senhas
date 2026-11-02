@@ -368,7 +368,7 @@ export default function TenantDetailPage() {
     () => [
       { id: 'email', accessorKey: 'email', header: 'E-mail', meta: { mobile: true }, cell: ({ row }) => <span className="font-medium">{row.original.email}</span> },
       { id: 'username', accessorKey: 'username', header: 'Usuário', meta: { mobile: true } },
-      { id: 'role', accessorKey: 'role', header: 'Papel', meta: { mobile: true }, cell: ({ row }) => <ToneBadge tone={row.original.role.toUpperCase() === 'ADMIN' ? 'primary' : 'muted'}>{roleLabel(row.original.role)}</ToneBadge> },
+      { id: 'role', accessorKey: 'role', header: 'Tipo de acesso', meta: { mobile: true }, cell: ({ row }) => <ToneBadge tone={row.original.role.toUpperCase() === 'ADMIN' ? 'primary' : 'muted'}>{roleLabel(row.original.role)}</ToneBadge> },
       { id: 'is_active', accessorKey: 'is_active', header: 'Status', meta: { mobile: true }, cell: ({ row }) => <TenantActiveBadge active={row.original.is_active} /> },
       { id: 'created_at', accessorKey: 'created_at', header: 'Criado em', meta: { cellClassName: 'whitespace-nowrap text-muted-foreground' }, cell: ({ row }) => fmtDate(row.original.created_at) },
       {

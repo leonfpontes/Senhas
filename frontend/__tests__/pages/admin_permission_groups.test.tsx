@@ -52,7 +52,7 @@ function mockApi() {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Page = () => React.createElement(require('@/pages/admin/permission-groups').default);
 
-describe('Grupos de permissão', () => {
+describe('Perfis de acesso', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfile.role = 'admin';
@@ -79,6 +79,6 @@ describe('Grupos de permissão', () => {
   it('blocks non-admins', () => {
     mockProfile.role = 'operator';
     render(<Page />);
-    expect(screen.getByText('Só administradores mudam os grupos de permissão.')).toBeInTheDocument();
+    expect(screen.getByText('Só administradores mudam os perfis de acesso.')).toBeInTheDocument();
   });
 });

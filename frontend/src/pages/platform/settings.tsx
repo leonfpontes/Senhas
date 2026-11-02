@@ -108,7 +108,7 @@ function ContaTab() {
               <dt className="text-muted-foreground">Nome</dt><dd className="font-medium">{me.full_name || me.username}</dd>
               <dt className="text-muted-foreground">E-mail</dt><dd>{me.email}</dd>
               <dt className="text-muted-foreground">Usuário</dt><dd>{me.username}</dd>
-              <dt className="text-muted-foreground">Papel</dt><dd><ToneBadge tone="primary">{roleLabel(me.role)}</ToneBadge></dd>
+              <dt className="text-muted-foreground">Tipo de acesso</dt><dd><ToneBadge tone="primary">{roleLabel(me.role)}</ToneBadge></dd>
               <dt className="text-muted-foreground">Conta criada em</dt><dd>{fmtDate(me.created_at)}</dd>
             </dl>
           ) : null}
@@ -245,7 +245,7 @@ function AdminsTab() {
     () => [
       { id: 'email', accessorKey: 'email', header: 'E-mail', meta: { mobile: true }, cell: ({ row }) => <span className="font-medium">{row.original.email}</span> },
       { id: 'username', accessorKey: 'username', header: 'Usuário', meta: { mobile: true } },
-      { id: 'role', accessorKey: 'role', header: 'Papel', cell: ({ row }) => <ToneBadge tone="primary">{roleLabel(row.original.role)}</ToneBadge> },
+      { id: 'role', accessorKey: 'role', header: 'Tipo de acesso', cell: ({ row }) => <ToneBadge tone="primary">{roleLabel(row.original.role)}</ToneBadge> },
       { id: 'is_active', accessorKey: 'is_active', header: 'Status', meta: { mobile: true }, cell: ({ row }) => <TenantActiveBadge active={row.original.is_active} /> },
       { id: 'created_at', accessorKey: 'created_at', header: 'Criado em', meta: { cellClassName: 'whitespace-nowrap text-muted-foreground' }, cell: ({ row }) => fmtDate(row.original.created_at) },
       {

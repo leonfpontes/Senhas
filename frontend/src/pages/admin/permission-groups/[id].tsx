@@ -54,11 +54,11 @@ export default function PermissionGroupDetailPage() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
   return (
-    <AdminLayout title="Grupo de permissão">
+    <AdminLayout title="Perfil de acesso">
       {(loading && !profile) || !router.isReady ? (
         <Skeleton className="h-40 w-full" />
       ) : !isAdmin ? (
-        <PermissionDenied message="Só administradores mudam os grupos de permissão." />
+        <PermissionDenied message="Só administradores mudam os perfis de acesso." />
       ) : id ? (
         <PermissionGroupDetailContent groupId={id as string} />
       ) : null}
@@ -273,7 +273,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
     <div data-slot="page" className="space-y-4 pb-20">
       <div>
         <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => router.push('/admin/permission-groups')}>
-          <ArrowLeft /> Grupos de permissão
+          <ArrowLeft /> Perfis de acesso
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight">{group.name}</h1>
