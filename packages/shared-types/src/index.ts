@@ -234,4 +234,6 @@ export interface GiraPublic {
   time_slots: TimeSlotPublic[];
   allow_acompanhantes: boolean;
   max_acompanhantes: number;
+  /** Betas do Laboratório ligadas na casa que mudam a página do consulente (jornadas v2). */
+  betas?: string[];
 }

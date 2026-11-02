@@ -27,7 +27,7 @@ from src.core.tz import APP_TZ
 from src.models.giras import Gira
 from src.models.tenant_config import TenantConfig
 from src.models.tenants import Tenant
-from src.models.tickets import Ticket, TicketStatus
+from src.models.tickets import Ticket, TicketStatus, email_de_aviso
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.ticket_repo import TicketRepository
 from src.services import waitlist_service
@@ -107,7 +107,7 @@ async def _enqueue_waitlist_entry_email(session: AsyncSession, tenant: Tenant, t
     email_queue.enqueue(
         EmailQueueItem(
             message=EmailMessage(
-                to_email=ticket.consulente.email,
+                to_email=email_de_aviso(ticket),
                 subject=f"Você está na fila de espera - {gira.nome} - {tenant.name}",
                 html_body=html_body,
                 text_body=text_body,

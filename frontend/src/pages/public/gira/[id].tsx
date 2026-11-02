@@ -22,7 +22,8 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { CalendarClock, CalendarX2, Clock, Hourglass, Loader2, MapPin, SearchX, Star, Ticket, Users } from 'lucide-react';
+import { CalendarClock, CalendarX2, Clock, Hourglass, Loader2, Mail, MapPin, SearchX, Star, Ticket, Users, WifiOff } from 'lucide-react';
+import { guardarBilhete } from '@/lib/bilheteGuardado';
 import { PRIORITY_CATEGORY_LABELS, PRIORITY_ORDER } from 'shared-types';
 import type { GiraPublic } from 'shared-types';
 import { apiClient } from '@/services/api_client';
@@ -82,6 +83,8 @@ interface EmitSuccess {
   waitlisted: boolean;
   waitlistPosition: number | null;
   priorityUpgraded: boolean;
+  /** Beta "Senha para outra pessoa": primeiro nome de quem vai. */
+  paraQuem: string | null;
 }
 
 type SubmitErrorKind = 'conflict' | 'gone' | 'slot' | 'network' | 'generic';
@@ -110,6 +113,7 @@ function buildSchema(opts: { requiresSlot: boolean; acompanhantesAtivos: boolean
       timeSlotId: z.string().nullable(),
       levarAcompanhantes: z.boolean(),
       acompanhantes: z.array(z.object({ nome: z.string() })),
+      paraOutraPessoa: z.boolean(),
     })
     .superRefine((v, ctx) => {
       if (v.preferencial === 'sim' && !(v.priorityCategory && PRIORITY_VALUES.includes(v.priorityCategory))) {
@@ -263,6 +267,7 @@ export default function PublicGiraPage() {
       timeSlotId: null,
       levarAcompanhantes: false,
       acompanhantes: [{ nome: '' }],
+      paraOutraPessoa: false,
     },
   });
   const { register, control, handleSubmit, setValue, getValues, formState: { errors } } = form;
@@ -271,6 +276,18 @@ export default function PublicGiraPage() {
   const levarAcompanhantes = useWatch({ control, name: 'levarAcompanhantes' });
   const acompanhantes = useWatch({ control, name: 'acompanhantes' });
   const timeSlotId = useWatch({ control, name: 'timeSlotId' });
+  const paraOutraPessoaMarcado = useWatch({ control, name: 'paraOutraPessoa' });
+  const nomeDigitado = useWatch({ control, name: 'nome' });
+
+  // Betas do Laboratório (jornadas v2): só chegam ligadas para casa beta tester.
+  const betas = useMemo(() => new Set(gira?.betas ?? []), [gira?.betas]);
+  const betaOutraPessoa = betas.has('beta_senha_para_outra_pessoa') && !isSponsor;
+  const betaBilheteOffline = betas.has('beta_bilhete_offline');
+  const betaReceberDeNovo = betas.has('beta_receber_senha_de_novo');
+  const paraOutraPessoa = betaOutraPessoa && paraOutraPessoaMarcado;
+  const [receberAberto, setReceberAberto] = useState(false);
+  const [receberEmail, setReceberEmail] = useState('');
+  const [receberEstado, setReceberEstado] = useState<'idle' | 'enviando' | 'pronto' | 'erro'>('idle');
 
   const setQtdAcompanhantes = (qtd: number) => {
     const prev = getValues('acompanhantes');
@@ -337,6 +354,7 @@ export default function PublicGiraPage() {
           phone: values.telefone,
           priority_category: values.preferencial === 'sim' ? values.priorityCategory : null,
           time_slot_id: requiresSlot ? values.timeSlotId : null,
+          para_outra_pessoa: paraOutraPessoa,
           acompanhantes:
             acompanhantesDisponiveis && values.levarAcompanhantes
               ? values.acompanhantes.slice(0, maxAcompanhantesSelecionavel).map((a) => a.nome.trim())
@@ -355,6 +373,7 @@ export default function PublicGiraPage() {
           /* mantém o bilhete montado localmente */
         }
       }
+      if (betaBilheteOffline && !data.waitlisted) guardarBilhete(ticket);
       setSuccess({
         ticket,
         ticketId,
@@ -363,6 +382,7 @@ export default function PublicGiraPage() {
         waitlisted: Boolean(data.waitlisted),
         waitlistPosition: data.waitlist_position ?? null,
         priorityUpgraded: Boolean(data.priority_upgraded),
+        paraQuem: paraOutraPessoa ? values.nome.trim().split(/\s+/)[0] : null,
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
       fetchGira({ silent: true });
@@ -414,6 +434,24 @@ export default function PublicGiraPage() {
       toast.error(publicErrorMessage(err, 'Não foi possível reenviar o e-mail.'));
     } finally {
       setResending(false);
+    }
+  };
+
+  // Beta "Receber a senha de novo": o bilhete volta SÓ para o e-mail, com resposta neutra —
+  // mostrar na tela deixaria ver a senha de outra pessoa digitando o e-mail dela.
+  const handleReceberDeNovo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gira || !receberEmail.trim()) return;
+    setReceberEstado('enviando');
+    try {
+      await apiClient.post(`/api/v1/public/resend-ticket-email?tenant_slug=${encodeURIComponent(gira.tenant_slug)}`, {
+        email: receberEmail.trim(),
+        gira_id: gira.id,
+      });
+      setReceberEstado('pronto');
+    } catch (err) {
+      const status = errorStatus(err);
+      setReceberEstado(status === 404 || status === 400 || status === 422 ? 'pronto' : 'erro');
     }
   };
 
@@ -469,7 +507,9 @@ export default function PublicGiraPage() {
     ? 'Enviando…'
     : waitlistMode
       ? 'Entrar na fila de espera'
-      : 'Pegar minha senha';
+      : paraOutraPessoa
+        ? `Pegar a senha para ${(nomeDigitado || '').trim().split(/\s+/)[0] || 'essa pessoa'}`
+        : 'Pegar minha senha';
 
   const footer = showForm ? (
     <div className="flex flex-col gap-1.5">
@@ -684,9 +724,44 @@ export default function PublicGiraPage() {
                 </fieldset>
               )}
 
+              {betaOutraPessoa && (
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="mb-2 text-base font-semibold">Para quem é a senha?</legend>
+                  <Controller
+                    control={control}
+                    name="paraOutraPessoa"
+                    render={({ field }) => (
+                      <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        spacing={2}
+                        value={field.value ? 'outra' : 'mim'}
+                        onValueChange={(v) => v && field.onChange(v === 'outra')}
+                        aria-label="Para quem é a senha"
+                        className="w-full"
+                      >
+                        <ToggleGroupItem
+                          value="mim"
+                          className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                        >
+                          Para mim
+                        </ToggleGroupItem>
+                        <ToggleGroupItem
+                          value="outra"
+                          className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                        >
+                          Para outra pessoa
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                    )}
+                  />
+                </fieldset>
+              )}
+
               {/* Três campos acima da dobra */}
               <TextField
-                label="Nome completo"
+                label={paraOutraPessoa ? 'Nome de quem vai' : 'Nome completo'}
+                helperText={paraOutraPessoa ? 'É o nome chamado na porta.' : undefined}
                 required
                 autoComplete="name"
                 autoCapitalize="words"
@@ -695,16 +770,18 @@ export default function PublicGiraPage() {
                 {...register('nome')}
               />
               <TextField
-                label="E-mail"
+                label={paraOutraPessoa ? 'Seu e-mail' : 'E-mail'}
                 type="email"
                 required
                 autoComplete="email"
                 inputMode="email"
-                helperText="A senha chega aqui"
+                helperText={paraOutraPessoa ? 'A senha chega para você. Mostre ou encaminhe para quem vai.' : 'A senha chega aqui'}
                 error={errors.email?.message}
                 inputClassName="h-12"
                 {...register('email')}
               />
+              {/* Na senha para outra pessoa o celular seria de quem vai; a beta não o pede. */}
+              {!paraOutraPessoa && (
               <Controller
                 control={control}
                 name="telefone"
@@ -725,6 +802,7 @@ export default function PublicGiraPage() {
                   />
                 )}
               />
+              )}
 
               {/* Atendimento preferencial */}
               <fieldset ref={priorityRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
@@ -902,10 +980,16 @@ export default function PublicGiraPage() {
           intro={
             <>
               Enviamos os detalhes para <strong className="text-foreground">{success.email}</strong>.
+              {success.paraQuem && <> Mostre ou encaminhe para {success.paraQuem}.</>}
             </>
           }
           notice={
             <>
+              {betaBilheteOffline && !success.waitlisted && (
+                <p className="flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                  <WifiOff className="size-4" aria-hidden /> Esta senha fica guardada neste celular e abre até sem internet.
+                </p>
+              )}
               {success.waitlisted && success.waitlistPosition != null && (
                 <p className="text-center text-base">
                   Sua posição na fila: <strong className="text-lg">{success.waitlistPosition}º</strong>
@@ -923,6 +1007,52 @@ export default function PublicGiraPage() {
             </>
           }
         />
+      )}
+
+      {/* Beta: receber a senha de novo (só no e-mail) */}
+      {betaReceberDeNovo && !success && (isOpen || isExhausted) && (
+        <section className="mt-6 flex flex-col gap-3" aria-labelledby="receber-de-novo">
+          {!receberAberto ? (
+            <Button type="button" variant="link" className="h-12 self-start px-0 text-base" onClick={() => setReceberAberto(true)}>
+              <Mail aria-hidden /> Já pegou a senha? Receber de novo
+            </Button>
+          ) : (
+            <form onSubmit={handleReceberDeNovo} className="flex flex-col gap-3" noValidate>
+              <h2 id="receber-de-novo" className="font-display text-2xl font-semibold">
+                Receber a senha <em className="text-[color:var(--color-barro-600)]">de novo.</em>
+              </h2>
+              <p className="text-base text-muted-foreground">
+                Digite o e-mail que você usou ao pegar a senha. Mandamos o bilhete para ele de novo.
+              </p>
+              <TextField
+                label="E-mail"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                inputClassName="h-12"
+                value={receberEmail}
+                onChange={(e) => {
+                  setReceberEmail(e.target.value);
+                  if (receberEstado !== 'enviando') setReceberEstado('idle');
+                }}
+              />
+              {receberEstado === 'pronto' && (
+                <Alert variant="success">
+                  <AlertTitle>Pronto</AlertTitle>
+                  <AlertDescription>Se este e-mail tiver senha nesta gira, ela chega em instantes. Olhe também o spam.</AlertDescription>
+                </Alert>
+              )}
+              {receberEstado === 'erro' && (
+                <Alert variant="destructive">
+                  <AlertDescription>Não foi possível mandar agora. Confira a internet e tente de novo.</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" size="touch" className="w-full" disabled={receberEstado === 'enviando' || !receberEmail.trim()}>
+                {receberEstado === 'enviando' ? <Loader2 className="animate-spin" /> : <Mail aria-hidden />} Mandar de novo
+              </Button>
+            </form>
+          )}
+        </section>
       )}
 
       {/* Esgotada / encerrada */}

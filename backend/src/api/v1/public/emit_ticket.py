@@ -97,6 +97,9 @@ class EmitTicketRequest(BaseModel):
     # gira.max_acompanhantes. Cada acompanhante recebe uma senha própria com
     # número da mesma sequência, vinculada à do titular (parent_ticket_id).
     acompanhantes: list[str] = Field(default_factory=list, max_length=20)
+    # Beta "Senha para outra pessoa" (Laboratório): `name` é de quem vai e `email`, de quem
+    # preenche — é ele que recebe a senha. Só vale com a beta ligada na casa e fora do associado.
+    para_outra_pessoa: bool = False
 
     @field_validator("acompanhantes")
     @classmethod
@@ -519,16 +522,40 @@ async def emit_ticket(
         ticket_repo = TicketRepository(session, Ticket)
 
         # === STEP 4: Lookup or Create Consulente ===
-        try:
-            consulente, is_new = await consulente_repo.upsert_consulente(
-                session=session,
-                tenant_id=tenant.id,
-                name=body.name,
-                email=body.email,
-                phone=body.phone,
+        email_de_quem_pediu: str | None = None
+        if body.para_outra_pessoa:
+            from src.services.laboratorio import beta_ligada
+
+            if is_sponsor or not await beta_ligada(session, tenant.id, "beta_senha_para_outra_pessoa"):
+                raise HTTPException(status_code=400, detail="Esta casa não emite senha para outra pessoa.")
+            try:
+                email_de_quem_pediu = ConsulenteRepository.normalize_email(body.email)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            # Uma senha para outra pessoa por e-mail e gira: para levar mais gente, há os acompanhantes.
+            if await ticket_repo.has_active_ticket_for_requester(
+                session=session, tenant_id=tenant.id, gira_id=gira.id, email=email_de_quem_pediu
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Este e-mail já pegou uma senha para outra pessoa nesta gira.",
+                )
+            # Quem vai é um consulente sem e-mail (o nome chamado na porta), como o acompanhante.
+            consulente = await consulente_repo.create_walk_in_consulente(
+                session=session, tenant_id=tenant.id, name=body.name.strip()
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            is_new = True
+        else:
+            try:
+                consulente, is_new = await consulente_repo.upsert_consulente(
+                    session=session,
+                    tenant_id=tenant.id,
+                    name=body.name,
+                    email=body.email,
+                    phone=body.phone,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
         # Resolve priority_category: new field takes precedence; fallback from deprecated preferencial
         priority_category = body.priority_category
@@ -536,7 +563,7 @@ async def emit_ticket(
             priority_category = PriorityCategory.ELDERLY.value
 
         # === STEP 5: Check for Duplicate in Same Gira ===
-        has_duplicate = await ticket_repo.check_duplicate_in_gira(
+        has_duplicate = email_de_quem_pediu is None and await ticket_repo.check_duplicate_in_gira(
             session=session,
             tenant_id=tenant.id,
             gira_id=gira.id,
@@ -767,6 +794,8 @@ async def emit_ticket(
                     is_sponsor=is_sponsor,
                     time_slot_id=time_slot_id_for_ticket,
                 )
+                if email_de_quem_pediu:
+                    ticket.email_de_quem_pediu = email_de_quem_pediu
         except IntegrityError as exc:
             if not TicketRepository.is_duplicate_active_ticket(exc):
                 raise
@@ -846,7 +875,7 @@ async def emit_ticket(
                 tenant_name=tenant.name,
             )
             message = EmailMessage(
-                to_email=consulente.email,
+                to_email=email_de_quem_pediu or consulente.email,
                 subject=f"Você está na fila de espera - {gira.nome} - {tenant.name}",
                 html_body=html_body,
                 text_body=text_body,
@@ -866,7 +895,7 @@ async def emit_ticket(
                 tenant_address=tenant_address,
                 primary_color=primary_color,
                 secondary_color=secondary_color,
-                consulente_email=consulente.email,
+                consulente_email=email_de_quem_pediu or consulente.email,
                 consulente_phone=consulente.telefone or "",
                 priority_category=priority_category,
                 recados=gira.recados,
@@ -884,7 +913,7 @@ async def emit_ticket(
                 is_sponsor=is_sponsor,
                 tenant_address=tenant_address,
                 tenant_name=tenant.name,
-                consulente_email=consulente.email,
+                consulente_email=email_de_quem_pediu or consulente.email,
                 consulente_phone=consulente.telefone or "",
                 priority_category=priority_category,
                 recados=gira.recados,
@@ -893,7 +922,7 @@ async def emit_ticket(
                 acompanhantes=acompanhantes_emitidos or None,
             )
             message = EmailMessage(
-                to_email=consulente.email,
+                to_email=email_de_quem_pediu or consulente.email,
                 subject=f"{subject_prefix}Sua Senha #{ticket_number_formatted} - {tenant.name}",
                 html_body=html_body,
                 text_body=text_body,

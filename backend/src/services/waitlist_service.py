@@ -25,7 +25,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models.tickets import Ticket, TicketStatus, PRIORITY_ORDER
+from src.models.tickets import Ticket, TicketStatus, PRIORITY_ORDER, email_de_aviso
 from src.models.giras import Gira
 
 DEFAULT_CONFIRMATION_MINUTES = 24 * 60
@@ -315,7 +315,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
     )
     subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
     message = EmailMessage(
-        to_email=ticket.consulente.email,
+        to_email=email_de_aviso(ticket),
         subject=f"{subject_prefix}Sua Senha #{ticket_number_formatted} - {tenant.name}",
         html_body=html_body,
         text_body=text_body,
