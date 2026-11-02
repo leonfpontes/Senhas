@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { fraunces } from '@/components/landing/fonts';
 import { AREA_HOME, knownWithoutAdminArea } from '@/lib/areas';
 
 interface AdminLayoutProps {
@@ -100,9 +101,12 @@ export default function AdminLayout(props: AdminLayoutProps) {
   return (
     <AdminThemeProvider>
       <GiraProvider>
-        <SidebarProvider>
-          <AdminLayoutInner {...props} />
-        </SidebarProvider>
+        {/* Jornadas v2: Fraunces nos títulos do painel (font-display); `contents` não mexe no layout. */}
+        <div className={cn(fraunces.variable, 'contents')}>
+          <SidebarProvider>
+            <AdminLayoutInner {...props} />
+          </SidebarProvider>
+        </div>
       </GiraProvider>
     </AdminThemeProvider>
   );

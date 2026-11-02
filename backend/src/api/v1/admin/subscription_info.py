@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin-subscription"])
 logger = logging.getLogger(__name__)
 
 from src.services.medium_area import area_medium_liberada
+from src.services.laboratorio import betas_ligadas
 from src.services.plan_features import PlanFeatures, _get_plan_features, get_effective_plan_features
 from src.services.assinatura_pix import pix_pago_ate, tolerancia_ate
 from src.services.cobranca_cartao import em_tolerancia, pendente_desde
@@ -66,6 +67,8 @@ class SubscriptionInfoResponse(BaseModel):
     # Stripe tenta de novo — banner "Pagamento pendente desde DD/MM" + "Atualizar cartão".
     payment_pending_since: Optional[str] = None
     features: PlanFeatures
+    # Laboratório (jornadas v2): betas ligadas na casa (vazio se não for beta tester).
+    betas: list[str] = []
 
 
 async def _features_do_terreiro(db: AsyncSession, sub) -> PlanFeatures:
@@ -100,6 +103,7 @@ async def get_tenant_subscription(
         )
     )
     giras_result = await db.execute(giras_stmt)
+    betas = sorted(await betas_ligadas(db, tenant_id))
     current_giras_this_month = giras_result.scalar() or 0
 
     # Count active users dynamically
@@ -124,6 +128,7 @@ async def get_tenant_subscription(
             is_trial=False,
             auto_renew=False,
             features=_get_plan_features(PlanType.FREE),
+            betas=betas,
         )
 
     return SubscriptionInfoResponse(
@@ -152,4 +157,5 @@ async def get_tenant_subscription(
         ),
         # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
         features=await _features_do_terreiro(db, sub),
+        betas=betas,
     )

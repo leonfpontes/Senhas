@@ -186,7 +186,7 @@ describe('Admin Giras Page', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /Nova gira/ })).toBeEnabled());
       fireEvent.click(screen.getByRole('button', { name: /Nova gira/ }));
       fireEvent.change(screen.getByLabelText(/^Nome da gira/), { target: { value: NEW_GIRA.nome } });
-      setDateTime(/^Dia e hora da gira/, '10/01/2099', '19:00');
+      setDateTime(/^Dia e hora/, '10/01/2099', '19:00');
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
       });
@@ -258,7 +258,7 @@ describe('Admin Giras Page', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /Nova gira/ })).toBeEnabled());
       fireEvent.click(screen.getByRole('button', { name: /Nova gira/ }));
       fireEvent.change(screen.getByLabelText(/^Nome da gira/), { target: { value: NEW_GIRA.nome } });
-      setDateTime(/^Dia e hora da gira/, '10/01/2099', '19:00');
+      setDateTime(/^Dia e hora/, '10/01/2099', '19:00');
       fireEvent.change(screen.getByLabelText(/^Local/), { target: { value: 'Cachoeira do Parque' } });
       for (let i = 0; i < 3; i += 1) {
         await act(async () => {
@@ -294,7 +294,7 @@ describe('Admin Giras Page', () => {
         fireEvent.click(screen.getByRole('button', { name: /Compartilhar link/ }));
       });
       await waitFor(() => expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(GIRA_LINK));
-      expect(screen.getByTestId('share-link-dialog')).toHaveTextContent('Este link é só da Gira de Ogum');
+      expect(screen.getByTestId('share-link-dialog')).toHaveTextContent('O link desta gira abre direto nela');
       expect(screen.getByTestId('share-link-dialog')).not.toHaveTextContent(LINK);
     });
 

@@ -88,7 +88,7 @@ async function abrirEdicao() {
   await waitFor(() => expect(screen.getByText('Gira de Exú')).toBeInTheDocument());
   const user = userEvent.setup();
   await user.click(screen.getAllByRole('button', { name: /Mais ações da gira/ })[0]);
-  await user.click(await screen.findByRole('menuitem', { name: /Editar gira/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /Editar a gira/ }));
   await screen.findByRole('button', { name: 'salvar: Editar gira' });
 }
 

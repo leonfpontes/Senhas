@@ -145,7 +145,7 @@ export function TicketEmailPanel({ ticketId, showPreview = true, className }: Ti
     <div className={cn('flex flex-col gap-4', className)} data-testid="ticket-email-panel">
       <Card className="py-4">
         <CardContent className="px-4">
-          <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Senha</p>
+          <p className="mb-1 text-sm font-semibold text-foreground">Senha</p>
           <InfoRow label="Número" value={<span className="font-mono font-semibold">{numero}</span>} />
           <Separator />
           <InfoRow label="Consulente" value={data.consulente_nome ?? '—'} />
@@ -166,7 +166,7 @@ export function TicketEmailPanel({ ticketId, showPreview = true, className }: Ti
       <Card className="py-4">
         <CardContent className="px-4">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">E-mail</p>
+            <p className="text-sm font-semibold text-foreground">E-mail</p>
             <div className="flex items-center gap-1">
               <Button type="button" variant="ghost" size="icon-sm" onClick={fetchStatus} disabled={loading} aria-label="Atualizar status">
                 <RefreshCw className={cn(loading && 'animate-spin')} aria-hidden />
@@ -239,7 +239,7 @@ export function TicketEmailPanel({ ticketId, showPreview = true, className }: Ti
       {showPreview && data.resend_html && (
         <Card className="py-4">
           <CardContent className="px-4">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Prévia do e-mail</p>
+            <p className="mb-2 text-sm font-semibold text-foreground">Como o consulente vê</p>
             <iframe
               srcDoc={data.resend_html}
               title="Prévia do e-mail enviado"

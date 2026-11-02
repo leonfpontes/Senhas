@@ -73,7 +73,7 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('checklist-step-share')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByText(LINK)).toBeInTheDocument();
     openShare();
-    const wa = screen.getByRole('link', { name: /Enviar no WhatsApp/ });
+    const wa = screen.getByRole('link', { name: /Mandar no WhatsApp/ });
     expect(wa).toHaveAttribute('href', buildWhatsAppShareUrl(LINK, 'Casa Nova'));
     expect(wa).toHaveAttribute('target', '_blank');
   });
@@ -81,7 +81,7 @@ describe('FirstGiraChecklist', () => {
   it('clicar no WhatsApp marca o passo como feito, persiste e registra evento', () => {
     renderChecklist({ has_gira: true });
     openShare();
-    fireEvent.click(screen.getByRole('link', { name: /Enviar no WhatsApp/ }));
+    fireEvent.click(screen.getByRole('link', { name: /Mandar no WhatsApp/ }));
     expect(stepDone('share')).toBe('true');
     expect(window.localStorage.getItem('girahub:first-gira-checklist:shared:tenant-1')).toBe('1');
     expect(trackEvent).toHaveBeenCalledWith('onboarding_share_whatsapp');
@@ -95,11 +95,11 @@ describe('FirstGiraChecklist', () => {
     renderChecklist({ has_gira: true });
     openShare();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Copiar link/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Copiar/ }));
     });
     expect(writeText).toHaveBeenCalledWith(LINK);
     expect(stepDone('share')).toBe('true');
-    expect(screen.getAllByText('Link copiado!').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Copiado!').length).toBeGreaterThan(0);
     expect(trackEvent).toHaveBeenCalledWith('onboarding_copy_link');
   });
 
@@ -128,7 +128,7 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('checklist-step-tickets')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: /Testar o link/ })).toHaveAttribute('href', LINK);
     openShare();
-    expect(screen.getByRole('link', { name: /Enviar no WhatsApp/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Mandar no WhatsApp/ })).toBeInTheDocument();
     expect(screen.getByTestId('checklist-qr')).toHaveAttribute('data-value', LINK);
   });
 

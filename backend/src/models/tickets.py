@@ -117,6 +117,8 @@ class Ticket(SoftDeleteModel):
     # Beta "Senha para outra pessoa" (migração 103): e-mail de quem preencheu por outra pessoa.
     # Quando existe, é ele que recebe os e-mails da senha (ver email_de_aviso).
     email_de_quem_pediu: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Beta "Lembrete no dia da gira" (migração 104): quando o lembrete saiu (uma vez só).
+    lembrete_enviado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Door control fields (Visão da Porta)
     checkin_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

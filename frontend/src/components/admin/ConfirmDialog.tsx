@@ -29,6 +29,8 @@ export interface ConfirmDialogProps {
   onConfirm:   () => void;
   onCancel:    () => void;
   className?:  string;
+  /** `default`: diálogo largo, texto à esquerda (DialogoDeAlerta da v2); `sm`: o compacto de sempre. */
+  size?:       'default' | 'sm';
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -42,6 +44,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
   className,
+  size = 'sm',
 }) => (
   <AlertDialog
     open={open}
@@ -49,9 +52,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       if (!next && !loading) onCancel();
     }}
   >
-    <AlertDialogContent size="sm" className={className}>
+    <AlertDialogContent size={size} className={className}>
       <AlertDialogHeader>
-        <AlertDialogTitle className="font-bold">{title}</AlertDialogTitle>
+        <AlertDialogTitle className="font-display text-2xl leading-tight font-normal tracking-[-0.01em]">{title}</AlertDialogTitle>
         {typeof message === 'string' ? (
           <AlertDialogDescription>{message}</AlertDialogDescription>
         ) : (

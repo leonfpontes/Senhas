@@ -41,8 +41,8 @@ function TicketEmailContent() {
   return (
     <>
       <PageHeader
-        title="E-mail da senha"
-        subtitle="Status de entrega, reenvio e prévia do e-mail enviado ao consulente."
+        title="A senha chega por e-mail."
+        subtitle="Se o e-mail saiu, se chegou e se foi aberto; reenvie quando precisar e veja o que o consulente recebeu."
         actions={
           <Button variant="outline" size="sm" onClick={() => router.push('/admin/tickets')}>
             <ArrowLeft aria-hidden /> Voltar para Senhas

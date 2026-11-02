@@ -16,13 +16,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, actions
   <header
     data-slot="page-header"
     className={cn(
-      'mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center',
+      'mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end',
       className,
     )}
   >
     <div className="min-w-0">
-      <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
-      {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+      <h1 className="font-display text-[2rem] leading-tight font-normal tracking-[-0.02em] text-foreground sm:text-[2.5rem]">{title}</h1>
+      {subtitle && <p className="mt-1 text-base text-muted-foreground">{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
   </header>

@@ -54,7 +54,8 @@ describe('GiraCard', () => {
       release_start_at: at('2026-10-07T18:00:00'),
       release_end_at: at('2026-10-10T19:00:00'),
     });
-    expect(screen.getByText('Senhas abrem amanhã às 18:00')).toBeInTheDocument();
+    expect(screen.getByText('Agendada')).toBeInTheDocument();
+    expect(screen.getByTestId('gira-timeline')).toHaveTextContent('Senhas abrem amanhã 18h → fecham sáb 10/10, 19h → gira 20h');
     fireEvent.click(screen.getByRole('button', { name: /Liberar agora/ }));
     expect(h.onRelease).toHaveBeenCalled();
     expect(screen.getByTestId('gira-timeline')).toBeInTheDocument();
@@ -65,7 +66,8 @@ describe('GiraCard', () => {
       { max_tickets: 50, release_start_at: at('2026-10-05T10:00:00'), release_end_at: at('2026-10-10T19:00:00') },
       { issued: 12 },
     );
-    expect(screen.getByText('Senhas abertas no link')).toBeInTheDocument();
+    expect(screen.getByText('Senhas abertas')).toBeInTheDocument();
+    expect(screen.getByTestId('gira-timeline')).toHaveTextContent('Senhas abertas até sáb 10/10, 19h → gira 20h');
     expect(screen.getByTestId('gira-counts')).toHaveTextContent('12 de 50 senhas');
     fireEvent.click(screen.getByRole('button', { name: /Compartilhar link/ }));
     expect(h.onShare).toHaveBeenCalled();
@@ -76,8 +78,9 @@ describe('GiraCard', () => {
       { data_inicio: at('2026-10-06T12:00:00'), max_tickets: 50, release_start_at: at('2026-10-05T10:00:00'), release_end_at: at('2026-10-06T11:00:00') },
       { issued: 12, waiting: 3 },
     );
-    expect(screen.getByText('Gira hoje às 12:00')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Abrir Porta/ })).toHaveAttribute('href', '/admin/porta?gira=g1');
+    expect(screen.getByText('Hoje')).toBeInTheDocument();
+    expect(screen.getByTestId('gira-timeline')).toHaveTextContent('Gira hoje 12h');
+    expect(screen.getByRole('link', { name: /Abrir a Porta/ })).toHaveAttribute('href', '/admin/porta?gira=g1');
     expect(screen.getByTestId('gira-counts')).toHaveTextContent('12 de 50 senhas · 3 na fila');
   });
 
@@ -86,8 +89,24 @@ describe('GiraCard', () => {
       { data_inicio: at('2026-10-06T12:00:00'), max_tickets: 50 },
       { permissions: { ...ALL, canViewPorta: false } },
     );
-    expect(screen.queryByRole('link', { name: /Abrir Porta/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Abrir a Porta/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Compartilhar link/ })).toBeInTheDocument();
+  });
+
+  it('agendada não mostra ocupação: nada de barra em gira que nem abriu senha', () => {
+    renderCard(
+      { max_tickets: 50, release_start_at: at('2026-10-07T18:00:00'), release_end_at: at('2026-10-10T19:00:00') },
+      { issued: 0 },
+    );
+    expect(screen.queryByTestId('gira-counts')).not.toBeInTheDocument();
+  });
+
+  it('aberta e cheia → selo "Lotada"', () => {
+    renderCard(
+      { max_tickets: 50, release_start_at: at('2026-10-05T10:00:00'), release_end_at: at('2026-10-10T19:00:00') },
+      { issued: 50 },
+    );
+    expect(screen.getByText('Lotada')).toBeInTheDocument();
   });
 
   it('gira realizada não tem botão primário', () => {
