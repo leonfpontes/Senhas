@@ -171,6 +171,25 @@
   --ring: var(--color-barro-600);
 }
 
+/* Páginas públicas do consulente (PublicShell, jornada 3 v2): a superfície "terra" (areia + tinta) com a
+ * COR DA CASA no --primary (o PublicShell põe as variáveis da marca no mesmo elemento, depois desta classe
+ * no estilo inline, então elas vencem). Sempre clara. Pares em __tests__/styles/marketingContrast.test.ts. */
+.public-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+}
+
 /* Área do Médium (/medium/*, /escolher-area — `components/medium/MediumLayout`, AM-06): visual de
  * aplicativo, NEUTRO e claro (out/2026 — o dono achou a paleta areia + Fraunces "com cara de IA" e
  * pediu algo mais perto dos apps de terreiro da concorrência): fundo cinza bem claro, cartões

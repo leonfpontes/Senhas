@@ -112,7 +112,8 @@ describe('PublicShell', () => {
     const style = brandStyle({ primary: '#ffeb3b' }) as Record<string, string>;
     expect(style['--primary']).toBe('#ffeb3b');
     expect(style['--primary-foreground']).toBe('#000000');
-    expect((brandStyle() as Record<string, string>)['--primary']).toBe('#4f46e5');
+    // Casa sem cor escolhida: verde folha (jornadas v2, ADR 0011 do design system).
+    expect((brandStyle() as Record<string, string>)['--primary']).toBe('#2E6A4E');
     // Texto da marca sobre branco: primária clara escurece até AA; escura fica igual.
     expect(style['--brand-text']).not.toBe('#ffeb3b');
     expect(contrastRatio(style['--brand-text'], '#ffffff')).toBeGreaterThanOrEqual(4.5);

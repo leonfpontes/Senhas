@@ -15,8 +15,9 @@
 import React from 'react';
 import Head from 'next/head';
 import { cn } from '@/lib/utils';
-import { WCAG_AA_CONTRAST, contrastRatio, parseColor, pickForeground } from '@/lib/brand';
+import { WCAG_AA_CONTRAST, contrastRatio, corDaCasa, parseColor, pickForeground } from '@/lib/brand';
 import PoweredByGiraHubFooter from '@/components/shared/PoweredByGiraHubFooter';
+import { fraunces } from '@/components/landing/fonts';
 
 export interface PublicBrand {
   primary?: string | null;
@@ -47,7 +48,8 @@ export interface PublicShellProps {
   children: React.ReactNode;
 }
 
-export const DEFAULT_PUBLIC_PRIMARY = '#4f46e5';
+/** Casa sem cor escolhida: verde folha do GiraHub (ADR 0011 do design system, jornadas v2). */
+export const DEFAULT_PUBLIC_PRIMARY = '#2E6A4E';
 
 /**
  * Cor da marca para TEXTO sobre o fundo claro da casca (links, número do bilhete).
@@ -69,7 +71,7 @@ export function brandTextColor(primary: string): string {
 
 /** Variáveis CSS da marca para o wrapper. Exportado para testes e para quem precisar só das cores. */
 export function brandStyle(brand?: PublicBrand): React.CSSProperties {
-  const primary = brand?.primary?.trim() || DEFAULT_PUBLIC_PRIMARY;
+  const primary = corDaCasa(brand?.primary) || DEFAULT_PUBLIC_PRIMARY;
   const secondary = brand?.secondary?.trim() || primary;
   return {
     '--primary': primary,
@@ -112,13 +114,15 @@ export function PublicShell({
         data-slot="public-shell"
         style={brandStyle(brand)}
         className={cn(
-          'flex min-h-screen flex-col bg-background text-base text-foreground antialiased',
+          // Jornada 3 v2: superfície "terra" (areia + tinta, títulos em Fraunces); a cor da casa continua no --primary.
+          fraunces.variable,
+          'public-terra flex min-h-screen flex-col bg-background text-base text-foreground antialiased',
           footer && 'pb-[calc(6rem+env(safe-area-inset-bottom))]',
           className,
         )}
       >
         {!hideHeader && (tenantName || logoUrl) && (
-          <header className="border-b bg-card">
+          <header className="bg-background">
             <div className={cn('mx-auto flex w-full items-center gap-3 px-4 py-3', column)}>
               {showLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- logo de terreiro vem de host não allow-listado; onError cai na inicial
@@ -127,13 +131,13 @@ export function PublicShell({
                   alt=""
                   width={40}
                   height={40}
-                  className="size-10 shrink-0 rounded-lg border bg-muted object-cover"
+                  className="size-10 shrink-0 rounded-full border bg-muted object-cover"
                   onError={() => setLogoFailed(true)}
                 />
               ) : (
                 <span
                   aria-hidden
-                  className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
                 >
                   {initial || '•'}
                 </span>
@@ -143,6 +147,12 @@ export function PublicShell({
                 {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
               </div>
               {headerExtra}
+            </div>
+            {/* O picote do bilhete separa a casa do conteúdo (peça Picote do design system). */}
+            <div aria-hidden className={cn('mx-auto flex w-full items-center gap-2 px-4', column)}>
+              <span className="size-3 shrink-0 rounded-full border border-border" />
+              <span className="h-px flex-1 border-t border-dashed border-border" />
+              <span className="size-3 shrink-0 rounded-full border border-border" />
             </div>
           </header>
         )}

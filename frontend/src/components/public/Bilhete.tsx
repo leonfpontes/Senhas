@@ -77,23 +77,29 @@ export function Bilhete({
   const waUrl = whatsappShareUrl(buildShareText(ticket, link));
 
   return (
-    <Card className={cn('gap-5 py-5', className)}>
-      <CardContent className="flex flex-col gap-5 px-5">
+    // Jornada 3 v2: só o bilhete é cartão; o resto fica sobre a página, separado por filete.
+    <Card className={cn('gap-5 border-0 bg-transparent py-2 shadow-none ring-0', className)}>
+      <CardContent className="flex flex-col gap-5 px-1">
         {(heading || intro) && (
           <div className="text-center">
-            {heading && <h1 className="text-2xl font-bold leading-tight">{heading}</h1>}
+            {heading && <h1 className="font-display text-3xl font-semibold leading-tight">{heading}</h1>}
             {intro && <p className="mt-1 text-base text-muted-foreground">{intro}</p>}
           </div>
         )}
 
-        <div className="text-center">
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Sua senha</p>
+        {/* Jornada 3 v2: o bilhete é o único cartão da tela — faixa na cor da casa, sem caixa-alta, número em Fraunces. */}
+        <div className="overflow-hidden rounded-3xl bg-card text-center ring-1 ring-border">
+          <div className="bg-primary px-5 py-3 text-left text-primary-foreground">
+            <p className="truncate text-sm font-semibold">{ticket.tenant_name}</p>
+          </div>
+          <div className="px-5 pt-4 pb-5">
+          <p className="text-sm font-medium text-muted-foreground">Sua senha</p>
           <p
             data-testid="ticket-number"
             aria-label={`Senha ${ticket.ticket_number}`}
             style={cancelled ? { textDecoration: 'line-through' } : undefined}
             className={cn(
-              'text-[4rem] leading-none font-extrabold tabular-nums tracking-tight sm:text-[5rem]',
+              'font-display text-[4.5rem] leading-none font-semibold tabular-nums tracking-tight sm:text-[5rem]',
               done ? 'text-muted-foreground' : 'text-(color:--brand-text)',
             )}
           >
@@ -111,6 +117,12 @@ export function Bilhete({
               {ticket.status_label}
             </Badge>
           )}
+          {!done && (
+            <p className="mt-3 border-t border-dashed border-border pt-3 text-base text-muted-foreground">
+              Na entrada, informe o número <strong className="text-foreground">{ticket.ticket_number}</strong>.
+            </p>
+          )}
+          </div>
         </div>
 
         {notice}

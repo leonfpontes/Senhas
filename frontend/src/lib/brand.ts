@@ -21,6 +21,21 @@ export interface BrandColors {
 /** Contraste mínimo WCAG 2.x AA para texto normal. */
 export const WCAG_AA_CONTRAST = 4.5;
 
+/** Cor de ação da casa sem cor escolhida: o verde folha do GiraHub (jornadas v2, ADR 0011 do design system). */
+export const COR_PADRAO_DA_CASA = '#2E6A4E';
+/** O antigo padrão do sistema, gravado em tenant_config quando a casa nunca escolheu cor. */
+const COR_PADRAO_ANTIGA = '#4f46e5';
+
+/**
+ * A cor de ação da casa: a escolhida pela casa, ou o verde folha quando não há escolha. O antigo
+ * padrão (#4f46e5) é tratado como "não escolhida", porque era gravado sozinho no cadastro.
+ */
+export function corDaCasa(primary?: string | null): string {
+  const c = (primary || '').trim();
+  if (!c || c.toLowerCase() === COR_PADRAO_ANTIGA) return COR_PADRAO_DA_CASA;
+  return c;
+}
+
 type Rgb = [number, number, number];
 
 /**

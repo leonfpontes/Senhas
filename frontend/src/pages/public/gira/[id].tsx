@@ -138,19 +138,20 @@ const LEGAL_TEXT =
 function CountdownBlock({ seconds }: { seconds: number }) {
   const parts = parseCountdownParts(seconds);
   const blocks = [
-    { label: 'dias', value: parts.days },
-    { label: 'horas', value: parts.hours },
+    { label: parts.days === 1 ? 'dia' : 'dias', value: parts.days },
+    { label: parts.hours === 1 ? 'hora' : 'horas', value: parts.hours },
     { label: 'min', value: parts.minutes },
     { label: 'seg', value: parts.seconds },
   ];
   const visible = parts.days > 0 ? blocks : blocks.slice(1);
 
   return (
-    <div className="my-4 flex justify-center gap-2" role="timer" aria-live="off">
+    // Jornada 3 v2: ContagemRegressiva do design system — números grandes em Fraunces entre filetes, sem caixas coloridas.
+    <div className="my-4 flex border-y border-border py-3" role="timer" aria-live="off">
       {visible.map((b) => (
-        <div key={b.label} className="min-w-16 rounded-lg bg-primary px-2 py-3 text-center text-primary-foreground">
-          <p className="text-3xl font-bold tabular-nums leading-none">{String(b.value).padStart(2, '0')}</p>
-          <p className="mt-1 text-sm">{b.label}</p>
+        <div key={b.label} className="flex-1 text-center">
+          <p className="font-display text-[2.75rem] font-semibold tabular-nums leading-none">{b.value}</p>
+          <p className="mt-1 text-[15px] text-muted-foreground">{b.label}</p>
         </div>
       ))}
     </div>
@@ -506,12 +507,12 @@ export default function PublicGiraPage() {
       {/* Cabeçalho da gira */}
       {!success && (
         <section aria-labelledby="gira-titulo" className="px-1 pt-1">
-          <h1 id="gira-titulo" className="text-2xl font-bold leading-tight [text-wrap:balance]">{gira.nome}</h1>
+          <h1 id="gira-titulo" className="font-display text-[2rem] font-semibold leading-tight [text-wrap:balance]">{gira.nome}</h1>
           {gira.descricao && <p className="mt-1 text-base text-muted-foreground">{gira.descricao}</p>}
           <ul className="mt-2 flex flex-col gap-1 text-base">
             <li className="flex items-center gap-2">
               <CalendarClock aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              <span>{formatGiraDate(gira.data_inicio, '')}</span>
+              <span className="font-semibold">{formatGiraDate(gira.data_inicio, '')}</span>
             </li>
             {gira.local && (
               <li className="flex items-center gap-2">
@@ -536,25 +537,23 @@ export default function PublicGiraPage() {
 
       {/* Aguardando — contagem regressiva */}
       {isWaiting && (
-        <Card className="py-5">
-          <CardContent className="px-5 text-center">
-            <h2 className="text-lg font-bold">Emissão abre em</h2>
+        <Card className="border-0 bg-transparent py-2 shadow-none ring-0">
+          <CardContent className="px-1 text-center">
+            <h2 className="font-display text-2xl font-semibold">As senhas abrem em</h2>
             <CountdownBlock seconds={countdown.timeRemaining} />
-            <p className="text-base text-muted-foreground">
-              As senhas serão liberadas em {formatLongDate(gira.release_start_at as string)}
+            <p className="text-base">
+              {formatLongDate(gira.release_start_at as string)}
+              {gira.max_tickets ? `. ${gira.max_tickets} senhas.` : '.'} Pode deixar esta página aberta: o formulário aparece aqui na hora.
             </p>
-            {gira.max_tickets && (
-              <p className="mt-1 text-sm text-muted-foreground">{gira.max_tickets} senhas disponíveis</p>
-            )}
           </CardContent>
         </Card>
       )}
 
       {/* Aberta — formulário (ou fila de espera, quando lotado mas com fila habilitada) */}
       {showForm && (
-        <Card className="py-5">
-          <CardContent className="px-5">
-            <h2 className="text-lg font-bold">
+        <Card className="border-0 bg-transparent py-2 shadow-none ring-0">
+          <CardContent className="px-1">
+            <h2 className="font-display text-2xl font-semibold">
               {waitlistMode ? 'Entrar na fila de espera' : isSponsor ? 'Sua senha de associado' : 'Seus dados'}
             </h2>
 

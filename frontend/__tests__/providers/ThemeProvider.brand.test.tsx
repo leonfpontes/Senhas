@@ -27,7 +27,7 @@ describe('TenantAwareThemeProvider — applyBrand', () => {
         <div />
       </TenantAwareThemeProvider>,
     );
-    await waitFor(() => expect(token('--primary')).toBe('#4f46e5'));
+    await waitFor(() => expect(token('--primary')).toBe('#2E6A4E') /* jornadas v2: #4f46e5 é o antigo padrão = casa sem cor → verde folha */);
     expect(token('--secondary')).toBe('#ec4899');
     // #4f46e5 (default do backend) + branco dá 6,3 (≥ 4,5) → mantém o branco, igual ao MUI.
     // Fase 1: o default antigo #6366f1 dava 4,47 e caía para preto — por isso foi alinhado.
@@ -51,11 +51,11 @@ describe('TenantAwareThemeProvider — applyBrand', () => {
     // O primário do terreiro é igual ao padrão: espera pelo secundário, que só muda quando
     // as cores do terreiro chegam (senão o teste passa adiante com as cores padrão sob carga).
     await waitFor(() => expect(token('--secondary')).toBe('#0f766e'));
-    expect(token('--primary')).toBe('#4f46e5');
+    expect(token('--primary')).toBe('#2E6A4E') /* jornadas v2: #4f46e5 é o antigo padrão = casa sem cor → verde folha */;
     expect(token('--primary-foreground').toLowerCase()).toBe('#ffffff');
     expect(token('--secondary-foreground')).toBe('#ffffff');
-    expect(token('--ring')).toBe('#4f46e5');
-    expect(token('--sidebar-primary')).toBe('#4f46e5');
+    expect(token('--ring')).toBe('#2E6A4E') /* jornadas v2: #4f46e5 é o antigo padrão = casa sem cor → verde folha */;
+    expect(token('--sidebar-primary')).toBe('#2E6A4E') /* jornadas v2: #4f46e5 é o antigo padrão = casa sem cor → verde folha */;
 
     // Segundo terreiro: amarelo com fonte branca configurada → contraste insuficiente, cai para preto.
     apiClient.get.mockResolvedValue({

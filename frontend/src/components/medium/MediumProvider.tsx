@@ -9,7 +9,7 @@
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/services/api_client';
-import { applyBrand, applyTerraBrandText } from '@/lib/brand';
+import { applyBrand, applyTerraBrandText, corDaCasa } from '@/lib/brand';
 import { hasMediumArea, isMediumRoute, readStoredUser } from '@/lib/areas';
 import { useProfile, type UserAreas } from '@/hooks/useProfile';
 import { useCurrentPathname } from '@/hooks/useAdminDataEnabled';
@@ -59,11 +59,11 @@ export function applyMediumBrand(marca: MediumMarca): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   applyBrand(root, {
-    primary: marca.primary_color,
+    primary: corDaCasa(marca.primary_color),
     secondary: marca.secondary_color,
     font: marca.font_color || '#FFFFFF',
   });
-  applyTerraBrandText(root, marca.primary_color);
+  applyTerraBrandText(root, corDaCasa(marca.primary_color));
 }
 
 export function MediumProvider({ children }: { children: React.ReactNode }) {

@@ -37,7 +37,7 @@ class TenantConfig(TimestampedModel):
     logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     logo_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    primary_color: Mapped[str] = mapped_column(String(7), default="#4f46e5", nullable=False)  # Hex color
+    primary_color: Mapped[str] = mapped_column(String(7), default="#2E6A4E", nullable=False)  # Hex color; padrão = verde folha (jornadas v2)
     secondary_color: Mapped[str] = mapped_column(String(7), default="#818cf8", nullable=False)
     
     # Address

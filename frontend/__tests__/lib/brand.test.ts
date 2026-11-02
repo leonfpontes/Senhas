@@ -120,3 +120,17 @@ describe('brandTextColor — cor da marca para texto (`text-brand`)', () => {
     expect(root.style.getPropertyValue('--brand-text-dark')).toBe('#ffa726');
   });
 });
+
+describe('corDaCasa (jornadas v2)', () => {
+  const { corDaCasa, COR_PADRAO_DA_CASA } = jest.requireActual('@/lib/brand');
+  it('sem cor escolhida usa o verde folha', () => {
+    expect(corDaCasa(null)).toBe(COR_PADRAO_DA_CASA);
+    expect(corDaCasa('')).toBe('#2E6A4E');
+  });
+  it('o antigo padrão #4f46e5 conta como "sem escolha"', () => {
+    expect(corDaCasa('#4F46E5')).toBe('#2E6A4E');
+  });
+  it('a cor escolhida pela casa é respeitada', () => {
+    expect(corDaCasa('#b91c1c')).toBe('#b91c1c');
+  });
+});

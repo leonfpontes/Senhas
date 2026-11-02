@@ -17,12 +17,12 @@ import React, {
 } from 'react';
 
 import { apiClient } from '@/services/api_client';
-import { applyBrand } from '@/lib/brand';
+import { applyBrand, corDaCasa } from '@/lib/brand';
 import { isAdminRoute, knownWithoutAdminArea, readStoredUser } from '@/lib/areas';
 import { useCurrentPathname } from '@/hooks/useAdminDataEnabled';
 
 // Igual ao default do backend (TenantConfig.primary_color) e ao theme-color do _document.
-const DEFAULT_PRIMARY = '#4f46e5';
+// Jornadas v2: casa sem cor escolhida usa o verde folha (corDaCasa trata o antigo padrão #4f46e5 como "sem escolha").
 const DEFAULT_SECONDARY = '#ec4899';
 const DEFAULT_FONT = '#FFFFFF';
 const TENANT_BRANDING_UPDATED_EVENT = 'tenant-branding-updated';
@@ -141,7 +141,7 @@ const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeC
     tenantName: config.tenant_nome || getStoredTenantName() || 'Meu Terreiro',
     logoUrl: config.logo_url || undefined,
     colors: {
-      primary: config.primary_color || DEFAULT_PRIMARY,
+      primary: corDaCasa(config.primary_color),
       secondary: config.secondary_color || DEFAULT_SECONDARY,
       font: fontColor,
     },
@@ -211,7 +211,7 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
     // Roda a cada mudança de branding (login, troca de tenant, evento tenant-branding-updated).
     useEffect(() => {
       applyBrand(document.documentElement, {
-        primary: tenantConfig?.colors?.primary || DEFAULT_PRIMARY,
+        primary: corDaCasa(tenantConfig?.colors?.primary),
         secondary: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY,
         font: tenantConfig?.colors?.font || DEFAULT_FONT,
       });
