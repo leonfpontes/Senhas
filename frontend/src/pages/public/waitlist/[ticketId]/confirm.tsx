@@ -160,18 +160,18 @@ export default function WaitlistConfirmPage() {
       {state === 'loading' && <PublicLoading label="Buscando sua senha…" />}
 
       {(state === 'decide' || state === 'confirming') && (
-        <Card className="gap-4 py-5">
-          <CardContent className="flex flex-col gap-4 px-5">
+        <Card className="gap-4 border-0 bg-transparent py-2 shadow-none ring-0">
+          <CardContent className="flex flex-col gap-4 px-1">
             <div className="text-center">
-              <h1 className="text-2xl font-bold leading-tight">Abriu uma vaga para você!</h1>
+              <h1 className="font-display text-3xl font-semibold leading-tight">Abriu uma vaga para você!</h1>
               <p className="mt-1 text-base text-muted-foreground">
                 Confirme para transformar sua posição na fila em uma senha.
               </p>
             </div>
 
             <div className="text-center">
-              <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Sua senha</p>
-              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-(color:--brand-text)">
+              <p className="text-sm font-medium text-muted-foreground">Sua senha</p>
+              <p data-testid="ticket-number" className="font-display text-[4.5rem] leading-none font-semibold tabular-nums tracking-tight text-(color:--brand-text)">
                 {ticket?.ticket_number ?? info?.ticket_number}
               </p>
             </div>

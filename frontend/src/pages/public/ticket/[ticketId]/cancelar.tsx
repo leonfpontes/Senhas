@@ -156,19 +156,19 @@ export default function CancelTicketPage() {
       {state === 'keeping' && <PublicLoading label="Buscando seu bilhete…" />}
 
       {(state === 'confirm' || state === 'cancelling') && info && (
-        <Card className="gap-4 py-5">
-          <CardContent className="flex flex-col gap-4 px-5">
+        <Card className="gap-4 border-0 bg-transparent py-2 shadow-none ring-0">
+          <CardContent className="flex flex-col gap-4 px-1">
             <div className="text-center">
               <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-warning/10 text-warning-strong [&_svg]:size-7">
                 <CalendarX2 />
               </span>
-              <h1 className="text-2xl font-bold leading-tight">
+              <h1 className="font-display text-3xl font-semibold leading-tight">
                 Cancelar {info.waitlisted ? 'sua vaga na fila de espera' : 'sua senha'}?
               </h1>
             </div>
 
             <div className="text-center">
-              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-(color:--brand-text)">
+              <p data-testid="ticket-number" className="font-display text-[4.5rem] leading-none font-semibold tabular-nums tracking-tight text-(color:--brand-text)">
                 {info.ticket_number}
               </p>
               <p className="mt-2 text-base font-semibold">{info.gira_name}</p>

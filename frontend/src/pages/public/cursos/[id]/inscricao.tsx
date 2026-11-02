@@ -671,7 +671,7 @@ export default function InscricaoCursoPage() {
               <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-success/10 text-success-strong [&_svg]:size-7">
                 <CircleCheck />
               </span>
-              <h1 className="text-2xl font-bold leading-tight">Inscrição confirmada!</h1>
+              <h1 className="font-display text-3xl font-semibold leading-tight">Inscrição confirmada!</h1>
               <p className="mt-1 text-base text-muted-foreground">Você está inscrito(a) no curso abaixo.</p>
             </div>
 
@@ -763,7 +763,7 @@ export default function InscricaoCursoPage() {
           {isLotado ? <Lock /> : <CircleCheck />}
           {isLotado ? 'Vagas esgotadas' : 'Inscrições abertas'}
         </Badge>
-        <h1 id="curso-titulo" className="text-2xl font-bold leading-tight [text-wrap:balance]">{curso.titulo}</h1>
+        <h1 id="curso-titulo" className="font-display text-3xl font-semibold leading-tight [text-wrap:balance]">{curso.titulo}</h1>
         <div className="mt-2 flex flex-wrap gap-2 text-sm">
           <Badge variant="outline" className="gap-1 text-sm font-normal"><CalendarDays /> {fmtDateShort(curso.data_inicio)}</Badge>
           {curso.data_fim && <Badge variant="outline" className="gap-1 text-sm font-normal"><Flag /> {fmtDateShort(curso.data_fim)}</Badge>}

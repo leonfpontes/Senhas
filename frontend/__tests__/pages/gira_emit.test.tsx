@@ -274,7 +274,7 @@ describe('Emissão pública — estados da gira', () => {
     });
     render(<Page />);
 
-    expect(await screen.findByText('Emissão abre em')).toBeInTheDocument();
+    expect(await screen.findByText('As senhas abrem em')).toBeInTheDocument();
     expect(screen.getByRole('timer')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Nome completo/i)).not.toBeInTheDocument();
   });

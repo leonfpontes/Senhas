@@ -70,7 +70,7 @@ export function PublicNotice({ tone = 'info', icon, title, description, actions,
         >
           {icon ?? TONE_ICON[tone]}
         </span>
-        <h2 className="text-xl font-bold leading-tight text-foreground">{title}</h2>
+        <h2 className="font-display text-2xl font-semibold leading-tight text-foreground">{title}</h2>
         {description && <div className="text-base text-muted-foreground">{description}</div>}
         {children}
         {actions && <div className="mt-2 flex w-full flex-col gap-2">{actions}</div>}
