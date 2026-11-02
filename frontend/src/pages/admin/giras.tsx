@@ -173,8 +173,6 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError');
 }
 
-const NOMES_PADRAO = ['Gira de Caboclos', 'Pretos-Velhos', 'Exu', 'Baianos', 'Erês', 'Boiadeiros', 'Desenvolvimento'];
-
 /** "sáb, 8/11 · 19h" */
 function formatGiraCurta(iso: string): string {
   const d = new Date(iso);
@@ -342,16 +340,6 @@ function AdminGirasContent() {
   const { profile } = useProfile();
 
   const [giras, setGiras] = useState<Gira[]>([]);
-  // Chips do passo 1: os nomes que a casa mais usa (até 7); sem histórico, os nomes comuns.
-  const nomesComuns = useMemo(() => {
-    const conta = new Map<string, number>();
-    giras.forEach((g) => {
-      const n = g.nome.trim();
-      if (n) conta.set(n, (conta.get(n) ?? 0) + 1);
-    });
-    const daCasa = [...conta.entries()].sort((x, y) => y[1] - x[1]).map(([n]) => n).slice(0, 7);
-    return daCasa.length >= 3 ? daCasa : [...new Set([...daCasa, ...NOMES_PADRAO])].slice(0, 7);
-  }, [giras]);
   const [loading, setLoading] = useState(true);
   // Distingue "falhou ao carregar" de "não há giras" (senão o empty state mentiria).
   const [loadError, setLoadError] = useState(false);
@@ -1232,24 +1220,6 @@ function AdminGirasContent() {
         {createStep === 0 && (
           <div className="flex flex-col gap-4">
             <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">Qual é a próxima gira?</h3>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Nomes que a casa costuma usar">
-              {nomesComuns.map((nome) => (
-                <Button
-                  key={nome}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-pressed={createForm.nome === nome}
-                  className={cn(
-                    'h-9 rounded-full',
-                    createForm.nome === nome && 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground',
-                  )}
-                  onClick={() => setCreateField('nome', nome)}
-                >
-                  {nome}
-                </Button>
-              ))}
-            </div>
             <TextField
               label="Nome da gira"
               placeholder="Ex.: Gira de Caboclos"
