@@ -111,9 +111,9 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('checklist-step-share')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('testar o link oferece "Já compartilhei", que marca o passo ao confirmar', () => {
+  it('o passo da vez traz Testar o link, Compartilhar e "Já compartilhei", que marca o passo (J1 v2 · 07)', () => {
     renderChecklist({ has_gira: true });
-    expect(screen.queryByRole('button', { name: /Já compartilhei/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Já compartilhei/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: /Testar o link/ }));
     expect(trackEvent).toHaveBeenCalledWith('onboarding_test_link');
     expect(stepDone('share')).toBe('false');

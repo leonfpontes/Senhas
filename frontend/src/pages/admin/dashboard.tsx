@@ -29,6 +29,7 @@ import {
   TrendingUp,
   TriangleAlert,
   UserPlus,
+  X,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import AdminLayout from './admin_layout';
@@ -39,6 +40,7 @@ import FirstGiraChecklist, {
   isTenantActivated,
   readChecklistDismissed,
   resetChecklistDismissed,
+  writeChecklistDismissed,
   type OnboardingStatus,
 } from '@/components/admin/FirstGiraChecklist';
 import { ShareLinkDialog, fetchUnifiedLinks, type UnifiedLinks } from '@/components/admin/ShareLinkDialog';
@@ -438,23 +440,52 @@ function DashboardContent() {
   ];
   const hasAniversariantes = canViewAniversariantes && aniversariantes.length > 0;
 
+  const esconderPassos = () => {
+    writeChecklistDismissed(tenantId);
+    setChecklistDismissed(true);
+  };
+
+  // Jornada 1 v2 · 07/11: a data em cima e "Boa tarde, *Nome.*" em Fraunces, com o nome em itálico.
+  const primeiroNome = (profile?.full_name || '').trim().split(/\s+/)[0] || '';
   const header = (
-    <div data-tour="dashboard-greeting" className="mb-6 flex items-start justify-between gap-3">
+    <div data-tour="dashboard-greeting" className="mb-7 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{greeting || ' '}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">{todayLabel || ' '}</p>
+        <p className="text-[0.9375rem] font-medium text-muted-foreground first-letter:uppercase">{todayLabel || ' '}</p>
+        <h1 className="mt-1.5 font-display text-[2.5rem] leading-[1.05] font-normal tracking-[-0.03em] sm:text-[3.25rem]">
+          {greeting ? (
+            <>
+              {greeting}
+              {primeiroNome ? (
+                <>
+                  , <em className="text-[color:var(--color-barro-600)]">{primeiroNome}.</em>
+                </>
+              ) : (
+                '.'
+              )}
+            </>
+          ) : (
+            ' '
+          )}
+        </h1>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => loadDashboard()}
-        disabled={loading}
-        aria-label="Atualizar"
-        title="Atualizar"
-      >
-        <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
-      </Button>
+      <div className="flex items-center gap-2">
+        {onboardingOnly && onboarding && (
+          <Button type="button" variant="link" className="h-11 px-0 text-sm" onClick={esconderPassos}>
+            <X aria-hidden /> Esconder os primeiros passos
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => loadDashboard()}
+          disabled={loading}
+          aria-label="Atualizar"
+          title="Atualizar"
+        >
+          <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
+        </Button>
+      </div>
     </div>
   );
 
