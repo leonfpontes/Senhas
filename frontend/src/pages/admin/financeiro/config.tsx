@@ -814,7 +814,7 @@ function MensalidadeTab() {
 
 export default function FinanceiroConfigPage() {
   return (
-    <AdminLayout title="Configuração Financeira">
+    <AdminLayout title="Configuração financeira">
       <FinanceiroConfigContent />
     </AdminLayout>
   );
@@ -845,8 +845,9 @@ function FinanceiroConfigContent() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        title="Configuração Financeira"
-        subtitle={showContas ? 'Categorias, contas bancárias e mensalidades do terreiro' : 'Mensalidades do terreiro'}
+        title="Configuração financeira"
+        eyebrow="Financeiro"
+        subtitle={showContas ? 'Categorias dos lançamentos, contas da casa e a mensalidade.' : 'A mensalidade da casa.'}
         actions={<Settings2 className="size-6 text-brand" aria-hidden />}
       />
       {!planContas && (

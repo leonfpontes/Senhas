@@ -156,7 +156,7 @@ function buildProjecao(dados: FluxoMes[]): { reg: RegressionResult | null; proje
 
 export default function FluxoDeCaixaPage() {
   return (
-    <AdminLayout title="Fluxo de Caixa">
+    <AdminLayout title="Fluxo de caixa">
       <FluxoDeCaixaContent />
     </AdminLayout>
   );
@@ -386,8 +386,9 @@ function FluxoDeCaixaContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Fluxo de Caixa"
-        subtitle="Evolução de receitas, despesas e saldo acumulado"
+        title="Fluxo de caixa"
+        eyebrow="Financeiro"
+        subtitle="Evolução de receitas, despesas e saldo acumulado."
         actions={
           <>
             <Button variant="outline" onClick={fetchAll} disabled={loading} aria-label="Atualizar">

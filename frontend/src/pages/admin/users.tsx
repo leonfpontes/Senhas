@@ -403,7 +403,8 @@ function AdminUsersContent() {
       <div data-tour="users-header">
         <PageHeader
           title="Pessoas e acessos"
-          subtitle="Quem entra no sistema do terreiro e o que cada pessoa pode fazer."
+          subtitle="Quem entra no sistema do terreiro."
+          eyebrow="Conta e plano"
           actions={
             <>
               <div data-tour="users-filtro">

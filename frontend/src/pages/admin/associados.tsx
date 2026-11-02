@@ -308,7 +308,8 @@ function AdminAssociadosContent() {
       <div data-tour="associados-header">
         <PageHeader
           title="Associados"
-          subtitle="Quem contribui com a casa e recebe senhas especiais"
+          subtitle="Quem contribui com a casa e recebe senhas especiais."
+          eyebrow="Casa · plano Premium"
           actions={
             <>
               <Button variant="outline" onClick={loadAssociados} disabled={loading} aria-label="Atualizar lista">

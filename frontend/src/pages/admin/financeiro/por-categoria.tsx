@@ -263,8 +263,9 @@ function PorCategoriaContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Por categoria"
-        subtitle="Quanto entrou e saiu em cada categoria no período"
+        title="Financeiro por categoria"
+        eyebrow="Financeiro"
+        subtitle="Quanto entrou e saiu em cada categoria no período."
         actions={
           <>
             <Button variant="outline" onClick={fetchDados} disabled={loading} aria-label="Atualizar">

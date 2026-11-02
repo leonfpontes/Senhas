@@ -510,7 +510,8 @@ function AdminMateriaisContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Estudos e documentos"
-        subtitle="Apostilas, pontos cantados, rezas e vídeos para a corrente, na Área do Médium."
+        subtitle="Apostilas, pontos cantados, rezas e vídeos para a corrente, na Área do Médium. Aparecem agrupados por categoria."
+        eyebrow="Corrente"
         className="mb-0"
         actions={
           canInsert ? (

@@ -442,7 +442,7 @@ function SuportePageContent() {
     <>
       <PageHeader
         title="Suporte"
-        subtitle="Conversas de suporte de todos os terreiros."
+        subtitle="Conversas nascem no chat do painel do terreiro; a plataforma responde por aqui."
         actions={
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <TabsList aria-label="Filtrar por status">

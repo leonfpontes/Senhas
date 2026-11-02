@@ -583,6 +583,7 @@ function LancamentosContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Lançamentos"
+        eyebrow="Financeiro"
         subtitle={texto.subtitulo}
         actions={
           <>

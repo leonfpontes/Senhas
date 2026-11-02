@@ -336,7 +336,8 @@ function MensalidadesContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Mensalidades"
-        subtitle="Cobrança mensal de médiuns e associados"
+        subtitle="Cobrança mensal de médiuns e associados."
+        eyebrow="Financeiro"
         actions={<MonthNavigator value={mes} onChange={setMes} onRefresh={reloadAll} refreshing={refreshing} />}
       />
 

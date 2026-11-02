@@ -433,6 +433,7 @@ function AdminComunicadosContent() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Avisos"
+        eyebrow="Corrente"
         subtitle="Para a corrente, na Área do Médium. Veja quem leu e quem ainda não leu."
         actions={
           canInsert ? (

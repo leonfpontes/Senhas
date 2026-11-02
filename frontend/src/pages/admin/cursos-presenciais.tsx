@@ -404,7 +404,8 @@ function CursosPresenciaisContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Cursos presenciais"
-        subtitle="Turmas, inscrições públicas e participantes"
+        subtitle="Turmas, inscrições públicas e participantes."
+        eyebrow="Casa · plano Pro"
         className="mb-0"
         actions={
           canInsert && (

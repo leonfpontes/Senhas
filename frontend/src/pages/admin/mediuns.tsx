@@ -199,7 +199,7 @@ function MediunsUsageBar({ used, max, showUpgradeLink }: { used: number; max: nu
 
 export default function AdminMediunsPage() {
   return (
-    <AdminLayout title="Médiuns e Cambones">
+    <AdminLayout title="Médiuns e cambones">
       <MediunsContent />
     </AdminLayout>
   );
@@ -678,8 +678,9 @@ function MediunsContent() {
     <div className="flex flex-col gap-4">
       <div data-tour="mediuns-header">
         <PageHeader
-          title="Médiuns e Cambones"
-          subtitle="Corrente da casa: quem atende e quem auxilia"
+          title="Médiuns e cambones"
+          eyebrow="Corrente"
+          subtitle="Corrente da casa: quem atende e quem auxilia."
           actions={
             <>
               <Button variant="outline" onClick={load} disabled={loading} aria-label="Atualizar lista">

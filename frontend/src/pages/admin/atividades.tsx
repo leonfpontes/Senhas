@@ -189,6 +189,7 @@ function AtividadesContent() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Atividades e escalas"
+        eyebrow="Corrente"
         subtitle="Faxina, rituais, reuniões, desenvolvimento… Ficam só na Área do Médium: não vão ao site nem contam no limite de giras."
       />
       <Tabs value={aba} onValueChange={setAba}>

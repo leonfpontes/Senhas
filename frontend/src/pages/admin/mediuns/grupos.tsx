@@ -278,7 +278,8 @@ function GruposContent() {
       </div>
       <PageHeader
         title="Grupos da corrente"
-        subtitle="G1, G2, Ogãs, Desenvolvimento… Use nos avisos (e, em breve, nas escalas). O médium vê só o nome do grupo dele."
+        eyebrow="Corrente"
+        subtitle="G1, G2, Ogãs, Desenvolvimento… Use nos avisos e nas escalas. O médium vê só o nome do grupo dele."
         actions={
           canInsert ? (
             <Button onClick={abrirNovo}>

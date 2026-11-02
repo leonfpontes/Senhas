@@ -137,7 +137,7 @@ function AuthImage({ src, alt, className }: { src: string; alt: string; classNam
 
 export default function AdminEstoqueItensPage() {
   return (
-    <AdminLayout title="Itens de Estoque">
+    <AdminLayout title="Itens de estoque">
       <AdminEstoqueItensContent />
     </AdminLayout>
   );
@@ -510,8 +510,9 @@ function AdminEstoqueItensContent() {
     <div className="flex flex-col gap-4">
       <div data-tour="estoque-itens-header">
         <PageHeader
-          title="Itens de Estoque"
-          subtitle={`${items.length} ${items.length === 1 ? 'item cadastrado' : 'itens cadastrados'}`}
+          title="Itens de estoque"
+          eyebrow="Estoque"
+          subtitle="O que a casa tem, o mínimo de cada item e o que precisa repor."
           actions={
             <>
               <Button variant="outline" onClick={loadItems} disabled={loading} aria-label="Atualizar">

@@ -272,7 +272,8 @@ function AdminEstoqueMovimentacoesContent() {
       <div data-tour="estoque-mov-header">
         <PageHeader
           title="Movimentações"
-          subtitle={`${movimentacoes.length} ${movimentacoes.length === 1 ? 'registro' : 'registros'} no filtro atual`}
+          subtitle="Cada entrada e saída, com quem e por quê. Excluir recalcula o saldo do item."
+          eyebrow="Estoque"
           actions={
             <>
               <Button variant="outline" onClick={loadMovimentacoes} disabled={loading} aria-label="Atualizar">
