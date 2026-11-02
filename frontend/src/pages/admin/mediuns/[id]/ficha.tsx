@@ -382,6 +382,7 @@ function FichaDoMediumContent() {
       {voltar}
       <PageHeader
         title={nome}
+        eyebrow="Médiuns · Ficha espiritual"
         subtitle="Ficha espiritual e caminhada. Só a direção e quem ela autorizou veem estes dados."
         actions={
           <Button asChild variant="outline">

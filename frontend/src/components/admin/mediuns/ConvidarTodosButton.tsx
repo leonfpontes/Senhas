@@ -48,9 +48,10 @@ export function ConvidarTodosButton({ mediuns, onDone }: { mediuns: MediumAcesso
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => setAberto(true)}>
+      {/* J5 v2: link ao lado da cota do plano, "Convidar todos para a Área". */}
+      <Button type="button" variant="link" className="h-auto px-0 text-sm" onClick={() => setAberto(true)}>
         <Send aria-hidden />
-        Convidar todos com e-mail ({alvos.length})
+        Convidar todos para a Área ({alvos.length})
       </Button>
       <ConfirmDialog
         open={aberto}

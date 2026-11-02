@@ -175,7 +175,7 @@ describe('Médiuns', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Novo/ }));
     fireEvent.change(await screen.findByLabelText(/Nome/), { target: { value: 'Pai Joaquim' } });
     fireEvent.click(screen.getByLabelText('Isento de mensalidade'));
-    fireEvent.click(screen.getByRole('button', { name: 'Criar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
     await waitFor(() => expect(mockPost).toHaveBeenCalled());
     expect(mockPost.mock.calls[0][1]).toMatchObject({ nome: 'Pai Joaquim', mensalidade_isento: true });

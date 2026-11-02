@@ -281,7 +281,7 @@ function FichaConfigContent() {
       </div>
       <PageHeader
         title="Ficha espiritual"
-        eyebrow="Corrente"
+        eyebrow="Médiuns"
         subtitle="Os campos da ficha da casa. Cada médium só é preenchido com a autorização dele, e só vê o que a casa liberar."
         actions={
           canInsert ? (

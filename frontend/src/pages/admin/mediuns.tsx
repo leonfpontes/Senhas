@@ -46,6 +46,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { maskTelefone } from '@/components/fields/MaskedInput';
 import { todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
@@ -157,34 +158,41 @@ function maskCep(value: string): string {
 
 // ── Barra de cota ────────────────────────────────────────────────────
 
-function MediunsUsageBar({ used, max, showUpgradeLink }: { used: number; max: number; showUpgradeLink: boolean }) {
+/** BarraDeUso (J5 v2): "31 de 40 médiuns do plano", o convite em lote ao lado e a barra embaixo. */
+function MediunsUsageBar({
+  used,
+  max,
+  showUpgradeLink,
+  acao,
+}: {
+  used: number;
+  max: number;
+  showUpgradeLink: boolean;
+  acao?: React.ReactNode;
+}) {
   const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
   const atLimit = used >= max;
   return (
-    <div
-      className={`rounded-lg border bg-card p-4 ${atLimit ? 'border-warning' : ''}`}
-      role="group"
-      aria-label="Cota de médiuns do plano"
-    >
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-muted-foreground">Médiuns cadastrados</span>
-        <span className={`text-sm font-bold ${atLimit ? 'text-warning' : 'text-foreground'}`}>
-          {used} / {max}
+    <div className="flex w-full flex-col gap-2 sm:w-[440px]" role="group" aria-label="Cota de médiuns do plano">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <span className={`text-sm font-semibold ${atLimit ? 'text-warning-strong' : 'text-foreground'}`}>
+          {used} de {max} médiuns do plano
         </span>
+        {acao}
       </div>
       <Progress
         value={pct}
         aria-label={`${used} de ${max} médiuns`}
-        className={atLimit || pct >= 80 ? '[&>[data-slot=progress-indicator]]:bg-warning' : undefined}
+        className={atLimit || pct >= 80 ? 'h-1.5 [&>[data-slot=progress-indicator]]:bg-warning' : 'h-1.5'}
       />
       {atLimit && (
-        <p className="mt-2 text-xs text-warning">
+        <p className="text-xs text-warning-strong">
           Limite de médiuns do plano atingido.
           {showUpgradeLink && (
             <>
               {' '}
               <Link href="/admin/billing" className="font-semibold underline underline-offset-2">
-                Faça upgrade
+                Ver planos
               </Link>{' '}
               para cadastrar mais.
             </>
@@ -546,6 +554,7 @@ function MediunsContent() {
   );
 
   const columns = useMemo<ColumnDef<Medium>[]>(() => {
+    // J5 v2 · 01: Nome + telefone, Função, Grupos, Tempo de casa, Área do Médium e o menu.
     const cols: ColumnDef<Medium>[] = [
       {
         accessorKey: 'nome',
@@ -557,55 +566,50 @@ function MediunsContent() {
             <div className="flex min-w-0 flex-col">
               <span className="flex flex-wrap items-center gap-1.5 font-medium">
                 <span className="truncate">{m.nome}</span>
+                {!m.is_active && <Badge variant="outline">Inativo</Badge>}
                 {bday && (
                   <Badge variant={birthdayMap.get(m.id) === 0 ? 'destructive' : 'outline'} className="gap-1">
                     <Cake aria-hidden /> {bday}
                   </Badge>
                 )}
               </span>
-              {m.email && <span className="truncate text-xs text-muted-foreground">{m.email}</span>}
-              {canGrupos && <GruposDoMediumChips grupos={porMedium.get(m.id)} />}
+              <span className="truncate text-[0.8125rem] text-muted-foreground">
+                {m.telefone ? maskTelefone(m.telefone) : m.email || 'Sem contato'}
+              </span>
             </div>
           );
         },
       },
       {
-        accessorKey: 'telefone',
-        header: 'Telefone',
-        enableSorting: false,
-        cell: ({ getValue }) => {
-          const v = getValue<string | null>();
-          return v ? maskTelefone(v) : '—';
-        },
-      },
-      { accessorKey: 'cidade', header: 'Cidade', cell: ({ getValue }) => getValue<string | null>() || '—' },
-      {
         accessorKey: 'is_atendimento',
         header: 'Função',
-        cell: ({ getValue }) =>
-          getValue<boolean>() ? <Badge>Médium</Badge> : <Badge variant="secondary">Cambone</Badge>,
+        cell: ({ getValue }) => (getValue<boolean>() ? 'Médium' : 'Cambone'),
       },
+      ...(canGrupos
+        ? [
+            {
+              id: 'grupos',
+              header: 'Grupos',
+              enableSorting: false,
+              cell: ({ row }) => <GruposDoMediumChips grupos={porMedium.get(row.original.id)} />,
+            } as ColumnDef<Medium>,
+          ]
+        : []),
       {
         id: 'tempo_casa',
         header: 'Tempo de casa',
         accessorFn: (m) => tempoCasaSortKey(m),
-        cell: ({ row }) => formatTempoCasa(row.original.data_entrada, row.original.data_saida, row.original.is_active),
-      },
-      {
-        accessorKey: 'is_active',
-        header: 'Status',
-        cell: ({ getValue }) =>
-          getValue<boolean>() ? (
-            <Badge className="border-transparent bg-success text-success-foreground">Ativo</Badge>
-          ) : (
-            <Badge variant="outline">Inativo</Badge>
-          ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {formatTempoCasa(row.original.data_entrada, row.original.data_saida, row.original.is_active)}
+          </span>
+        ),
       },
     ];
     if (canAcesso) {
       cols.push({
         id: 'acesso_area',
-        header: 'Acesso à Área',
+        header: 'Área do Médium',
         accessorFn: (m) => m.acesso_area?.status ?? 'sem_acesso',
         cell: ({ row }) => <AcessoAreaBadge acesso={row.original.acesso_area} />,
       });
@@ -683,9 +687,8 @@ function MediunsContent() {
           subtitle="Corrente da casa: quem atende e quem auxilia."
           actions={
             <>
-              <Button variant="outline" onClick={load} disabled={loading} aria-label="Atualizar lista">
+              <Button variant="ghost" size="icon" className="size-11" onClick={load} disabled={loading} aria-label="Atualizar lista" title="Atualizar">
                 <RefreshCw className={loading ? 'animate-spin' : undefined} />
-                <span className="hidden sm:inline">Atualizar</span>
               </Button>
               {canGrupos && (
                 <Button asChild variant="outline">
@@ -703,7 +706,6 @@ function MediunsContent() {
                   </Link>
                 </Button>
               )}
-              {canAcesso && !debouncedSearch && <ConvidarTodosButton mediuns={mediuns} onDone={load} />}
               {canInsert && (
                 <Button
                   data-tour="mediuns-novo"
@@ -732,18 +734,8 @@ function MediunsContent() {
         </Alert>
       )}
 
-      {showUsage && (
-        <div data-tour="mediuns-usage">
-          <MediunsUsageBar
-            used={subscription?.current_mediuns ?? 0}
-            max={maxMediuns}
-            showUpgradeLink={!readOnlyByPlan}
-          />
-        </div>
-      )}
-
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div data-tour="mediuns-busca" className="w-full sm:w-80">
+        <div data-tour="mediuns-busca" className="w-full sm:w-96">
           <TextField
             aria-label="Buscar por nome"
             placeholder="Buscar por nome..."
@@ -755,7 +747,7 @@ function MediunsContent() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <Switch id="mediuns-inativos" checked={includeInactive} onCheckedChange={setIncludeInactive} />
+            <Checkbox id="mediuns-inativos" checked={includeInactive} onCheckedChange={(v) => setIncludeInactive(v === true)} />
             <Label htmlFor="mediuns-inativos" className="text-sm font-normal">
               Incluir inativos
             </Label>
@@ -773,6 +765,19 @@ function MediunsContent() {
             </Button>
           )}
         </div>
+        <span className="hidden flex-1 sm:block" />
+        {showUsage ? (
+          <div data-tour="mediuns-usage">
+            <MediunsUsageBar
+              used={subscription?.current_mediuns ?? 0}
+              max={maxMediuns}
+              showUpgradeLink={!readOnlyByPlan}
+              acao={canAcesso && !debouncedSearch ? <ConvidarTodosButton mediuns={mediuns} onDone={load} /> : undefined}
+            />
+          </div>
+        ) : (
+          canAcesso && !debouncedSearch && <ConvidarTodosButton mediuns={mediuns} onDone={load} />
+        )}
       </div>
 
       <div data-tour="mediuns-tabela">
@@ -796,15 +801,15 @@ function MediunsContent() {
       <CrudDrawer
         open={drawerOpen}
         onClose={closeDrawer}
-        title={drawerMode === 'create' ? 'Novo médium ou cambone' : 'Editar médium ou cambone'}
+        title={drawerMode === 'create' ? 'Novo médium' : 'Editar médium ou cambone'}
         subtitle={
           drawerMode === 'create'
-            ? 'Cadastre um novo integrante da corrente.'
+            ? 'Só o nome é obrigatório. O resto pode vir depois.'
             : 'Altere as informações do integrante selecionado.'
         }
         icon={<Flower2 />}
         onSave={handleSave}
-        saveLabel={drawerMode === 'create' ? 'Criar' : 'Salvar'}
+        saveLabel={drawerMode === 'create' ? 'Cadastrar' : 'Salvar'}
         saving={saving}
         saveDisabled={saveDisabled}
         isDirty={isDirty}
@@ -825,7 +830,7 @@ function MediunsContent() {
             <RadioGroup
               value={formData.is_atendimento ? 'medium' : 'cambone'}
               onValueChange={(v) => handleChange('is_atendimento', v === 'medium')}
-              className="grid grid-cols-2 gap-2"
+              className="grid grid-cols-1 gap-2"
             >
               <Label
                 htmlFor="funcao-medium"
@@ -891,7 +896,7 @@ function MediunsContent() {
                   label="Data de entrada na casa"
                   value={formData.data_entrada || null}
                   onChange={(iso) => handleChange('data_entrada', iso ?? '')}
-                  helperText="Opcional — usada para calcular o tempo de casa"
+                  helperText="Usada para calcular o tempo de casa"
                 />
                 {drawerMode === 'edit' && !formData.is_active && (
                   <DateField

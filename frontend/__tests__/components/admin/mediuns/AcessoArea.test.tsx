@@ -1,7 +1,7 @@
 /**
  * Acesso à Área do Médium na tela Médiuns (AM-03): sheet de convite (e-mail mascarado,
  * mensagem pronta, WhatsApp, copiar link, cancelar), tirar acesso com confirmação, médium
- * sem e-mail e "Convidar todos com e-mail (N)".
+ * sem e-mail e "Convidar todos para a Área (N)".
  */
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -154,7 +154,7 @@ describe('ConvidarTodosButton', () => {
   it('conta só ativos com e-mail e sem acesso, confirma e envia', async () => {
     const onDone = jest.fn();
     render(<ConvidarTodosButton mediuns={lista} onDone={onDone} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Convidar todos com e-mail (2)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Convidar todos para a Área (2)' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Convidar 2 médiuns por e-mail?' });
     expect(within(dialog).getByText('Carla Mendes, Fábio Lima.')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar convites' }));
