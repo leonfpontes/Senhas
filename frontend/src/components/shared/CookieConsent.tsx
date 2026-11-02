@@ -207,7 +207,7 @@ export function CookieConsent() {
         >
           <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
             <DialogHeader className="border-b border-areia-200 bg-cafe-950 px-6 pt-6 pb-5 text-left text-white">
-              <p className="text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase">Privacidade</p>
+              <p className="text-xs font-bold text-ouro-300">Privacidade</p>
               <DialogTitle className="font-display text-2xl font-bold text-white">Preferências de cookies</DialogTitle>
               <DialogDescription className="text-sm text-areia-200">
                 Ligue só o que fizer sentido para você. Os necessários não podem ser desligados porque o sistema não

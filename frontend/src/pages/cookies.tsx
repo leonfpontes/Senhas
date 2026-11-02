@@ -113,7 +113,7 @@ function TabelaDeCookies() {
             {/* Tabela no desktop; no celular cada linha vira um cartão (rótulos via data-label). */}
             <table className="mt-3 w-full border-collapse text-left text-sm">
               <thead className="hidden md:table-header-group">
-                <tr className="border-b border-areia-200 text-xs tracking-wider text-tinta-suave uppercase">
+                <tr className="border-b border-areia-200 text-xs text-tinta-suave">
                   <th scope="col" className="py-2 pr-4 font-semibold">Nome</th>
                   <th scope="col" className="py-2 pr-4 font-semibold">Fornecedor</th>
                   <th scope="col" className="py-2 pr-4 font-semibold">Para que serve</th>

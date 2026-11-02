@@ -111,7 +111,7 @@ export function PlanComparison({ currentPlan, highlightPlan, className }: PlanCo
             </div>
             {GROUPS.map((g) => (
               <div key={g.group} className="mb-3 last:mb-0">
-                <p className="mb-1 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-muted-foreground">{g.group}</p>
+                <p className="mb-1 text-[0.68rem] font-bold text-muted-foreground">{g.group}</p>
                 <ul className="flex flex-col gap-1">
                   {g.rows.map((r) => {
                     const v = r.cells[p.key];
@@ -142,7 +142,7 @@ export function PlanComparison({ currentPlan, highlightPlan, className }: PlanCo
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="min-w-44 text-[0.72rem] font-bold uppercase tracking-[0.06em]">Recurso</TableHead>
+            <TableHead className="min-w-44 text-[0.72rem] font-bold">Recurso</TableHead>
             {PLAN_LIST.map((p) => {
               const isCurrent = p.key === currentPlan;
               return (
@@ -169,7 +169,7 @@ export function PlanComparison({ currentPlan, highlightPlan, className }: PlanCo
           {GROUPS.map((g) => (
             <React.Fragment key={g.group}>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableCell colSpan={PLAN_LIST.length + 1} className="py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                <TableCell colSpan={PLAN_LIST.length + 1} className="py-1.5 text-[0.68rem] font-bold text-muted-foreground">
                   {g.group}
                 </TableCell>
               </TableRow>

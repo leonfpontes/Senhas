@@ -230,7 +230,7 @@ export default function ConvitePage() {
         subtitle="A Área do Médium junta a agenda da casa, os avisos e a sua mensalidade num lugar só, no seu celular."
       >
         <div className="flex flex-col gap-6">
-          <p className="text-center text-xs font-bold tracking-[0.2em] text-barro-700 uppercase">Convite da casa</p>
+          <p className="text-center text-xs font-bold text-barro-700">Convite da casa</p>
           <LogoDaCasa convite={convite} />
           <ul className="flex flex-col gap-4 rounded-2xl bg-areia-50 p-4 text-sm text-tinta">
             <li className="flex items-start gap-3">
@@ -266,7 +266,7 @@ export default function ConvitePage() {
       }
     >
       <form onSubmit={ativar} className="flex flex-col gap-6" noValidate>
-        <p className="text-xs font-bold tracking-[0.2em] text-barro-700 uppercase">Passo 2 de 2</p>
+        <p className="text-xs font-bold text-barro-700">Passo 2 de 2</p>
 
         {erro && (
           <Alert variant="destructive" role="alert">

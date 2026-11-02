@@ -24,6 +24,7 @@ import {
   Copy,
   CreditCard,
   Flag,
+  Flower2,
   HeartPulse,
   Loader2,
   Lock,
@@ -31,7 +32,6 @@ import {
   Paperclip,
   SearchX,
   Share2,
-  Sparkles,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -937,7 +937,7 @@ export default function InscricaoCursoPage() {
           {completo && steps[step].fields === STEP_PERFIL && (
             <Accordion type="multiple" value={openPerfil} onValueChange={setOpenPerfil} className="rounded-xl border bg-card px-5">
               <AccordionItem value="espiritual">
-                <AccordionTrigger className="text-base font-bold"><span className="flex items-center gap-2"><Sparkles aria-hidden className="size-5 text-muted-foreground" /> Perfil espiritual e mediúnico</span></AccordionTrigger>
+                <AccordionTrigger className="text-base font-bold"><span className="flex items-center gap-2"><Flower2 aria-hidden className="size-5 text-muted-foreground" /> Perfil espiritual e mediúnico</span></AccordionTrigger>
                 <AccordionContent className="grid gap-4 sm:grid-cols-2">
                   <Controller control={control} name="experiencia_umbanda" render={({ field }) => (
                     <SelectField id="experiencia_umbanda" label="Já teve experiência ou fez algum estudo sobre a religião de umbanda?" required value={field.value} onChange={field.onChange} options={SIM_NAO_OUTROS} error={err('experiencia_umbanda')} />
@@ -1007,7 +1007,7 @@ export default function InscricaoCursoPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Chave PIX</p>
+                        <p className="text-xs font-semibold text-muted-foreground">Chave PIX</p>
                         <p className="break-all text-base font-bold">{curso.chave_pix}</p>
                       </div>
                       <Button type="button" variant="outline" size="touch" onClick={copyPix}><Copy /> Copiar chave</Button>

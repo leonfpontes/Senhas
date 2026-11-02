@@ -354,7 +354,7 @@ function SuportePageContent() {
             ) : (
               groupByDay(messages).map((group) => (
                 <div key={group.day} className="mb-3">
-                  <div className="my-2 flex items-center gap-2 text-[0.68rem] font-semibold text-muted-foreground uppercase">
+                  <div className="my-2 flex items-center gap-2 text-[0.68rem] font-semibold text-muted-foreground">
                     <span className="h-px flex-1 bg-border" aria-hidden />
                     {group.day}
                     <span className="h-px flex-1 bg-border" aria-hidden />
@@ -416,7 +416,7 @@ function SuportePageContent() {
   const context = selected && (
     <aside className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-4" aria-label="Contexto do terreiro">
       <div>
-        <p className="text-xs font-bold tracking-wide text-muted-foreground uppercase">Terreiro</p>
+        <p className="text-xs font-bold text-muted-foreground">Terreiro</p>
         <p className="mt-1 font-semibold">{selected.tenant_name}</p>
         <p className="text-xs text-muted-foreground">Responsável: {selected.owner_name_snapshot}</p>
         <p className="text-xs text-muted-foreground">Última mensagem: {fmtDateTime(selected.last_message_at)}</p>

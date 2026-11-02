@@ -65,7 +65,7 @@ function BrandPanel({ photo }: { photo: PhotoKey }) {
           className="absolute inset-0 -z-10 bg-gradient-to-b from-cafe-950/80 via-cafe-950/60 via-50% to-transparent to-75%"
         />
         <div className="passagem-surge">
-          <p className="text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase">{AUTH_PANEL.eyebrow}</p>
+          <p className="text-xs font-bold text-ouro-300">{AUTH_PANEL.eyebrow}</p>
           <p className="mt-4 font-display text-4xl leading-[1.1] font-bold tracking-tight lg:text-5xl">
             {AUTH_PANEL.promise}
           </p>

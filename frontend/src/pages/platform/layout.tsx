@@ -114,7 +114,7 @@ function PlatformSidebar() {
           <img src="/favicon.svg" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
           <span className="truncate text-sm font-bold tracking-tight group-data-[collapsible=icon]:hidden">
             GiraHub
-            <span className="ml-1.5 text-[0.6rem] font-bold tracking-[0.18em] text-brand uppercase">Plataforma</span>
+            <span className="ml-1.5 text-[0.6rem] font-bold text-brand">Plataforma</span>
           </span>
         </Link>
       </SidebarHeader>

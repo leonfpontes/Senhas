@@ -5,7 +5,7 @@
  * pré-preenchido com um clique. Também permite escolher o template ou começar do zero.
  */
 import React, { useEffect, useState } from 'react';
-import { Building2, CalendarDays, Check, ImageIcon, Loader2, Mail, MapPin, Sparkles } from 'lucide-react';
+import { Building2, CalendarDays, Check, Globe, ImageIcon, Loader2, Mail, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { pickForeground } from '@/lib/brand';
 import { apiClient } from '@/services/api_client';
@@ -120,7 +120,7 @@ export function SetupWizard({ template: initialTemplate, canEdit, onCreate, onSk
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="size-5 text-brand" aria-hidden />
+            <Globe className="size-5 text-brand" aria-hidden />
             Vamos montar seu site em um minuto
           </CardTitle>
           <CardDescription>
@@ -186,7 +186,7 @@ export function SetupWizard({ template: initialTemplate, canEdit, onCreate, onSk
                 disabled={facts === null}
                 onClick={() => facts && onCreate(buildStarterSections(facts, template), template)}
               >
-                <Sparkles aria-hidden />
+                <Globe aria-hidden />
                 Criar meu site
               </Button>
             )}

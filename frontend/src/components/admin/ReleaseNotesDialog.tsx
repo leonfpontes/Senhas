@@ -11,7 +11,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTour } from '@reactour/tour';
-import { Sparkles } from 'lucide-react';
+import { Newspaper } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -126,7 +126,7 @@ export function ReleaseNotesDialog({ open, onOpenChange, userId }: ReleaseNotesD
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 p-0 sm:max-w-xl" data-testid="release-notes">
         <DialogHeader className="border-b px-6 pt-6 pb-4 text-left">
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-5 text-brand" aria-hidden /> Novidades do GiraHub
+            <Newspaper className="size-5 text-brand" aria-hidden /> Novidades do GiraHub
           </DialogTitle>
           <DialogDescription>O que mudou na versão atual e o histórico das anteriores.</DialogDescription>
         </DialogHeader>

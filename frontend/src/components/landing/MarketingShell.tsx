@@ -139,7 +139,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <nav aria-label="Plataforma">
-            <p className="mb-3 text-xs font-bold tracking-widest text-areia-100 uppercase">Plataforma</p>
+            <p className="mb-3 text-xs font-bold text-areia-100">Plataforma</p>
             <ul className="flex flex-col gap-2 text-sm">
               <li><Link href="/#como-funciona" className="hover:text-white">Como funciona</Link></li>
               <li><Link href="/planos" className="hover:text-white">Planos e preços</Link></li>
@@ -152,7 +152,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             </ul>
           </nav>
           <nav aria-label="Legal">
-            <p className="mb-3 text-xs font-bold tracking-widest text-areia-100 uppercase">Legal</p>
+            <p className="mb-3 text-xs font-bold text-areia-100">Legal</p>
             <ul className="flex flex-col gap-2 text-sm">
               <li><Link href="/privacidade" className="hover:text-white">Privacidade</Link></li>
               <li><Link href="/termos" className="hover:text-white">Termos de uso</Link></li>

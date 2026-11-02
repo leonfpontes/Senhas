@@ -664,7 +664,7 @@ const PlatformHoje: React.FC = () => {
             </div>
 
             <section aria-labelledby="erros-title">
-              <h3 id="erros-title" className="mb-1.5 text-xs font-bold tracking-wide text-muted-foreground uppercase">
+              <h3 id="erros-title" className="mb-1.5 text-xs font-bold text-muted-foreground">
                 Erros (últimos {observatory?.error_window_minutes ?? 60} min)
               </h3>
               {loading ? (
@@ -695,7 +695,7 @@ const PlatformHoje: React.FC = () => {
             </section>
 
             <section aria-labelledby="suporte-title">
-              <h3 id="suporte-title" className="mb-1.5 text-xs font-bold tracking-wide text-muted-foreground uppercase">Suporte não lido</h3>
+              <h3 id="suporte-title" className="mb-1.5 text-xs font-bold text-muted-foreground">Suporte não lido</h3>
               {loading ? (
                 <Skeleton className="h-10 w-full" />
               ) : unreadConversations.length === 0 ? (

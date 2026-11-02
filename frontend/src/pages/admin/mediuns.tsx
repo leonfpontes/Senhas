@@ -9,6 +9,7 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   Cake,
+  Flower2,
   KeyRound,
   Loader2,
   MoreHorizontal,
@@ -17,7 +18,6 @@ import {
   RefreshCw,
   ScrollText,
   Search,
-  Sparkles,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -782,7 +782,7 @@ function MediunsContent() {
           loading={loading}
           pageSize={25}
           renderCard={renderCard}
-          emptyIcon={<Sparkles className="size-10 text-ghost" aria-hidden />}
+          emptyIcon={<Flower2 className="size-10 text-ghost" aria-hidden />}
           emptyMessage={
             debouncedSearch || filterAniversariantes
               ? 'Nenhum médium encontrado para o filtro.'
@@ -801,7 +801,7 @@ function MediunsContent() {
             ? 'Cadastre um novo integrante da corrente.'
             : 'Altere as informações do integrante selecionado.'
         }
-        icon={<Sparkles />}
+        icon={<Flower2 />}
         onSave={handleSave}
         saveLabel={drawerMode === 'create' ? 'Criar' : 'Salvar'}
         saving={saving}

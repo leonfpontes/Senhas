@@ -739,7 +739,7 @@ const TenantsPage: React.FC = () => {
 
           {stats && (
             <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="mr-1 font-bold tracking-wide text-muted-foreground uppercase">Planos</span>
+              <span className="mr-1 font-bold text-muted-foreground">Planos</span>
               {PLAN_ORDER.map((k) => (
                 <span key={k} className="inline-flex items-center gap-1">
                   <PlanBadge plan={k} />

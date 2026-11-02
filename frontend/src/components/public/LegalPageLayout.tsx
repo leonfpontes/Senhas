@@ -261,61 +261,53 @@ export function LegalPageLayout({
       </Head>
 
       <MarketingShell>
-        {/* Faixa do título: continua o escuro do cabeçalho, como a página de planos. */}
-        <section aria-labelledby="documento-titulo" className="relative isolate overflow-hidden bg-cafe-950 pt-10 pb-24 text-white md:pt-14 md:pb-28">
-          <div
-            aria-hidden
-            className="absolute -top-40 right-[-10%] -z-10 size-[34rem] rounded-full bg-[radial-gradient(closest-side,rgba(233,176,74,0.18),transparent)]"
-          />
-          <div
-            aria-hidden
-            className="absolute bottom-[-12rem] left-[-8%] -z-10 size-[28rem] rounded-full bg-[radial-gradient(closest-side,rgba(192,97,47,0.22),transparent)]"
-          />
+        {/* Jornada 13 v2: o título sobre o areia, como o resto do site; sem bloco escuro nem brilhos. */}
+        <section aria-labelledby="documento-titulo" className="relative bg-areia-50 pt-10 pb-24 text-tinta md:pt-14 md:pb-28">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <nav aria-label="Trilha" className="documento-surge text-sm text-areia-300">
+            <nav aria-label="Trilha" className="documento-surge text-sm text-tinta-suave">
               <ol className="flex items-center gap-1.5">
                 <li>
-                  <Link href="/" className="hover:text-white">
+                  <Link href="/" className="hover:text-tinta">
                     Início
                   </Link>
                 </li>
                 <li aria-hidden>
                   <ChevronRight className="size-3.5" />
                 </li>
-                <li aria-current="page" className="text-areia-100">
+                <li aria-current="page" className="text-tinta">
                   {heading}
                 </li>
               </ol>
             </nav>
-            <p className="documento-surge mt-8 text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase [--atraso:60ms]">
+            <p className="documento-surge mt-8 text-sm font-medium text-tinta-suave [--atraso:60ms]">
               Documentos legais
             </p>
             <h1
               id="documento-titulo"
-              className="documento-surge mt-3 max-w-3xl font-display text-4xl leading-[1.08] font-bold tracking-tight [--atraso:120ms] sm:text-5xl md:text-6xl"
+              className="documento-surge mt-3 max-w-3xl font-display text-4xl leading-[1.05] font-normal tracking-[-0.03em] [--atraso:120ms] sm:text-5xl md:text-6xl"
             >
               {heading}
             </h1>
-            <div aria-hidden className="documento-fio mt-6 h-[2px] w-40 bg-gradient-to-r from-ouro-400 via-barro-500 to-transparent" />
-            <p className="documento-surge mt-6 max-w-2xl text-lg leading-relaxed text-areia-200 [--atraso:200ms]">{lead}</p>
-            <p className="documento-surge mt-4 text-sm text-areia-300 [--atraso:240ms]">
+            <div aria-hidden className="documento-fio mt-6 h-px w-40 border-t border-dashed border-areia-300" />
+            <p className="documento-surge mt-6 max-w-2xl text-lg leading-relaxed text-tinta-suave [--atraso:200ms]">{lead}</p>
+            <p className="documento-surge mt-4 text-sm text-tinta-suave [--atraso:240ms]">
               Vigente desde <time dateTime={updatedAtIso}>{updatedAt}</time> · Versão {version} · Leitura de {minutos} min
             </p>
 
             {/* Abas entre os documentos — a pílula da aba ativa escorrega na passagem. */}
             <nav aria-label="Documentos legais" className="documento-surge mt-10 [--atraso:300ms] print:hidden">
-              <ul className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-white/10 bg-white/5 p-1 backdrop-blur">
+              <ul className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-areia-200 bg-white p-1">
                 {LEGAL_DOCS.map((d) => {
                   const ativo = d.href === path;
                   return (
                     <li key={d.href} className="relative shrink-0">
-                      {ativo && <span aria-hidden className="documento-aba-ativa absolute inset-0 rounded-full bg-ouro-400" />}
+                      {ativo && <span aria-hidden className="documento-aba-ativa absolute inset-0 rounded-full bg-cafe-950" />}
                       <Link
                         href={d.href}
                         aria-current={ativo ? 'page' : undefined}
                         className={cn(
                           'relative flex min-h-11 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60 sm:px-5',
-                          ativo ? 'text-cafe-950' : 'text-areia-200 hover:text-white',
+                          ativo ? 'text-areia-50' : 'text-tinta-suave hover:text-tinta',
                         )}
                       >
                         {d.label}
@@ -333,7 +325,7 @@ export function LegalPageLayout({
             {/* Índice: lateral fixo no desktop, recolhido no celular. */}
             <aside className="hidden lg:block print:hidden">
               <div className="sticky top-24 pt-20">
-                <p className="mb-3 text-xs font-bold tracking-[0.2em] text-barro-700 uppercase">Nesta página</p>
+                <p className="mb-3 text-xs font-bold text-barro-700">Nesta página</p>
                 <Indice itens={itens} atual={atual} />
                 <button
                   type="button"

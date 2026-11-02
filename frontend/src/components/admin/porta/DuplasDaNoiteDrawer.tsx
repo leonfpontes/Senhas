@@ -13,7 +13,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ChevronDown, Copy, Search, Sparkles, UsersRound } from 'lucide-react';
+import { ChevronDown, Copy, Lightbulb, Search, UsersRound } from 'lucide-react';
 
 import CrudDrawer from '@/components/CrudDrawer';
 import { Combobox, TextField } from '@/components/fields';
@@ -245,7 +245,7 @@ export default function DuplasDaNoiteDrawer({ open, onClose, giraId, giraNome, o
                 className="self-start rounded-md border border-dashed px-2 py-1 text-left text-xs text-muted-foreground hover:bg-accent"
                 onClick={() => aplicar(definirCambone(rascunho, p.id, sugestao.cambone_id, nomes))}
               >
-                <Sparkles className="mr-1 inline size-3" aria-hidden />
+                <Lightbulb className="mr-1 inline size-3" aria-hidden />
                 {nomes[sugestao.cambone_id]}? · junto em {sugestao.juntos} de {sugestao.giras_do_medium} giras
               </button>
             )}
@@ -302,7 +302,7 @@ export default function DuplasDaNoiteDrawer({ open, onClose, giraId, giraNome, o
               )}
               {temSugestoes && (
                 <Button type="button" variant="outline" size="sm" onClick={usarSugestoes}>
-                  <Sparkles aria-hidden /> Usar sugestões ({aplicaveis.length})
+                  <Lightbulb aria-hidden /> Usar sugestões ({aplicaveis.length})
                 </Button>
               )}
             </div>

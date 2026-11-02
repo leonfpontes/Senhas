@@ -86,7 +86,7 @@ function TrialCell({ t }: { t: ActivationTenant }) {
       </ToneBadge>
     );
   }
-  return <span className="text-xs text-muted-foreground uppercase">{t.plan || '—'}</span>;
+  return <span className="text-xs text-muted-foreground">{t.plan || '—'}</span>;
 }
 
 export default function ActivationSection({ data }: { data: ActivationData }) {
@@ -110,7 +110,7 @@ export default function ActivationSection({ data }: { data: ActivationData }) {
       <Card className="overflow-x-auto py-0">
         <Table className="min-w-[900px]">
           <TableHeader>
-            <TableRow className="hover:bg-transparent [&_th]:h-10 [&_th]:text-[0.7rem] [&_th]:font-bold [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground [&_th]:uppercase">
+            <TableRow className="hover:bg-transparent [&_th]:h-10 [&_th]:text-[0.7rem] [&_th]:font-bold [&_th]:text-muted-foreground">
               <TableHead>Terreiro</TableHead>
               <TableHead>Estágio</TableHead>
               <TableHead>Giras</TableHead>

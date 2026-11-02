@@ -68,7 +68,7 @@ export default function ParceirosPage() {
         <section aria-labelledby="parceiros-title" className="bg-cafe-950 pt-14 pb-16 text-white md:pt-20 md:pb-24">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
             <Reveal>
-              <p className="mb-4 text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase">Programa de Parceiros GiraHub</p>
+              <p className="mb-4 text-xs font-bold text-ouro-300">Programa de Parceiros GiraHub</p>
               <h1 id="parceiros-title" className="font-display text-4xl leading-tight font-bold sm:text-5xl">
                 Indique o GiraHub aos terreiros e ganhe todo mês.
               </h1>
@@ -158,7 +158,7 @@ export default function ParceirosPage() {
             </div>
 
             <Reveal className="mt-6 rounded-3xl bg-cafe-950 p-6 text-white sm:p-8">
-              <p className="text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase">Na ponta do lápis</p>
+              <p className="text-xs font-bold text-ouro-300">Na ponta do lápis</p>
               <p data-testid="parceiros-exemplo" className="mt-3 font-display text-2xl leading-snug font-bold sm:text-3xl">
                 Um terreiro no plano {exemplo.label} rende {formatBRL(comissaoMensal(exemplo))} por mês para você —
                 cerca de {formatBRL(comissaoTotal(exemplo))} em {COMISSAO_MESES} meses.

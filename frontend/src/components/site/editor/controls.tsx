@@ -33,7 +33,7 @@ export function usePatch(config: SectionConfig, onChange: (c: SectionConfig) => 
 export function FieldGroup({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
     <fieldset className={cn('flex min-w-0 flex-col gap-3 border-0 p-0', className)}>
-      <legend className="mb-2 flex w-full items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+      <legend className="mb-2 flex w-full items-center gap-2 text-xs font-semibold text-muted-foreground">
         {title}
         <span aria-hidden className="h-px flex-1 bg-border" />
       </legend>

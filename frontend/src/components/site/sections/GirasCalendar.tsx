@@ -90,7 +90,7 @@ function GiraCard(props: GiraCardProps) {
       aria-label={gira.nome}
     >
       {highlight && (
-        <p className="mb-1 text-xs font-semibold tracking-wide uppercase opacity-70">Próxima gira</p>
+        <p className="mb-1 text-xs font-semibold opacity-70">Próxima gira</p>
       )}
       <h3 className="leading-snug" style={{ fontSize: Number(config.title_font_size || 20), fontWeight: Number(config.title_font_weight || 700) }}>
         {gira.nome}

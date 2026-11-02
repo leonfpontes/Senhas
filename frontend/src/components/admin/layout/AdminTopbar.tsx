@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
-import { ArrowLeftRight, BookOpen, Building2, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Building2, CircleHelp, LogOut, MessageCircle, Moon, Newspaper, Search, Sun, User } from 'lucide-react';
 import { logout } from '@/services/authSession';
 import { hasAdminArea, hasMediumArea, switchArea } from '@/lib/areas';
 import { useMinhasContas } from '@/hooks/useMinhasContas';
@@ -285,7 +285,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onSelect={() => setNotesOpen(true)} data-testid="menu-version">
-            <Sparkles aria-hidden /> Novidades da versão
+            <Newspaper aria-hidden /> Novidades da versão
             <span className="ml-auto text-xs text-muted-foreground">v{APP_VERSION}</span>
           </DropdownMenuItem>
           {profile?.areas?.medium && (

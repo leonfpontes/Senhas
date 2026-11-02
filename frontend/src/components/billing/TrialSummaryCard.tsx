@@ -4,7 +4,7 @@
  * "Continuar no <plano> por R$ X/mês" + o que fica só no Premium.
  */
 import React from 'react';
-import { CalendarDays, Flower2, Loader2, Lock, Sparkles, Ticket, Users } from 'lucide-react';
+import { CalendarDays, Flower2, Gift, Loader2, Lock, Ticket, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -64,7 +64,7 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-extrabold">
-              <Sparkles className="size-5 text-brand" aria-hidden /> Seu mês no {plan.label}
+              <Gift className="size-5 text-brand" aria-hidden /> Seu mês no {plan.label}
             </h2>
             <p className="text-sm text-muted-foreground">
               {dias === null
@@ -104,7 +104,7 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
           </div>
 
           <div className="flex flex-col rounded-lg border-2 bg-background p-4" style={{ borderColor: recommended.color }}>
-            <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">Recomendado pelo seu uso</p>
+            <p className="mb-1 text-xs font-bold text-muted-foreground">Recomendado pelo seu uso</p>
             <p className="text-lg font-extrabold" style={{ color: recommended.color }}>
               {recommended.label} — {formatPricePerMonth(recommended.price)}
             </p>

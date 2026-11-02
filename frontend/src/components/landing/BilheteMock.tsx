@@ -11,11 +11,11 @@ export function BilheteMock() {
     >
       <div className="overflow-hidden rounded-[1.5rem] bg-areia-50 text-tinta">
         <div className="bg-barro-600 px-5 pt-5 pb-4 text-white">
-          <p className="text-xs font-semibold tracking-widest text-areia-100 uppercase">Terreiro Modelo</p>
+          <p className="text-xs font-semibold text-areia-100">Terreiro Modelo</p>
           <p className="mt-1 font-display text-lg font-bold">Gira de Pretos Velhos</p>
         </div>
         <div className="px-5 py-5 text-center">
-          <p className="text-xs font-bold tracking-[0.2em] text-tinta-suave uppercase">Sua senha</p>
+          <p className="text-xs font-bold text-tinta-suave">Sua senha</p>
           <p className="font-display text-7xl leading-none font-bold text-barro-700">24</p>
           <p className="mt-2 text-sm font-semibold">Maria Aparecida</p>
           <div className="mt-4 grid gap-1.5 rounded-xl bg-areia-100 p-3 text-left text-sm">
