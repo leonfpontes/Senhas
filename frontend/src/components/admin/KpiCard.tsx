@@ -50,7 +50,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
       )}
       <div className="flex items-start justify-between gap-2 px-4 sm:px-5">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.05em] [overflow-wrap:anywhere] text-muted-foreground uppercase">{label}</p>
+          <p className="text-sm font-medium [overflow-wrap:anywhere] text-muted-foreground">{label}</p>
           {loading ? (
             <Skeleton data-testid="kpi-skeleton" className="mt-1.5 h-8 w-20" />
           ) : (

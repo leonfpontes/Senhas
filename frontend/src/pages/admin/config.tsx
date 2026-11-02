@@ -733,7 +733,7 @@ function AdminConfigContent() {
                   </Alert>
                 )}
 
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">Paletas prontas</p>
+                <p className="mb-2 text-xs font-bold text-muted-foreground">Paletas prontas</p>
                 <div className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-6" role="group" aria-label="Paletas prontas">
                   {PALETTES.map((p) => {
                     const active =
@@ -766,7 +766,7 @@ function AdminConfigContent() {
                   })}
                 </div>
 
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">Ou escolha cada cor</p>
+                <p className="mb-2 text-xs font-bold text-muted-foreground">Ou escolha cada cor</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <ColorField
                     label="Cor principal"
@@ -813,7 +813,7 @@ function AdminConfigContent() {
           {/* Prévia */}
           <div className="flex flex-col gap-3 lg:sticky lg:top-24" data-tour="config-preview">
             <div className="rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${previewPrimary} 0%, ${previewSecondary} 100%)` }}>
-              <p className="text-[0.7rem] uppercase tracking-[0.1em]" style={{ color: previewOnPrimary, opacity: 0.75 }}>
+              <p className="text-[0.7rem]" style={{ color: previewOnPrimary, opacity: 0.75 }}>
                 Prévia
               </p>
               <div className="mt-2 flex items-center gap-3">
@@ -851,7 +851,7 @@ function AdminConfigContent() {
             )}
             <Card>
               <CardContent className="p-4">
-                <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.06em] text-muted-foreground">O que muda ao salvar</p>
+                <p className="mb-2 text-[0.68rem] font-bold text-muted-foreground">O que muda ao salvar</p>
                 <ul className="flex flex-col gap-1">
                   {BRANDING_IMPACT.map((item) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-muted-foreground">

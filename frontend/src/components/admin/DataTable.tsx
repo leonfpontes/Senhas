@@ -283,7 +283,7 @@ export function DataTable<T>({
                     style={meta?.width !== undefined ? { width: meta.width } : undefined}
                     aria-sort={sorted ? (sorted === 'asc' ? 'ascending' : 'descending') : undefined}
                     className={cn(
-                      'h-11 text-[0.72rem] font-bold tracking-[0.06em] text-muted-foreground uppercase',
+                      'h-11 text-[0.8125rem] font-semibold text-muted-foreground',
                       cellPad,
                       ALIGN_CLASS[meta?.align ?? 'left'],
                       meta?.headerClassName,
@@ -294,7 +294,7 @@ export function DataTable<T>({
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
                         className={cn(
-                          'inline-flex items-center gap-1 rounded-sm uppercase hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                          'inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                           sorted && 'text-foreground',
                         )}
                       >
@@ -383,7 +383,7 @@ function StackedCard<T>({ row }: { row: Row<T> }) {
           const label = typeof header === 'string' ? header : cell.column.id;
           return (
             <React.Fragment key={cell.id}>
-              <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</dt>
+              <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
               <dd className="min-w-0 break-words">{flexRender(cell.column.columnDef.cell, cell.getContext())}</dd>
             </React.Fragment>
           );

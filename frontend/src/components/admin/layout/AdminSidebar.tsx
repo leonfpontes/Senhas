@@ -108,7 +108,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
           <Badge
             asChild
             className={cn(
-              'cursor-pointer text-[0.65rem] font-bold tracking-wide uppercase',
+              'cursor-pointer text-[0.65rem] font-bold',
               PLAN_BADGE_CLASS[subscription?.plan ?? ''] ?? 'bg-muted text-muted-foreground',
             )}
           >

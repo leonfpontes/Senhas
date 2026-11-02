@@ -18,6 +18,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import { fraunces } from '@/components/landing/fonts';
 import { Loader2 } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { pickTodayGira } from '@/components/admin/GiraContext';
@@ -173,7 +174,7 @@ function KioskContent({ canView }: { canView: boolean }) {
       </Head>
       <main
         data-testid="kiosk"
-        className="flex min-h-screen flex-col items-center justify-center bg-[#05070f] px-6 py-10 text-white md:px-12"
+        className={cn(fraunces.variable, "flex min-h-screen flex-col items-center justify-center bg-[color:var(--color-cafe-950)] px-6 py-10 text-[color:var(--color-areia-50)] md:px-12")}
       >
         <header className="absolute inset-x-0 top-0 flex items-start justify-between px-6 py-5 text-lg text-white/60 md:px-10 md:text-2xl">
           <span className="truncate pr-4">{giraNome}</span>
@@ -188,10 +189,10 @@ function KioskContent({ canView }: { canView: boolean }) {
           <p className="text-3xl text-white/70">Nenhuma gira hoje.</p>
         ) : (
           <>
-            <p className="mb-2 text-xl tracking-[0.35em] text-white/70 uppercase md:text-3xl">Senha</p>
+            <p className="mb-2 text-xl text-[color:var(--color-areia-300)] md:text-3xl">Senha</p>
             <p
               data-testid="kiosk-numero"
-              className="font-mono text-[6.5rem] leading-none font-black text-[#c7d2fe] tabular-nums sm:text-[10rem] md:text-[16rem]"
+              className="font-display text-[6.5rem] leading-none font-normal tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums sm:text-[10rem] md:text-[16rem]"
               aria-live="polite"
             >
               {numeroAtual ?? '—'}
@@ -207,12 +208,12 @@ function KioskContent({ canView }: { canView: boolean }) {
 
             {upcoming.length > 0 && (
               <section className="mt-12 flex flex-col items-center gap-3 md:mt-20" aria-label="Próximas senhas">
-                <p className="text-lg tracking-[0.3em] text-white/50 uppercase md:text-2xl">Próximas</p>
+                <p className="text-lg text-[color:var(--color-areia-300)] md:text-2xl">Próximas</p>
                 <ol className="flex flex-wrap justify-center gap-6 md:gap-12">
                   {upcoming.map((numero) => (
                     <li
                       key={numero}
-                      className="font-mono text-4xl font-bold text-white/70 tabular-nums md:text-7xl"
+                      className="font-display text-4xl text-[color:var(--color-areia-200)] tabular-nums md:text-7xl"
                       data-testid="kiosk-proxima"
                     >
                       {numero}
@@ -232,7 +233,7 @@ function KioskContent({ canView }: { canView: boolean }) {
                 )}
                 data-testid="kiosk-ultima"
               >
-                Última chamada: <span className="font-mono font-bold tabular-nums">{ultima.numero_formatado}</span>
+                Última chamada: <span className="font-display tabular-nums">{ultima.numero_formatado}</span>
                 {ultima.medium && (
                   <>
                     {' '}

@@ -219,7 +219,7 @@ function TodayGiraCard({
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-brand uppercase">
+            <p className="text-xs font-semibold text-brand">
               {isToday ? 'Gira de hoje' : 'Próxima gira'}
             </p>
             <h2 className="truncate text-xl font-bold">{gira.nome}</h2>

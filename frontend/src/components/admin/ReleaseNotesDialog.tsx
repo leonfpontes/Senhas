@@ -88,7 +88,7 @@ function NoteBody({ note }: { note: ReleaseNote }) {
       </ul>
       {note.fixes && note.fixes.length > 0 && (
         <div>
-          <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Correções</p>
+          <p className="mb-1 text-xs font-semibold text-muted-foreground">Correções</p>
           <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
             {note.fixes.map((f) => (
               <li key={f}>{f}</li>

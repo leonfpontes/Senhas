@@ -51,7 +51,7 @@ interface Grupo {
 const EMPTY_FORM = { nome: '', descricao: '' };
 
 /** Cabeçalho de tabela no mesmo desenho do MuiTableHead do adminTheme. */
-const TABLE_HEAD_CLASS = 'text-[0.72rem] font-bold uppercase tracking-[0.06em] text-muted-foreground';
+const TABLE_HEAD_CLASS = 'text-[0.72rem] font-bold text-muted-foreground';
 
 export default function AdminEstoqueGruposPage() {
   return (

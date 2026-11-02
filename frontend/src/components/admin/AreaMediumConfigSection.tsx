@@ -265,7 +265,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         />
 
         <div className="flex flex-col gap-3">
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">O que o médium vê</p>
+          <p className="text-xs font-bold text-muted-foreground">O que o médium vê</p>
           {MODULOS.map((m) => (
             <ToggleRow
               key={m.key}
@@ -297,7 +297,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
 
         {presencaNoPlano && (
           <fieldset className="flex flex-col gap-3" data-testid="area-medium-presenca">
-            <legend className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            <legend className="mb-1 text-xs font-bold text-muted-foreground">
               Presença nas giras e atividades
             </legend>
             <RadioGroup
@@ -341,7 +341,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
 
         {trocasNoPlano && (
           <fieldset className="flex flex-col gap-3" data-testid="area-medium-trocas">
-            <legend className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            <legend className="mb-1 text-xs font-bold text-muted-foreground">
               Troca na escala
             </legend>
             <ToggleRow

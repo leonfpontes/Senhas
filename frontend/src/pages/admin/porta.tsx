@@ -67,7 +67,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { ChamadaDaGiraButton } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
-import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
+import PortaOfflineNotice, { OFFLINE_AFTER_FAILURES } from '@/components/admin/PortaOfflineNotice';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import InstallPortaHint from '@/components/admin/InstallPortaHint';
 import DuplasDaNoiteDrawer from '@/components/admin/porta/DuplasDaNoiteDrawer';
 import { atendimentosPorMedium, type Dupla, type DuplasPainel } from '@/components/admin/porta/duplas';
@@ -132,6 +133,11 @@ type AttendData = { medium_nome: string; cambone_nome?: string; atendimento_desc
 type WalkInData = { nome: string; email?: string; telefone?: string; priority_category: string | null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** "19h12" — a hora como a casa fala. */
+function horaCurta(d: Date): string {
+  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 function priorityLabel(item: QueueItem): string {
   if (!item.priority_category) return 'Preferencial';
@@ -311,7 +317,7 @@ function QueueRow({ item, a, isNext }: { item: QueueItem; a: ItemActions; isNext
       )}
       data-testid="fila-item"
     >
-      <span className="w-14 shrink-0 font-mono text-lg font-bold tabular-nums">{numeroDaSenha(item)}</span>
+      <span className="w-14 shrink-0 font-display text-2xl leading-none tracking-[-0.02em] tabular-nums">{numeroDaSenha(item)}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
         <div className="flex flex-wrap items-center gap-1">
@@ -385,6 +391,7 @@ function PortaContent() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   // Falhas seguidas da atualização da fila → aviso "Sem conexão" (PortaOfflineNotice).
   const [queueFailures, setQueueFailures] = useState(0);
+  const online = useOnlineStatus();
   const queueFailuresRef = useRef(0);
 
   useEffect(() => {
@@ -728,6 +735,14 @@ function PortaContent() {
   const actionsFor = (t: QueueItem): ItemActions => ({ ...actions, busy: actionLoading === t.id });
 
   const selectedGira = giras.find((g) => g.id === selectedGiraId) ?? null;
+  const semConexao = !online || queueFailures >= OFFLINE_AFTER_FAILURES;
+  // "Última: 027 às 19h12" — a chamada mais recente desta gira.
+  const ultimaChamada = queue.reduce<{ item: QueueItem; quando: Date } | null>((acc, t) => {
+    const em = t.chamado_em || t.atendido_em;
+    if (!em) return acc;
+    const quando = new Date(em);
+    return !acc || quando > acc.quando ? { item: t, quando } : acc;
+  }, null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -777,41 +792,74 @@ function PortaContent() {
         </div>
 
         {selectedGiraId && (
-          <div className="flex gap-2">
-            {canEdit && (
-              <Button
-                type="button"
-                size="touch"
-                // min-w-0 + quebra de linha: no celular estreito o texto quebra dentro do botão
-                // em vez de vazar para fora (antes "Chamar próximo · P008" saía pela esquerda).
-                className="h-auto min-h-12 min-w-0 flex-1 py-2 text-base leading-tight font-bold whitespace-normal sm:text-lg"
-                disabled={!next || actionLoading === next?.id}
-                onClick={() => next && setAttendTarget(next)}
-              >
-                <Megaphone aria-hidden />
-                {next ? `Chamar próximo · ${numeroDaSenha(next)}` : 'Ninguém na fila'}
-              </Button>
+          // ChamadaDaPorta (J4 v2): café com ouro, o próximo em Fraunces e quem vem. Sem conexão,
+          // "Chamar próximo" fica desligado até a internet voltar (decisão do Leonardo, 02/11/2026).
+          <section aria-label="Próximo da fila" className="flex flex-col gap-3 rounded-2xl bg-[color:var(--color-cafe-950)] px-[18px] pt-4 pb-[18px] text-[color:var(--color-areia-50)]">
+            <div className="flex items-baseline justify-between gap-2 text-[color:var(--color-areia-300)]">
+              <span className="text-[0.9375rem] font-medium">Próximo</span>
+              {ultimaChamada && (
+                <span className="text-sm" data-testid="porta-ultima-chamada">
+                  Última: {numeroDaSenha(ultimaChamada.item)} às {horaCurta(ultimaChamada.quando)}
+                </span>
+              )}
+            </div>
+            {next ? (
+              <div className="flex items-center gap-4">
+                <span className="font-display text-[4rem] leading-none tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums">
+                  {numeroDaSenha(next)}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xl font-semibold">{next.consulente_nome || '—'}</span>
+                  <span className="block text-sm text-[color:var(--color-areia-200)]">
+                    {[
+                      next.checkin_em ? `Chegou às ${horaCurta(new Date(next.checkin_em))}` : 'Ainda não chegou',
+                      next.is_walk_in ? 'sem senha' : 'pelo link',
+                    ].join(' · ')}
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <p className="font-display text-3xl leading-tight text-[color:var(--color-areia-200)]">Ninguém na fila</p>
             )}
-            {walkInEnabled && (
-              <Button
-                type="button"
-                size="touch"
-                variant="outline"
-                // No celular, só o ícone (com rótulo acessível) para o "Chamar próximo" caber.
-                className={cn(canEdit ? 'max-sm:w-12 max-sm:px-0' : 'flex-1')}
-                aria-label="Sem senha"
-                title="Atender alguém sem senha"
-                data-tour="porta-walkin"
-                onClick={() => setWalkInCreateOpen(true)}
-              >
-                <UserPlus aria-hidden /> <span className={cn(canEdit && 'max-sm:sr-only')}>Sem senha</span>
-              </Button>
-            )}
-          </div>
+            <div className="flex gap-2.5">
+              {canEdit && (
+                <Button
+                  type="button"
+                  size="touch"
+                  className="h-16 min-w-0 flex-1 rounded-[10px] bg-[color:var(--color-ouro-300)] text-lg font-bold whitespace-normal text-[color:var(--color-cafe-950)] hover:bg-[color:var(--color-ouro-300)]/90"
+                  disabled={!next || actionLoading === next?.id || semConexao}
+                  title={semConexao ? 'Sem conexão: volta quando a internet voltar' : undefined}
+                  aria-label={next ? `Chamar próximo · ${numeroDaSenha(next)}` : undefined}
+                  onClick={() => next && setAttendTarget(next)}
+                >
+                  {next ? 'Chamar próximo' : 'Ninguém na fila'}
+                  <Megaphone aria-hidden />
+                </Button>
+              )}
+              {walkInEnabled && (
+                <Button
+                  type="button"
+                  size="touch"
+                  variant="outline"
+                  // No celular, só o ícone (com rótulo acessível) para o "Chamar próximo" caber.
+                  className={cn(
+                    'h-16 rounded-[10px] border-[1.5px] border-[color:var(--color-cafe-800)] bg-transparent text-base font-semibold text-[color:var(--color-areia-50)] hover:bg-white/10 hover:text-[color:var(--color-areia-50)]',
+                    canEdit ? 'max-sm:w-16 max-sm:px-0' : 'flex-1',
+                  )}
+                  aria-label="Sem senha"
+                  title="Atender alguém sem senha"
+                  data-tour="porta-walkin"
+                  onClick={() => setWalkInCreateOpen(true)}
+                >
+                  <UserPlus aria-hidden /> <span className={cn(canEdit && 'max-sm:sr-only')}>Sem senha</span>
+                </Button>
+              )}
+            </div>
+          </section>
         )}
 
         {/* Fica no topo fixo: quem está na porta vê na hora que a fila parou de atualizar. */}
-        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} />
+        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} desde={lastUpdated} />
       </div>
 
       <InstallPortaHint />
@@ -842,7 +890,7 @@ function PortaContent() {
             </span>
             <span className="shrink-0 text-xs text-muted-foreground">
               {lastUpdated
-                ? `atualizado ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                ? `atualizado às ${horaCurta(lastUpdated)}`
                 : 'carregando…'}
             </span>
           </button>

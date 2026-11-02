@@ -637,17 +637,17 @@ function BillingContent() {
                 {billing.stripe_subscription_id && (
                   <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Valor mensal</p>
+                      <p className="text-[0.72rem] font-semibold text-muted-foreground">Valor mensal</p>
                       <p className="mt-0.5 text-sm font-bold">{billing.monthly_price === 0 ? 'Grátis' : `R$ ${billing.monthly_price.toFixed(2)}`}</p>
                     </div>
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                      <p className="text-[0.72rem] font-semibold text-muted-foreground">
                         {billing.cancel_at_period_end ? 'Acesso até' : 'Próxima cobrança'}
                       </p>
                       <p className="mt-0.5 text-sm font-bold">{formatDate(billing.current_period_end)}</p>
                     </div>
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Forma de pagamento</p>
+                      <p className="text-[0.72rem] font-semibold text-muted-foreground">Forma de pagamento</p>
                       <p className="mt-0.5 text-sm font-bold">
                         {paysByInvoice ? `${invoiceLabel} (fatura por e-mail)` : 'Cartão de crédito'}
                       </p>
@@ -667,15 +667,15 @@ function BillingContent() {
                 {paysByPix && pixPaidUntil && (
                   <div className="grid gap-4 border-t pt-4 sm:grid-cols-3" data-tour="billing-pix-mensal">
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Valor mensal</p>
+                      <p className="text-[0.72rem] font-semibold text-muted-foreground">Valor mensal</p>
                       <p className="mt-0.5 text-sm font-bold">R$ {billing.monthly_price.toFixed(2)}</p>
                     </div>
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Pago até</p>
+                      <p className="text-[0.72rem] font-semibold text-muted-foreground">Pago até</p>
                       <p className="mt-0.5 text-sm font-bold">{formatDate(pixPaidUntil)}</p>
                     </div>
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Forma de pagamento</p>
+                      <p className="text-[0.72rem] font-semibold text-muted-foreground">Forma de pagamento</p>
                       <p className="mt-0.5 text-sm font-bold">PIX mês a mês (sem renovação automática)</p>
                     </div>
                     <Alert
@@ -715,7 +715,7 @@ function BillingContent() {
 
                 {pixPayments.length > 0 && (
                   <div className="border-t pt-4" data-tour="billing-pix-historico">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    <p className="text-[0.72rem] font-semibold text-muted-foreground">
                       Pagamentos por PIX
                     </p>
                     <ul className="mt-2 flex flex-col gap-1 text-sm">

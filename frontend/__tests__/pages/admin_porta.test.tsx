@@ -328,16 +328,18 @@ describe('Porta — modo operação', () => {
   it('sem rede mostra "Sem conexão" mantendo a fila; ao voltar, avisa e atualiza na hora', async () => {
     const api = mockApi();
     await renderPorta();
-    expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('porta-sem-conexao')).not.toBeInTheDocument();
 
     const onLine = jest.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     act(() => {
       window.dispatchEvent(new Event('offline'));
     });
     expect(screen.getByTestId('porta-sem-conexao')).toHaveAttribute('role', 'status');
-    expect(screen.getByText('Sem conexão — mostrando a última fila carregada')).toBeInTheDocument();
+    expect(screen.getByTestId('porta-sem-conexao')).toBeInTheDocument();
     // A última fila continua na tela.
     expect(screen.getAllByTestId('fila-item').length).toBeGreaterThan(0);
+    // Decisão de 02/11/2026: sem conexão, "Chamar próximo" fica desligado até a internet voltar.
+    expect(screen.getByRole('button', { name: /Chamar próximo/ })).toBeDisabled();
 
     const queueCallsBefore = api.get.mock.calls.filter((c: any[]) => String(c[0]).endsWith('/door/queue')).length;
     onLine.mockReturnValue(true);
@@ -345,7 +347,7 @@ describe('Porta — modo operação', () => {
       window.dispatchEvent(new Event('online'));
     });
     await waitFor(() =>
-      expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument(),
+      expect(screen.queryByTestId('porta-sem-conexao')).not.toBeInTheDocument(),
     );
     expect(mockToast.success).toHaveBeenCalledWith('Conexão de volta');
     const queueCallsAfter = api.get.mock.calls.filter((c: any[]) => String(c[0]).endsWith('/door/queue')).length;
@@ -365,18 +367,18 @@ describe('Porta — modo operação', () => {
       await act(async () => {
         jest.advanceTimersByTime(8000);
       });
-      expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('porta-sem-conexao')).not.toBeInTheDocument();
       await act(async () => {
         jest.advanceTimersByTime(8000);
       });
-      expect(screen.getByText('Sem conexão — mostrando a última fila carregada')).toBeInTheDocument();
+      expect(screen.getByTestId('porta-sem-conexao')).toBeInTheDocument();
       expect(mockToast.error.mock.calls.filter((c: any[]) => c[0] === 'Erro ao carregar a fila.')).toHaveLength(1);
 
       api.get.mockImplementation(ok);
       await act(async () => {
         jest.advanceTimersByTime(8000);
       });
-      expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('porta-sem-conexao')).not.toBeInTheDocument();
       expect(mockToast.success).toHaveBeenCalledWith('Conexão de volta');
     } finally {
       jest.useRealTimers();
