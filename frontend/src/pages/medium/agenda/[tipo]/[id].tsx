@@ -195,7 +195,7 @@ function DetalheDoItem() {
         <DataChip iso={item.inicio} passado={passou || cancelada} />
         <div className="flex min-w-0 flex-col items-start gap-1.5">
           <TipoChip tipo={item.tipo} />
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{item.titulo}</h1>
+          <h1 className="text-[1.625rem] leading-tight font-bold tracking-tight">{item.titulo}</h1>
         </div>
       </header>
 
