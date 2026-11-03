@@ -132,13 +132,13 @@ const TEXTO: Record<TipoLancamento, {
 function StatusBadge({ status, tipo }: { status: ContaFinanceira['status']; tipo: TipoLancamento }) {
   switch (status) {
     case 'pago':
-      return <Badge className="border-transparent bg-success text-success-foreground">{TEXTO[tipo].statusPago}</Badge>;
+      return <Badge className="border-transparent bg-success/15 text-success-strong">{TEXTO[tipo].statusPago}</Badge>;
     case 'vencido':
-      return <Badge variant="destructive">Vencido</Badge>;
+      return <Badge className="border-transparent bg-destructive/12 text-destructive-strong">Vencido</Badge>;
     case 'cancelado':
       return <Badge variant="outline">Cancelado</Badge>;
     default:
-      return <Badge className="border-transparent bg-warning text-warning-foreground">Pendente</Badge>;
+      return <Badge className="border-transparent bg-warning/20 text-warning-strong">Pendente</Badge>;
   }
 }
 

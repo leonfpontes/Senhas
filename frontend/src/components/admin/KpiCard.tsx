@@ -58,7 +58,9 @@ export const KpiCard: React.FC<KpiCardProps> = ({
           )}
           {caption && <p className="mt-1.5 text-xs text-muted-foreground">{caption}</p>}
         </div>
-        {icon && (
+        {/* Jornadas v2: o CartaoKpi do design system não tem ícone (rótulo, valor e contexto).
+            O `icon` continua aceito, mas só aparece com `highlight`. */}
+        {icon && highlight && (
           // Ícone some no celular: em grade de 2 colunas ele roubava o espaço do rótulo e do valor.
           <span
             aria-hidden
