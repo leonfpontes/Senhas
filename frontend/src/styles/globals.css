@@ -164,6 +164,22 @@ html:not(.dark) body.painel-terra {
   --accent: var(--color-areia-100);
   --accent-foreground: var(--color-tinta);
 }
+/* Escuro do painel (J1 v2 · 17): o terra escuro, café no lugar do azul-marinho. */
+.dark body.painel-terra {
+  --background: #20150f;
+  --foreground: var(--color-areia-50);
+  --card: var(--color-cafe-900);
+  --card-foreground: var(--color-areia-50);
+  --popover: var(--color-cafe-900);
+  --popover-foreground: var(--color-areia-50);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.22);
+  --input-bg: #1b110c;
+  --muted: var(--color-cafe-800);
+  --muted-foreground: var(--color-areia-300);
+  --accent: var(--color-cafe-800);
+  --accent-foreground: var(--color-areia-50);
+}
 body.painel-terra {
   --sidebar: var(--color-cafe-950);
   --sidebar-foreground: var(--color-areia-100);

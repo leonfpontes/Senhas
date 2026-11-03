@@ -118,7 +118,7 @@ describe('AdminSidebar', () => {
     withSidebar(<AdminSidebar isOperator />);
     const nav = screen.getByTestId('admin-sidebar');
     expect(within(nav).getByRole('link', { name: /Porta/ })).toHaveAttribute('href', '/admin/porta');
-    expect(within(nav).queryByRole('link', { name: /^Giras$/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /^Giras( |$)/ })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: /Senhas/ })).not.toBeInTheDocument();
     expect(within(nav).queryByText('Giras e senhas')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Corrente')).not.toBeInTheDocument();
@@ -245,7 +245,7 @@ describe('CommandPalette', () => {
     );
     expect(screen.getByRole('option', { name: /Criar gira/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Abrir Porta/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('option', { name: /^Giras$/ }));
+    fireEvent.click(screen.getByRole('option', { name: /^Giras( |$)/ }));
     expect(mockRouter.push).toHaveBeenCalledWith('/admin/giras');
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
