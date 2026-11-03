@@ -107,7 +107,8 @@ describe('Grupos da corrente — gates', () => {
     const itens = await screen.findAllByTestId('grupo-item');
     expect(itens).toHaveLength(2);
     expect(within(itens[0]).getByTestId('grupo-chip')).toHaveTextContent('G1');
-    expect(within(itens[0]).getByTestId('grupo-chip')).toHaveStyle({ backgroundColor: '#b45309' });
+    // J5 v2: no painel, a cor do grupo vai na bolinha do selo.
+    expect(within(itens[0]).getByTestId('grupo-chip').firstElementChild).toHaveStyle({ backgroundColor: '#b45309' });
     expect(within(itens[0]).getByText('2 médiuns')).toBeInTheDocument();
     expect(within(itens[0]).getByText('Ana Paula, Beto Souza')).toBeInTheDocument();
     expect(within(itens[1]).getByText('Ninguém no grupo ainda')).toBeInTheDocument();
