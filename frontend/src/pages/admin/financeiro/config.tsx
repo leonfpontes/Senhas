@@ -833,7 +833,8 @@ function FinanceiroConfigContent() {
   const [tab, setTab] = useState<string | null>(null);
   // `?tab=mensalidade`: volta do cadastro do Stripe (F-02/AM-22) e links dos e-mails aos admins.
   const tabDaUrl = router?.query?.tab === 'mensalidade' && showMensalidade ? 'mensalidade' : null;
-  const activeTab = tab ?? tabDaUrl ?? (showContas ? 'categorias' : 'mensalidade');
+  // J7 v2 · 01: a Mensalidade vem primeiro (é o que a casa mais configura).
+  const activeTab = tab ?? tabDaUrl ?? (showMensalidade ? 'mensalidade' : 'categorias');
 
   if (!planContas && !planMensalidade) {
     return <PlanLocked feature="Configuração financeira" minPlan={minPlanFor('mensalidade_mediun').label} />;
@@ -856,10 +857,10 @@ function FinanceiroConfigContent() {
         </p>
       )}
       <Tabs value={activeTab} onValueChange={setTab}>
-        <TabsList className="w-full sm:w-auto">
+        <TabsList variant="line" className="gap-5 border-b border-border [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem]">
+          {showMensalidade && <TabsTrigger value="mensalidade">Mensalidade</TabsTrigger>}
           {showContas && <TabsTrigger value="categorias">Categorias</TabsTrigger>}
           {showContas && <TabsTrigger value="contas">Contas bancárias</TabsTrigger>}
-          {showMensalidade && <TabsTrigger value="mensalidade">Mensalidade</TabsTrigger>}
         </TabsList>
         {showContas && (
           <TabsContent value="categorias" className="mt-3">
