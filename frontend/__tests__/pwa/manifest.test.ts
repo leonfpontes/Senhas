@@ -27,7 +27,7 @@ describe('manifest.webmanifest', () => {
     expect(manifest.scope).toBe('/');
     expect(['standalone', 'fullscreen']).toContain(manifest.display);
     expect(manifest.orientation).toBe('any');
-    expect(manifest.theme_color).toBe('#4f46e5');
+    expect(manifest.theme_color).toBe('#2E6A4E');
     expect(manifest.background_color).toMatch(/^#[0-9a-f]{6}$/i);
     expect(manifest.lang).toBe('pt-BR');
     expect(typeof manifest.description).toBe('string');
