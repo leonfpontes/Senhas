@@ -60,22 +60,22 @@
   --chart-grid: rgba(0, 0, 0, 0.06);
   --chart-tick: #64748b; /* 4,8:1 no branco (o #94a3b8 ficava em 2,6:1) */
 
-  /* Marca — defaults iguais aos do TenantAwareThemeProvider (= TenantConfig.primary_color do
-   * backend e ao theme-color do _document); applyBrand() sobrescreve em runtime. */
-  --primary: #4f46e5;
+  /* Marca — defaults iguais aos do TenantAwareThemeProvider (jornadas v2: o verde folha, = o padrão
+   * do TenantConfig e o theme-color do _document); applyBrand() sobrescreve em runtime. */
+  --primary: #2e6a4e;
   --primary-foreground: #ffffff;
-  --secondary: #ec4899;
+  --secondary: #2e6a4e;
   --secondary-foreground: #ffffff;
-  --ring: #4f46e5;
+  --ring: #2e6a4e;
 
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #4f46e5;
+  --sidebar-primary: #2e6a4e;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(99, 102, 241, 0.04);
+  --sidebar-accent: rgba(46, 106, 78, 0.06);
   --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #4f46e5;
+  --sidebar-ring: #2e6a4e;
 
   /* Semânticas — usadas por Alert, toasts e badges de status. Todas passam WCAG AA (4,5:1)
    * como texto sobre o fundo claro e com texto branco por cima. O laranja (#ed6c02) e o azul
@@ -136,8 +136,8 @@
   --info-strong: #4fc3f7;
   --destructive-strong: #fca5a5;
 
-  /* O índigo padrão (#4f46e5) fica em ~2,3:1 sobre o fundo escuro. */
-  --primary-text: var(--brand-text-dark, #a5b4fc);
+  /* O verde folha padrão fica escuro demais sobre o fundo escuro: o texto usa o tom claro. */
+  --primary-text: var(--brand-text-dark, #8cad9e);
 
   --sidebar: #1e293b;
   --sidebar-foreground: #f1f5f9;
