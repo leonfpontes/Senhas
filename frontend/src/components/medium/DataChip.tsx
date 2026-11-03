@@ -8,7 +8,10 @@ import { cn } from '@/lib/utils';
 import { diaMesBr } from './format';
 
 export function DataChip({ iso, passado = false, className }: { iso: string; passado?: boolean; className?: string }) {
-  const { dia, mes } = diaMesBr(iso);
+  const { dia } = diaMesBr(iso);
+  // J6 v2 · 03 (CartaoDeAgenda): o dia da semana em cima ("SÁB") e o dia com dois dígitos ("07").
+  const d = new Date(iso);
+  const semana = Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
   return (
     <span
       aria-hidden
@@ -18,8 +21,8 @@ export function DataChip({ iso, passado = false, className }: { iso: string; pas
         className,
       )}
     >
-      <b className="text-xl leading-none font-semibold tabular-nums">{dia}</b>
-      <small className="mt-0.5 text-xs font-medium">{mes}</small>
+      <small className="text-[0.6875rem] font-semibold tracking-wide">{semana.toLocaleUpperCase('pt-BR')}</small>
+      <b className="mt-0.5 font-display text-xl leading-none font-semibold tabular-nums">{String(dia).padStart(2, '0')}</b>
     </span>
   );
 }

@@ -323,6 +323,14 @@ function Esqueleto() {
   );
 }
 
+/** "Bom dia", "Boa tarde" ou "Boa noite", pela hora do aparelho (J6 v2 · 02). */
+function saudacaoDaHora(agora: Date = new Date()): string {
+  const h = agora.getHours();
+  if (h >= 5 && h < 12) return 'Bom dia';
+  if (h >= 12 && h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
 export default function MediumInicioPage() {
   return (
     <MediumLayout title="Início">
@@ -396,7 +404,7 @@ function Inicio() {
   return (
     <MediumPage>
       <MediumPageHeader
-        title={nome ? `Olá, ${nome}` : 'Olá'}
+        title={`${saudacaoDaHora()}${nome ? `, ${nome}` : ''}`}
         description={
           data
             ? n === 0
