@@ -130,7 +130,9 @@ describe('Cadastro em passos', () => {
   it('mostra a prévia do link a partir do nome', () => {
     render(<Cadastro />);
     type(/Nome do terreiro/, 'Tenda Caboclo Pena Branca');
-    expect(screen.getByText('girahub.com.br/tenda-caboclo-pena-branca')).toBeInTheDocument();
+    // No texto de ajuda do campo e na prévia do celular (J1 v2 · 04), que atualiza enquanto digita.
+    expect(screen.getAllByText('girahub.com.br/tenda-caboclo-pena-branca')).toHaveLength(2);
+    expect(screen.getByText('Tenda Caboclo Pena Branca')).toBeInTheDocument();
   });
 
   it('valida só o passo atual: erro ao tentar avançar, some ao corrigir', async () => {

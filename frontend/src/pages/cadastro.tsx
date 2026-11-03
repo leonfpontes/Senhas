@@ -28,9 +28,8 @@ import { useRouter } from 'next/router';
 import { Controller, useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  ArrowLeft,
+  ArrowRight,
   Camera,
-  ChevronRight,
   CircleAlert,
   Compass,
   CreditCard,
@@ -47,7 +46,10 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import { AuthShell, AUTH_INPUT, AUTH_LINK, ChoiceCards, PasswordRules, SignupProgress } from '@/components/auth';
+import { AUTH_INPUT, AUTH_LINK, ChoiceCards, PasswordRules, SignupProgress } from '@/components/auth';
+import { CadastroShell, PreviaDaTrilha, PreviaDoCelular } from '@/components/auth/CadastroShell';
+import { STEP_DEFS, TRILHA_PASSOS, TRILHA_POR_DOR, TRILHA_TITULOS } from '@/components/admin/onboardingTrilhas';
+import type { PrincipalDor } from '@/constants/onboarding';
 import {
   AFTER_SIGNUP_PATH,
   CADASTRO_DEFAULTS,
@@ -148,6 +150,7 @@ export default function CadastroPage() {
   const email = watch('email');
   const terreiroNome = watch('terreiroNome');
   const slug = previewSlug(terreiroNome ?? '');
+  const principalDor = watch('principalDor') as PrincipalDor | '' | undefined;
 
   // Rascunho: restaura o que a pessoa já tinha digitado nesta aba (sem senha/documento/aceite).
   useEffect(() => {
@@ -366,6 +369,29 @@ export default function CadastroPage() {
   };
   const emailTaken = errors.email?.type === 'server' && /cadastrad/i.test(errors.email.message ?? '');
 
+  // J1 v2: à direita, a prévia do celular (passos 1 a 3) ou a trilha que o painel vai abrir (passo 4).
+  const trilha = TRILHA_POR_DOR[(principalDor || 'outro') as PrincipalDor] ?? 'gira';
+  const legendaDoCelular =
+    current.key === 'terreiro'
+      ? 'É assim que o consulente vê a sua casa, enquanto você digita.'
+      : current.key === 'voce'
+        ? 'Os seus dados ficam com a casa: o consulente só vê o nome do terreiro.'
+        : senhaDaConta
+          ? 'Não é erro: o cadastro aproveita a conta.'
+          : 'O CPF ou CNPJ só libera o mês grátis.';
+  const aside =
+    current.key === 'comeco' ? (
+      <PreviaDaTrilha
+        titulo={TRILHA_TITULOS[trilha].title}
+        passos={TRILHA_PASSOS[trilha].map((k) => ({
+          titulo: STEP_DEFS[k].title,
+          detalhe: STEP_DEFS[k].description.split('. ')[0].replace(/\.$/, ''),
+        }))}
+      />
+    ) : (
+      <PreviaDoCelular nome={terreiroNome ?? ''} slug={slug} legenda={legendaDoCelular} />
+    );
+
   return (
     <>
       <Head>
@@ -386,28 +412,14 @@ export default function CadastroPage() {
         <meta property="og:site_name" content="GiraHub" />
       </Head>
 
-      <AuthShell
-        size="sm"
-        photo="maeDeSantoVela"
-        headerAction={{ label: 'Já tenho conta', href: '/login' }}
-        title="Crie a conta do seu terreiro"
-        subtitle={
-          wantedPlan
-            ? 'Quatro passos rápidos e você segue para o pagamento.'
-            : 'Quatro passos rápidos e a sua primeira gira já pode ir para o ar.'
-        }
-        footer={
-          <p className="text-center text-sm text-tinta-suave">
-            Já tem conta?{' '}
-            <Link href="/login" className={AUTH_LINK}>
-              Entrar
-            </Link>
-          </p>
-        }
-      >
+      <CadastroShell aside={aside}>
+        <div ref={progressRef} className="mb-8 scroll-mt-4">
+          <SignupProgress steps={CADASTRO_STEPS} active={step} onStepClick={goTo} variante="v2" />
+        </div>
+
         {wantedPlan ? (
-          <p className="mb-6 flex items-start gap-2.5 rounded-xl bg-areia-100 px-3.5 py-2.5 text-sm text-tinta">
-            <CreditCard className="mt-0.5 size-4 shrink-0 text-barro-700" aria-hidden />
+          <p className="mb-6 flex items-start gap-2.5 rounded-[10px] bg-folha-700/10 px-3.5 py-2.5 text-sm text-tinta">
+            <CreditCard className="mt-0.5 size-4 shrink-0 text-folha-700" aria-hidden />
             <span>
               <strong>
                 Plano escolhido: {wantedPlan.label} — {formatPricePerMonth(wantedPlan.price)}.
@@ -416,25 +428,23 @@ export default function CadastroPage() {
             </span>
           </p>
         ) : (
-          <p className="mb-6 flex items-start gap-2.5 rounded-xl bg-areia-100 px-3.5 py-2.5 text-sm text-tinta">
-            <Gift className="mt-0.5 size-4 shrink-0 text-barro-700" aria-hidden />
-            <span>
-              <strong>1 mês de Premium grátis, sem cartão.</strong> Depois, a conta segue no plano gratuito até
-              você escolher assinar.
-            </span>
-          </p>
+          step === 0 && (
+            <p className="mb-6 flex items-start gap-2.5 text-sm text-tinta-suave">
+              <Gift className="mt-0.5 size-4 shrink-0 text-barro-700" aria-hidden />
+              <span>
+                <strong className="text-tinta">1 mês de Premium grátis, sem cartão.</strong> Depois, a conta segue no
+                plano gratuito até você escolher assinar.
+              </span>
+            </p>
+          )
         )}
-
-        <div ref={progressRef} className="mb-7 scroll-mt-4">
-          <SignupProgress steps={CADASTRO_STEPS} active={step} onStepClick={goTo} />
-        </div>
 
         <form onSubmit={onFormSubmit} noValidate aria-labelledby="passo-titulo">
           <div ref={sectionRef} key={current.key}>
-            <h2 id="passo-titulo" className="font-display text-2xl leading-tight font-bold text-tinta">
+            <h1 id="passo-titulo" className="font-display text-[2.5rem] leading-[1.08] font-normal tracking-[-0.02em] text-tinta sm:text-[3rem]">
               {stepTitle}
-            </h2>
-            <p className="mt-1.5 text-sm text-tinta-suave">{stepHint}</p>
+            </h1>
+            <p className="mt-3 text-base text-tinta-suave">{stepHint}</p>
 
             <div className="mt-6 flex flex-col gap-6">
               {current.key === 'terreiro' && (
@@ -659,12 +669,12 @@ export default function CadastroPage() {
             </Alert>
           )}
 
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row-reverse sm:items-center sm:justify-between">
+          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Button
               key={step === LAST_STEP ? 'criar' : 'continuar'}
               type="submit"
               size="touch"
-              className="w-full font-bold sm:w-auto sm:min-w-48"
+              className="h-12 px-5 text-base font-semibold"
               disabled={isSubmitting}
               aria-busy={isSubmitting || undefined}
               // Clique duplo em "Continuar" não pode pular um passo nem virar "Criar conta":
@@ -676,7 +686,7 @@ export default function CadastroPage() {
               {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
               {step < LAST_STEP ? (
                 <>
-                  Continuar <ChevronRight aria-hidden />
+                  Continuar <ArrowRight aria-hidden />
                 </>
               ) : isSubmitting ? (
                 'Criando…'
@@ -686,21 +696,22 @@ export default function CadastroPage() {
                 'Criar minha conta'
               )}
             </Button>
-            {step > 0 && (
+            {step > 0 ? (
               <Button
                 type="button"
-                variant="ghost"
-                size="touch"
-                className="w-full text-tinta-suave hover:bg-areia-100 hover:text-tinta sm:w-auto"
+                variant="link"
+                className="h-12 px-0 text-base font-semibold text-tinta underline underline-offset-4"
                 onClick={() => goTo(step - 1)}
                 disabled={isSubmitting}
               >
-                <ArrowLeft aria-hidden /> Voltar
+                Voltar
               </Button>
+            ) : (
+              <span className="text-sm text-tinta-suave">ou aperte Enter</span>
             )}
           </div>
         </form>
-      </AuthShell>
+      </CadastroShell>
     </>
   );
 }

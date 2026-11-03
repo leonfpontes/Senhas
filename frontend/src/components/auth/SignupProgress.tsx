@@ -13,11 +13,46 @@ export interface SignupProgressProps {
   active: number;
   /** Volta para um passo já concluído. */
   onStepClick?: (index: number) => void;
+  /** `v2` (J1 v2 · 04): a barra em cima, em verde, e só "Passo X de N · Rótulo" embaixo. */
+  variante?: 'padrao' | 'v2';
   className?: string;
 }
 
-export function SignupProgress({ steps, active, onStepClick, className }: SignupProgressProps) {
+export function SignupProgress({ steps, active, onStepClick, variante = 'padrao', className }: SignupProgressProps) {
   const total = steps.length;
+  if (variante === 'v2') {
+    return (
+      <div className={cn('flex flex-col gap-2.5', className)}>
+        <div
+          role="progressbar"
+          aria-label="Progresso do cadastro"
+          aria-valuemin={1}
+          aria-valuemax={total}
+          aria-valuenow={active + 1}
+          aria-valuetext={`Passo ${active + 1} de ${total}`}
+          className="flex max-w-[24rem] gap-1.5"
+        >
+          {steps.map((s, i) => (
+            <span
+              key={s.key}
+              className={cn(
+                'h-1 flex-1 rounded-full transition-colors duration-300 motion-reduce:transition-none',
+                i <= active ? 'bg-folha-700' : 'bg-areia-200',
+              )}
+            />
+          ))}
+        </div>
+        <p className="text-sm text-tinta-suave" aria-live="polite">
+          <span>
+            Passo {active + 1} de {total}
+          </span>
+          <span aria-hidden> · </span>
+          <span className="sr-only">: </span>
+          <span>{steps[active]?.label}</span>
+        </p>
+      </div>
+    );
+  }
   return (
     <div className={cn('flex flex-col gap-3', className)}>
       <p className="text-sm text-tinta-suave" aria-live="polite">
