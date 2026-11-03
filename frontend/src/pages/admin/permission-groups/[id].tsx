@@ -137,7 +137,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setAllGroupMembers(membersMap);
       setAllGroupPermissions(permsMap);
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Não foi possível carregar o grupo.'));
+      setError(extractApiErrorMessage(err, 'Não foi possível carregar o perfil.'));
     } finally {
       setLoading(false);
     }
@@ -187,7 +187,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
     } catch (err) {
       const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
       if (status === 409) {
-        showError('Outra pessoa mudou este grupo agora há pouco. Carregamos a versão mais nova; revise e salve de novo.');
+        showError('Outra pessoa mudou este perfil agora há pouco. Carregamos a versão mais nova; revise e salve de novo.');
         loadData();
       } else {
         showError(extractApiErrorMessage(err, 'Não foi possível salvar as permissões.'));
@@ -203,7 +203,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
     setAddingMember(true);
     try {
       await permissionGroupsService.addMember(group.id, selectedUserId);
-      showSuccess(`${user?.username ?? 'Pessoa'} entrou no grupo.`);
+      showSuccess(`${user?.username ?? 'Pessoa'} entrou no perfil.`);
       setSelectedUserId(null);
       loadData();
     } catch (err) {
@@ -218,7 +218,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
     setRemovingId(userId);
     try {
       await permissionGroupsService.removeMember(group.id, userId);
-      showSuccess('Pessoa saiu do grupo.');
+      showSuccess('Pessoa saiu do perfil.');
       loadData();
     } catch (err) {
       showError(extractApiErrorMessage(err, 'Não foi possível remover.'));
@@ -264,7 +264,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
   if (!group) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>{error ?? 'Grupo não encontrado.'}</AlertDescription>
+        <AlertDescription>{error ?? 'Perfil não encontrado.'}</AlertDescription>
       </Alert>
     );
   }
@@ -301,7 +301,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
 
         <TabsContent value="permissoes" className="mt-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            Marque o que as pessoas deste grupo podem fazer em cada módulo.
+            Marque o que as pessoas deste perfil podem fazer em cada módulo.
           </p>
           <PermissionMatrix value={permissions} onChange={setPermissions} disabled={savingPermissions} />
           {permissionsDirty && (
@@ -333,7 +333,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
                 onChange={setSelectedUserId}
                 placeholder="Escolha uma pessoa"
                 searchPlaceholder="Buscar por nome ou e-mail"
-                emptyText="Nenhum operador fora deste grupo."
+                emptyText="Nenhum operador fora deste perfil."
               />
             </div>
             <Button onClick={handleAddMember} disabled={addingMember || !selectedUserId}>
@@ -341,11 +341,11 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Administradores não entram em grupo: eles já podem fazer tudo.
+            Administradores não entram em perfil: eles já podem fazer tudo.
           </p>
 
           {members.length === 0 ? (
-            <EmptyState compact title="Ninguém neste grupo ainda" description="Adicione operadores acima." />
+            <EmptyState compact title="Ninguém neste perfil ainda" description="Adicione operadores acima." />
           ) : (
             <ul className="divide-y rounded-lg border">
               {members.map((user) => (
@@ -361,7 +361,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
                     size="icon-sm"
                     variant="ghost"
                     className="text-destructive hover:text-destructive"
-                    aria-label={`Tirar ${user.username} do grupo`}
+                    aria-label={`Tirar ${user.username} do perfil`}
                     disabled={removingId === user.id}
                     onClick={() => handleRemoveMember(user.id)}
                   >
@@ -376,7 +376,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
         <TabsContent value="dados" className="mt-4">
           <Card>
             <CardContent className="space-y-4 pt-6">
-              <TextField label="Nome do grupo" value={groupName} onChange={(e) => setGroupName(e.target.value)} required />
+              <TextField label="Nome do perfil" value={groupName} onChange={(e) => setGroupName(e.target.value)} required />
               <TextField
                 label="Descrição"
                 value={groupDescription}
@@ -399,13 +399,13 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
           <DialogHeader>
             <DialogTitle>O que {accessUser?.username} pode fazer</DialogTitle>
             <DialogDescription>
-              Somando todos os grupos da pessoa: basta um grupo liberar para valer.
+              Somando todos os perfis da pessoa: basta um perfil liberar para valer.
             </DialogDescription>
           </DialogHeader>
           {effectiveAccess && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-medium">Grupos:</span>
+                <span className="font-medium">Perfis:</span>
                 {effectiveAccess.groupIds.length === 0 ? (
                   <Badge variant="outline" className="border-warning/50 text-warning">
                     Nenhum (sem acesso)
@@ -413,7 +413,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
                 ) : (
                   effectiveAccess.groupIds.map((gId) => (
                     <Badge key={gId} variant="outline">
-                      {allGroups.find((g) => g.id === gId)?.name ?? 'Grupo'}
+                      {allGroups.find((g) => g.id === gId)?.name ?? 'Perfil'}
                     </Badge>
                   ))
                 )}

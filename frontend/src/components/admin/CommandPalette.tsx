@@ -81,7 +81,7 @@ export function CommandPalette({
       title="Buscar ações e páginas"
       description="Digite para encontrar uma página ou uma ação rápida."
           >
-      <CommandInput placeholder="O que você quer fazer?" />
+      <CommandInput placeholder="Buscar tela ou ação" />
       <CommandList>
         <CommandEmpty>Nada encontrado.</CommandEmpty>
         <CommandGroup heading="Ações">

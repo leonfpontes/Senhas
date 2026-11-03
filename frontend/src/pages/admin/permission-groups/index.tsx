@@ -96,7 +96,7 @@ function PermissionGroupsContent() {
       );
       setGroupMembersMap(membersMap);
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Não foi possível carregar os grupos.'));
+      setError(extractApiErrorMessage(err, 'Não foi possível carregar os perfis.'));
     } finally {
       setLoading(false);
     }
@@ -132,7 +132,7 @@ function PermissionGroupsContent() {
     setDrawerError(null);
     try {
       const created = await permissionGroupsService.createGroup({ name: name.trim(), description });
-      showSuccess('Grupo criado. Agora marque o que ele pode fazer.');
+      showSuccess('Perfil criado. Agora marque o que ele pode fazer.');
       setDrawerOpen(false);
       if (created?.id) {
         router.push(`/admin/permission-groups/${created.id}?aba=permissoes`);
@@ -140,7 +140,7 @@ function PermissionGroupsContent() {
         fetchData();
       }
     } catch (err) {
-      setDrawerError(extractApiErrorMessage(err, 'Não foi possível criar o grupo.'));
+      setDrawerError(extractApiErrorMessage(err, 'Não foi possível criar o perfil.'));
     } finally {
       setSaving(false);
     }
@@ -151,11 +151,11 @@ function PermissionGroupsContent() {
     setDeleting(true);
     try {
       await permissionGroupsService.deleteGroup(groupToDelete.id, groupToDelete.members_count > 0);
-      showSuccess('Grupo excluído.');
+      showSuccess('Perfil excluído.');
       setGroupToDelete(null);
       fetchData();
     } catch (err) {
-      showError(extractApiErrorMessage(err, 'Não foi possível excluir o grupo.'));
+      showError(extractApiErrorMessage(err, 'Não foi possível excluir o perfil.'));
     } finally {
       setDeleting(false);
     }
@@ -165,7 +165,7 @@ function PermissionGroupsContent() {
     () => [
       {
         accessorKey: 'name',
-        header: 'Grupo',
+        header: 'Perfil',
         meta: { mobile: true },
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -224,7 +224,7 @@ function PermissionGroupsContent() {
                 size="icon-sm"
                 variant="ghost"
                 className="text-destructive hover:text-destructive"
-                aria-label={`Excluir grupo ${row.original.name}`}
+                aria-label={`Excluir perfil ${row.original.name}`}
                 onClick={() => setGroupToDelete(row.original)}
               >
                 <Trash2 />
@@ -233,7 +233,7 @@ function PermissionGroupsContent() {
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label={`Abrir grupo ${row.original.name}`}
+              aria-label={`Abrir perfil ${row.original.name}`}
               onClick={() => router.push(`/admin/permission-groups/${row.original.id}`)}
             >
               <ChevronRight />
@@ -245,20 +245,20 @@ function PermissionGroupsContent() {
     [router],
   );
 
-  const nameError = nameTouched && !name.trim() ? 'Dê um nome ao grupo.' : undefined;
+  const nameError = nameTouched && !name.trim() ? 'Dê um nome ao perfil.' : undefined;
 
   return (
     <div data-slot="page" className="space-y-4">
       <PageHeader
         title="Perfis de acesso"
-        subtitle="Cada grupo diz o que os operadores podem fazer. Administradores fazem tudo."
+        subtitle="Cada perfil diz o que os operadores podem fazer. Administradores fazem tudo."
         actions={
           <>
             <Button variant="outline" onClick={fetchData} disabled={loading}>
               <RefreshCw /> Atualizar
             </Button>
             <Button onClick={openCreate} disabled={loading}>
-              <Plus /> Novo grupo
+              <Plus /> Novo perfil
             </Button>
           </>
         }
@@ -267,7 +267,7 @@ function PermissionGroupsContent() {
       <Alert variant="info">
         <ShieldCheck aria-hidden />
         <AlertDescription>
-          Operadores sem grupo não acessam nenhum módulo. Quem está em mais de um grupo pode fazer tudo o que
+          Operadores sem perfil não acessam nenhum módulo. Quem está em mais de um perfil pode fazer tudo o que
           qualquer um deles libera.
         </AlertDescription>
       </Alert>
@@ -276,12 +276,12 @@ function PermissionGroupsContent() {
         <Alert variant="warning">
           <AlertTitle>
             {operatorsWithoutGroup.length === 1
-              ? '1 operador sem grupo'
-              : `${operatorsWithoutGroup.length} operadores sem grupo`}
+              ? '1 operador sem perfil'
+              : `${operatorsWithoutGroup.length} operadores sem perfil`}
           </AlertTitle>
           <AlertDescription>
             <p>{operatorsWithoutGroup.map((op) => op.username || op.email).join(', ')}</p>
-            <p>Coloque cada um no grupo &quot;Acesso total&quot; ou em outro grupo para liberar o acesso.</p>
+            <p>Coloque cada um no perfil &quot;Acesso total&quot; ou em outro perfil para liberar o acesso.</p>
           </AlertDescription>
         </Alert>
       )}
@@ -295,11 +295,11 @@ function PermissionGroupsContent() {
       {!loading && groups.length === 0 && !error ? (
         <EmptyState
           icon={<ShieldCheck />}
-          title="Nenhum grupo ainda"
-          description="Crie um grupo para liberar só alguns módulos (por exemplo, só a Porta e as Senhas) para parte da equipe."
+          title="Nenhum perfil ainda"
+          description="Crie um perfil para liberar só alguns módulos (por exemplo, só a Porta e as Senhas) para parte da equipe."
           action={
             <Button onClick={openCreate}>
-              <Plus /> Criar primeiro grupo
+              <Plus /> Criar primeiro perfil
             </Button>
           }
         />
@@ -307,7 +307,7 @@ function PermissionGroupsContent() {
         <>
           <div className="max-w-sm">
             <TextField
-              aria-label="Buscar grupos"
+              aria-label="Buscar perfis"
               placeholder="Buscar por nome ou descrição"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -320,7 +320,7 @@ function PermissionGroupsContent() {
             getRowId={(g) => g.id}
             loading={loading}
             onRowClick={(g) => router.push(`/admin/permission-groups/${g.id}`)}
-            emptyMessage="Nenhum grupo encontrado na busca."
+            emptyMessage="Nenhum perfil encontrado na busca."
           />
         </>
       )}
@@ -328,18 +328,18 @@ function PermissionGroupsContent() {
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title="Novo grupo"
-        subtitle="Depois de criar, você marca o que o grupo pode fazer e quem faz parte dele."
+        title="Novo perfil"
+        subtitle="Depois de criar, você marca o que o perfil pode fazer e quem faz parte dele."
         icon={<ShieldCheck />}
         onSave={handleCreate}
-        saveLabel="Criar grupo"
+        saveLabel="Criar perfil"
         saving={saving}
         saveDisabled={!name.trim()}
         isDirty={name !== '' || description !== ''}
         error={drawerError}
       >
         <TextField
-          label="Nome do grupo"
+          label="Nome do perfil"
           placeholder="Ex.: Porta, Secretaria"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -349,7 +349,7 @@ function PermissionGroupsContent() {
         />
         <TextField
           label="Descrição"
-          placeholder="Para que serve este grupo?"
+          placeholder="Para que serve este perfil?"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           multiline
@@ -359,17 +359,17 @@ function PermissionGroupsContent() {
 
       <ConfirmDialog
         open={!!groupToDelete}
-        title="Excluir grupo"
+        title="Excluir perfil"
         message={
           groupToDelete && groupToDelete.members_count > 0 ? (
             <>
               <strong>{groupToDelete.name}</strong> tem {groupToDelete.members_count}{' '}
-              {groupToDelete.members_count === 1 ? 'pessoa' : 'pessoas'}. Quem não estiver em outro grupo fica sem
-              acesso a nenhum módulo até ser colocado em outro grupo.
+              {groupToDelete.members_count === 1 ? 'pessoa' : 'pessoas'}. Quem não estiver em outro perfil fica sem
+              acesso a nenhum módulo até ser colocado em outro perfil.
             </>
           ) : (
             <>
-              Excluir o grupo <strong>{groupToDelete?.name}</strong>? Não dá para desfazer.
+              Excluir o perfil <strong>{groupToDelete?.name}</strong>? Não dá para desfazer.
             </>
           )
         }

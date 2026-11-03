@@ -63,16 +63,16 @@ describe('Perfis de acesso', () => {
     render(<Page />);
     await waitFor(() => expect(screen.getByText('Acesso total')).toBeInTheDocument());
     expect(screen.getByText('Padrão')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Excluir grupo Acesso total' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Excluir grupo Porta' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir perfil Acesso total' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Excluir perfil Porta' })).toBeInTheDocument();
     expect(screen.getByText('Nenhum')).toBeInTheDocument();
   });
 
   it('warns about operators without group, in plain language', async () => {
     render(<Page />);
-    expect(await screen.findByText('1 operador sem grupo')).toBeInTheDocument();
+    expect(await screen.findByText('1 operador sem perfil')).toBeInTheDocument();
     expect(screen.getByText('bia')).toBeInTheDocument();
-    expect(screen.getByText(/Operadores sem grupo não acessam nenhum módulo/)).toBeInTheDocument();
+    expect(screen.getByText(/Operadores sem perfil não acessam nenhum módulo/)).toBeInTheDocument();
     expect(screen.queryByText(/RBAC|features|\bOR\b/)).not.toBeInTheDocument();
   });
 

@@ -8,7 +8,7 @@ import { ArrowLeft, CircleCheck, Loader2 } from 'lucide-react';
 import { AuthShell, AUTH_INPUT } from '@/components/auth';
 import { TextField } from '@/components/fields';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { apiClient } from '@/services/api_client';
 
 export default function ForgotPasswordPage() {
@@ -35,11 +35,15 @@ export default function ForgotPasswordPage() {
         <div className="flex flex-col gap-6">
           <Alert variant="success" role="status">
             <CircleCheck aria-hidden />
+            <AlertTitle>Confira seu e-mail</AlertTitle>
             <AlertDescription>
               Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha em breve.
-              Confira também a caixa de spam.
             </AlertDescription>
           </Alert>
+          <p className="text-sm text-tinta-suave">
+            A resposta é a mesma para qualquer e-mail: assim ninguém descobre quem tem conta no GiraHub. Não chegou? Veja o
+            spam ou peça de novo.
+          </p>
           <Button asChild variant="outline" size="touch" className="w-full">
             <Link href="/login">
               <ArrowLeft aria-hidden /> Voltar para entrar

@@ -77,6 +77,7 @@ export function DeleteTenantDialog({ tenant, onClose, onDeleted }: DeleteTenantD
                 disabled={deleting}
                 autoComplete="off"
                 error={slug.length > 0 && slug !== tenant?.slug ? 'Slug não corresponde' : undefined}
+                helperText="O botão só libera quando o slug bate."
               />
               <label className="flex items-start gap-2 text-sm text-foreground">
                 <Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} disabled={deleting} className="mt-0.5" />

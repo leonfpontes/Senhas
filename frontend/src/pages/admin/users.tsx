@@ -75,7 +75,7 @@ const FETCH_LIMIT = 500;
 
 const ROLE_LABELS: Record<Role, { label: string; description: string }> = {
   admin: { label: 'Administrador', description: 'Vê e muda tudo, inclusive assinatura e pessoas.' },
-  operator: { label: 'Operador', description: 'Acessa só o que o grupo dele permite.' },
+  operator: { label: 'Operador', description: 'Acessa só o que o perfil de acesso dele permite.' },
 };
 
 const roleLabel = (role: string) => ROLE_LABELS[role as Role]?.label ?? role;
@@ -274,7 +274,7 @@ function AdminUsersContent() {
             showError(
               extractApiErrorMessage(
                 err,
-                'A pessoa foi criada, mas não deu para trocar o grupo. Ajuste em Perfis de acesso.',
+                'A pessoa foi criada, mas não deu para trocar o perfil. Ajuste em Perfis de acesso.',
               ),
             );
           }
@@ -536,7 +536,7 @@ function AdminUsersContent() {
             <Label htmlFor="user-group">Pode fazer:</Label>
             <Select value={formData.group_id || defaultGroup?.id} onValueChange={(v) => setField('group_id', v)}>
               <SelectTrigger id="user-group" className="w-full">
-                <SelectValue placeholder="Escolha um grupo" />
+                <SelectValue placeholder="Escolha um perfil" />
               </SelectTrigger>
               <SelectContent>
                 {groups.map((g) => (
