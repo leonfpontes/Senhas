@@ -15,6 +15,7 @@
 import React, { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -84,6 +85,9 @@ export default function CrudDrawer({
   saveIcon,
 }: CrudDrawerProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // J2 v2 · 09: no celular, a gaveta em passos sobe de baixo (GavetaInferior), um passo por vez.
+  const celular = useMediaQuery('(max-width: 639px)');
+  const inferior = Boolean(passos) && celular;
 
   const handleClose = () => {
     if (isDirty) {
@@ -107,13 +111,14 @@ export default function CrudDrawer({
         }}
       >
         <SheetContent
-          side="right"
+          side={inferior ? 'bottom' : 'right'}
           showCloseButton={false}
           // z-index acima do Drawer do MUI (1200) enquanto as duas bibliotecas convivem.
           className={cn(
             'flex w-full max-w-full flex-col gap-0 p-0',
             'min-[640px]:w-[480px] min-[640px]:max-w-[480px]',
             passos && 'gaveta-v2',
+            inferior && 'max-h-[92dvh] rounded-t-[22px] border-t-0',
             className,
           )}
           onInteractOutside={(e) => {
@@ -125,8 +130,9 @@ export default function CrudDrawer({
           }}
         >
           {/* Cabeçalho */}
+          {inferior && <div aria-hidden className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-border" />}
           {passos ? (
-            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-2">
+            <div className={cn('flex items-start justify-between gap-3 px-6 pb-2', inferior ? 'pt-3' : 'pt-6')}>
               <div className="flex flex-col gap-2.5">
                 <div className="flex gap-1.5" aria-hidden>
                   {Array.from({ length: passos.total }, (_, i) => (

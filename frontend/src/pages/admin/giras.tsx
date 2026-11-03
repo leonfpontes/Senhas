@@ -382,6 +382,10 @@ function AdminGirasContent() {
 
   // Exclusão
   const [deleteTarget, setDeleteTarget] = useState<Gira | null>(null);
+  // Beta "avisar quem tem senha": a caixa vem marcada a cada exclusão (decisão aprovada em 02/11/2026).
+  useEffect(() => {
+    if (deleteTarget) setAvisarExclusao(true);
+  }, [deleteTarget]);
 
   // Configuração de senhas
   const [senhaDrawerOpen, setSenhaDrawerOpen] = useState(false);
@@ -1136,6 +1140,12 @@ function AdminGirasContent() {
         <>
           <EscalaDaGiraButton giraId={gira.id} icone={false} className="h-11 text-[0.9375rem] font-semibold" />
           {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} icone={false} className="h-11 text-[0.9375rem] font-semibold" />}
+        </>
+      }
+      menuNoCelular={
+        <>
+          <EscalaDaGiraButton giraId={gira.id} comoItemDeMenu />
+          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} comoItemDeMenu />}
         </>
       }
     />
@@ -1951,7 +1961,7 @@ function AdminGirasContent() {
                 <Button
                   type="button"
                   variant="link"
-                  className="h-auto px-0 text-[0.9375rem]"
+                  className="h-auto px-0 text-[0.9375rem] font-semibold text-foreground underline underline-offset-4"
                   onClick={() => {
                     const g = deleteTarget;
                     setDeleteTarget(null);

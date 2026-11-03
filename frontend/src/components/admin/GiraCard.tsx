@@ -158,6 +158,8 @@ export interface GiraCardProps {
   fallbackLocal?: string | null;
   /** Ação extra ao lado do botão primário (ex.: "Chamada" da corrente, AM-17). */
   extraAction?: React.ReactNode;
+  /** Itens do "Mais ações" só no celular (Escala e Chamada saem do cartão, J2 v2 · 08). */
+  menuNoCelular?: React.ReactNode;
   now?: Date;
   className?: string;
 }
@@ -283,6 +285,7 @@ export function GiraCard({
   onRepeat,
   fallbackLocal,
   extraAction,
+  menuNoCelular,
   now = new Date(),
   className,
 }: GiraCardProps) {
@@ -454,7 +457,7 @@ export function GiraCard({
           <div className="flex flex-wrap items-center gap-2">
             {primaryButton}
             <span className="flex-1" />
-            {extraAction}
+            {extraAction && <span className={cn(menuNoCelular ? 'hidden sm:contents' : 'contents')}>{extraAction}</span>}
             {menu.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -469,7 +472,8 @@ export function GiraCard({
                     <Ellipsis aria-hidden />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-60">
+                <DropdownMenuContent align="end" className="min-w-60 [&_[role=menuitem]]:py-2 [&_[role=menuitem]]:text-[0.9375rem]">
+                  {menuNoCelular && <div className="sm:hidden">{menuNoCelular}</div>}
                   {menu}
                 </DropdownMenuContent>
               </DropdownMenu>

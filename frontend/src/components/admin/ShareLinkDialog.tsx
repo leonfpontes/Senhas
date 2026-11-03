@@ -189,8 +189,14 @@ function LinkPanel({
         </Button>
       </div>
       <p className="mt-1 text-sm font-medium text-muted-foreground">No grupo da casa vai ficar assim:</p>
-      <div className="rounded-[10px] rounded-tl-none bg-[#DCF8C6] px-3.5 py-2.5 text-sm whitespace-pre-line text-[#1F2A1F]" data-testid="share-preview">
-        {whatsAppShareText(link, tenantName, giraName)}
+      {/* A mensagem como chega no grupo: o cartão do link (casa, gira, endereço) e o texto do wa.me. */}
+      <div className="rounded-[10px] rounded-tl-none bg-success/10 p-1.5 text-sm text-foreground" data-testid="share-preview">
+        <div className="rounded-md border-l-4 border-primary bg-card px-3 py-2">
+          {tenantName && <p className="text-xs font-semibold text-success-strong">{tenantName}</p>}
+          <p className="font-semibold">{giraName || 'A próxima gira com senhas abertas'}</p>
+          <p className="truncate text-xs text-muted-foreground">{link.replace(/^https?:\/\//, '')}</p>
+        </div>
+        <p className="px-2 pt-2 pb-1 whitespace-pre-line">{whatsAppShareText(link, tenantName, giraName)}</p>
       </div>
     </div>
   );
@@ -251,7 +257,14 @@ export function ShareLinkDialog({
         <DialogHeader>
           <DialogDescription className="text-sm font-medium">{description}</DialogDescription>
           <DialogTitle className="font-display text-[2.25rem] leading-[1.05] font-normal tracking-[-0.02em]">
-            {title}
+            {/* J2 v2 · 04: "Mande o *link.*", com a ênfase em barro. */}
+            {title === 'Mande o link.' ? (
+              <>
+                Mande o <em className="text-[color:var(--color-barro-600)]">link.</em>
+              </>
+            ) : (
+              title
+            )}
           </DialogTitle>
         </DialogHeader>
 
