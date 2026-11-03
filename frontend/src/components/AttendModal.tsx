@@ -13,6 +13,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -190,23 +191,31 @@ export default function AttendModal({
         className={cn(
           // Cabeçalho e botões fixos; só o meio rola. Com muitas duplas a janela passava da altura
           // da tela (iPad em pé) e o "Atendido" ficava fora do alcance.
-          'flex max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden p-0 supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]',
+          'gaveta-v2 flex max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden p-0 supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]',
           comDuplas ? 'sm:max-w-2xl' : 'sm:max-w-md',
+          // J4 v2 · 02: no celular, gaveta que sobe de baixo (GavetaInferior), ao alcance do polegar.
+          'max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:max-w-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-t-[22px] max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0',
         )}
         data-testid="attend-modal"
       >
-        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4 pr-12">
-          <DialogTitle>{editMode ? 'Editar atendimento' : `Chamar senha ${numero}`}</DialogTitle>
-          <DialogDescription>
-            Senha <strong className="font-mono text-foreground">{numero}</strong> — {consulenteNome}
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12 text-left">
+          <p aria-hidden className="text-sm font-medium text-muted-foreground">
+            {editMode ? 'Editar atendimento' : 'Chamar senha'}
+          </p>
+          <DialogTitle className="font-display text-[1.75rem] leading-tight font-normal tracking-[-0.02em]">
+            <span className="sr-only">{editMode ? 'Editar atendimento · ' : `Chamar senha ${numero} · `}</span>
+            <span className="tabular-nums">{numero}</span> {consulenteNome}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Senha {numero} — {consulenteNome}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-6 py-4" data-testid="attend-modal-body">
           {comDuplas && (
             <div role="radiogroup" aria-label="Médium da noite" className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Médium</span>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <span className="text-base font-semibold">Quem atende</span>
+              <div className="flex flex-col gap-2">
                 {duplas.map((d) => {
                   const ativo = duplaEscolhida?.medium_nome === d.medium_nome;
                   return (
@@ -218,12 +227,12 @@ export default function AttendModal({
                       disabled={loading}
                       onClick={() => escolherDupla(d)}
                       className={cn(
-                        'flex min-h-12 flex-col items-start justify-center gap-0.5 rounded-lg border px-3 py-1.5 text-left hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                        'flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-[10px] border px-4 py-2 text-left hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                         ativo && 'border-brand bg-brand/10 ring-1 ring-brand',
                       )}
                       data-testid="attend-dupla"
                     >
-                      <span className={cn('w-full text-sm leading-snug font-medium break-words', ativo && 'text-brand')}>{d.medium_nome}</span>
+                      <span className={cn('w-full text-base leading-snug font-semibold break-words', ativo && 'text-brand')}>{d.medium_nome}</span>
                       <span className="w-full text-xs break-words text-muted-foreground">
                         {d.cambone_nome ? `com ${d.cambone_nome}` : 'sem cambone'}
                       </span>
@@ -242,7 +251,7 @@ export default function AttendModal({
                   disabled={loading}
                   onClick={escolherOutro}
                   className={cn(
-                    'flex min-h-12 items-center rounded-lg border border-dashed px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                    'flex min-h-12 items-center self-start rounded-md px-0 py-1.5 text-left text-base font-semibold text-foreground underline underline-offset-4 hover:text-brand focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                     outroMedium && 'border-brand text-brand',
                   )}
                 >
@@ -269,7 +278,7 @@ export default function AttendModal({
             )}
           </div>
           <TextField
-            label="Observações"
+            label="Observações (opcional)"
             multiline
             rows={2}
             value={descricao}
@@ -278,12 +287,19 @@ export default function AttendModal({
           />
         </div>
 
-        <DialogFooter className="shrink-0 border-t px-6 py-4">
-          <Button type="button" variant="outline" size="touch" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button type="button" size="touch" onClick={handleConfirm} disabled={!mediumNome.trim() || loading}>
+        <DialogFooter className="shrink-0 flex-col gap-1.5 px-6 pt-3 pb-5 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            size="touch"
+            className="h-14 w-full text-[1.0625rem] font-semibold sm:order-2 sm:w-auto"
+            onClick={handleConfirm}
+            disabled={!mediumNome.trim() || loading}
+          >
             {loading ? 'Salvando…' : editMode ? 'Salvar' : 'Atendido'}
+            {!loading && !editMode && <Check aria-hidden />}
+          </Button>
+          <Button type="button" variant="ghost" size="touch" className="w-full text-base font-semibold sm:order-1 sm:w-auto" onClick={onClose} disabled={loading}>
+            Cancelar
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -94,7 +94,7 @@ export default function CrudDrawer({
   const [confirmOpen, setConfirmOpen] = useState(false);
   // J2 v2 · 09: no celular, a gaveta em passos sobe de baixo (GavetaInferior), um passo por vez.
   const celular = useMediaQuery('(max-width: 639px)');
-  const inferior = Boolean(passos) && celular;
+  const inferior = (Boolean(passos) || estilo === 'v2') && celular;
 
   const handleClose = () => {
     if (isDirty) {

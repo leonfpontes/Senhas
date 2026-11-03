@@ -271,7 +271,7 @@ function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
           <EllipsisVertical aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
+      <DropdownMenuContent align="end" className="min-w-56 [&_[role=menuitem]]:min-h-12 [&_[role=menuitem]]:text-base [&_[role=menuitem]_svg]:size-5">
         {entries}
       </DropdownMenuContent>
     </DropdownMenu>

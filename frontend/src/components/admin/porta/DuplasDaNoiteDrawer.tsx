@@ -262,8 +262,9 @@ export default function DuplasDaNoiteDrawer({ open, onClose, giraId, giraNome, o
       title="Duplas da noite"
       subtitle={`${giraNome} · ${trabalhando} ${trabalhando === 1 ? 'médium' : 'médiuns'} trabalhando`}
       icon={<UsersRound />}
+      estilo="v2"
       onSave={salvar}
-      saveLabel="Salvar duplas"
+      saveLabel="Pronto"
       saving={saving}
       saveDisabled={!painel || !isDirty}
       isDirty={isDirty}

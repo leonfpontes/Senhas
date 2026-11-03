@@ -129,7 +129,7 @@ describe('Porta — modo operação', () => {
     const chamar = screen.getByRole('button', { name: /Chamar próximo · 0002/ });
     fireEvent.click(chamar);
     const dialog = await screen.findByTestId('attend-modal');
-    expect(within(dialog).getByText('Chamar senha 0002')).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: /Chamar senha 0002/ })).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/^Médium/), { target: { value: 'Mãe Joana' } });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Atendido' }));
