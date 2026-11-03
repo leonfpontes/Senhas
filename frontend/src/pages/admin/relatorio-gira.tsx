@@ -30,7 +30,6 @@ import { Combobox, DateField, TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -117,11 +116,12 @@ const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 
 const PAGE_SIZE = 50;
 
-function StatPill({ label, value, className }: { label: string; value: number; className?: string }) {
+/** Um dos oito números da noite (J4 v2 · 10): Fraunces, rótulo embaixo, separados por filete. */
+function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col items-center justify-center border-b border-r px-1 py-3 text-center [&:nth-child(4n)]:border-r-0 [&:nth-child(n+5)]:border-b-0 md:border-b-0 md:[&:nth-child(4n)]:border-r md:[&:nth-child(8n)]:border-r-0">
-      <span className={cn('text-2xl font-extrabold leading-none tabular-nums text-foreground', className)}>{value}</span>
-      <span className="mt-1 text-[0.68rem] font-medium leading-tight text-muted-foreground [overflow-wrap:anywhere]">{label}</span>
+    <div className="flex flex-col gap-0.5 border-l border-border px-3 py-1 first:border-l-0 first:pl-0">
+      <span className="font-display text-[1.75rem] leading-none font-normal tracking-[-0.02em] tabular-nums text-foreground">{value}</span>
+      <span className="text-[0.8125rem] leading-tight text-muted-foreground [overflow-wrap:anywhere]">{label}</span>
     </div>
   );
 }
@@ -369,7 +369,7 @@ function RelatorioGiraContent() {
       },
       {
         accessorKey: 'consulente_nome',
-        header: 'Nome',
+        header: 'Consulente',
         cell: ({ getValue }) => getValue<string | undefined>() || '—',
       },
       {
@@ -444,39 +444,24 @@ function RelatorioGiraContent() {
   return (
     <div className="flex flex-col gap-4">
       <div data-tour="relatorio-header">
+        {/* J4 v2 · 10: a noite numa frase, e a gira, os filtros e as exportações ao lado. */}
         <PageHeader
-          title="Relatório de gira"
-          subtitle="Atendimentos da gira com médium, cambone e observações"
+          eyebrow={giraId && doorStats ? 'Relatório da gira' : undefined}
+          title={giraId && doorStats ? `${doorStats.completed} ${doorStats.completed === 1 ? 'pessoa' : 'pessoas'}` : 'Relatório de gira'}
+          acento={giraId && doorStats ? (doorStats.completed === 1 ? 'atendida.' : 'atendidas.') : undefined}
+          subtitle={giraId && doorStats ? undefined : 'Atendimentos da gira com médium, cambone e observações'}
           className="mb-0"
           actions={
-            giraId ? (
-              <div data-tour="relatorio-export" className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={handleExportCSV} disabled={filteredTickets.length === 0}>
-                  <Download />
-                  CSV
-                </Button>
-                <Button size="sm" onClick={handleExportPDF} disabled={loadingPDF || !doorStats}>
-                  {loadingPDF ? <Loader2 className="animate-spin" /> : <FileText />}
-                  {loadingPDF ? 'Gerando…' : 'PDF'}
-                </Button>
-              </div>
-            ) : undefined
-          }
-        />
-      </div>
-
-      {/* Seletor de gira + filtros de gira */}
-      <Card data-tour="relatorio-filtros-gira" className="gap-0 py-4">
-        <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:items-end">
-          <Combobox
-            label="Gira"
+            <div data-tour="relatorio-filtros-gira" className="flex flex-wrap items-center gap-2">
+<Combobox
+            aria-label="Gira"
             options={giraOptions}
             value={giraId}
             onChange={setGiraId}
             placeholder={girasLoaded && giras.length === 0 ? 'Nenhuma gira encontrada' : 'Selecione uma gira'}
             searchPlaceholder="Buscar gira..."
             emptyText="Nenhuma gira encontrada."
-            className="sm:max-w-sm"
+            className="sm:w-72"
           />
           <div className="flex items-center gap-2">
             <Popover>
@@ -518,23 +503,38 @@ function RelatorioGiraContent() {
               </PopoverContent>
             </Popover>
           </div>
-        </CardContent>
-      </Card>
+            {giraId ? (
+              <div data-tour="relatorio-export" className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleExportCSV} disabled={filteredTickets.length === 0}>
+                  <Download />
+                  CSV
+                </Button>
+                <Button size="sm" onClick={handleExportPDF} disabled={loadingPDF || !doorStats}>
+                  {loadingPDF ? <Loader2 className="animate-spin" /> : <FileText />}
+                  {loadingPDF ? 'Gerando…' : 'PDF'}
+                </Button>
+              </div>
+            ) : null}
+            </div>
+          }
+        />
+      </div>
+
 
       {/* KPIs da porta */}
       {giraId && doorStats && (
-        <Card data-tour="relatorio-kpis" className="gap-0 overflow-hidden py-0">
-          <div className="grid grid-cols-4 md:grid-cols-8">
+        <div data-tour="relatorio-kpis">
+          <div className="grid grid-cols-4 gap-y-3 md:grid-cols-8">
             <StatPill label="Total" value={doorStats.total} />
-            <StatPill label="Concluídos" value={doorStats.completed} className="text-success" />
+            <StatPill label="Concluídos" value={doorStats.completed} />
             <StatPill label="Aguardando" value={doorStats.awaiting} />
             <StatPill label="Chegaram" value={doorStats.checked_in} />
-            <StatPill label="Não veio" value={doorStats.no_show} className="text-destructive" />
-            <StatPill label="Sem senha" value={doorStats.walk_in} className="text-info" />
+            <StatPill label="Não veio" value={doorStats.no_show} />
+            <StatPill label="Sem senha" value={doorStats.walk_in} />
             <StatPill label="Preferenciais" value={doorStats.preferenciais} />
-            <StatPill label="Associados" value={doorStats.patrocinados} className="text-warning" />
+            <StatPill label="Associados" value={doorStats.patrocinados} />
           </div>
-        </Card>
+        </div>
       )}
 
       {!giraId && girasLoaded && (

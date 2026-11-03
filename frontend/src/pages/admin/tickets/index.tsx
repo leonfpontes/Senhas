@@ -59,6 +59,8 @@ interface Ticket {
   numero: number;
   numero_formatado?: string;
   status: string;
+  /** Chegada marcada na Porta (para "Chegou" × "A caminho"). */
+  checkin_em?: string | null;
   consulente_nome?: string;
   consulente_email?: string;
   consulente_telefone?: string;
@@ -129,12 +131,32 @@ function priorityName(category?: string | null): string | null {
   return PRIORITY_CATEGORY_LABELS[category as PriorityCategoryType] ?? 'Preferencial';
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, chegou }: { status: string; chegou?: boolean }) {
+  // J4 v2 · 09: aguardando fala como a Porta — "Chegou" ou "A caminho".
+  if (status === 'emitted' || status === 'called') {
+    return chegou ? (
+      <Badge variant="outline" className="whitespace-nowrap border-success/30 bg-success/15 text-success-strong">
+        Chegou
+      </Badge>
+    ) : (
+      <Badge variant="outline" className="whitespace-nowrap bg-muted text-muted-foreground">
+        A caminho
+      </Badge>
+    );
+  }
   return (
     <Badge variant="outline" className={cn('whitespace-nowrap', STATUS_TONE[status])}>
       {senhaStatusLabel(status)}
     </Badge>
   );
+}
+
+/** "qui 12h03" — a emissão como a casa fala (J4 v2 · 09). */
+function emitidaCurta(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  return `${dia} ${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function TicketTags({ t }: { t: Ticket }) {
@@ -146,11 +168,13 @@ function TicketTags({ t }: { t: Ticket }) {
         </Badge>
       )}
       {t.preferencial && (
-        <Badge variant="outline" className="border-warning/40 text-warning-strong">
-          <Star aria-hidden /> {priorityName(t.priority_category) ?? 'Preferencial'}
+        <Badge className="border-transparent bg-[color:var(--color-ouro-300)] text-[color:var(--color-cafe-950)]">
+          {priorityName(t.priority_category) ?? 'Preferencial'}
         </Badge>
       )}
       {t.is_acompanhante && <Badge variant="outline">Acompanhante</Badge>}
+      {/* J4 v2 · 09: sem prioridade, diz "Comum" (nada some da linha). */}
+      {!t.is_sponsor && !t.preferencial && !t.is_acompanhante && <span className="text-sm text-muted-foreground">Comum</span>}
     </span>
   );
 }
@@ -505,7 +529,7 @@ function AdminTicketsContent() {
       },
       {
         id: 'nome',
-        header: 'Nome',
+        header: 'Consulente',
         accessorFn: (t) => t.consulente_nome ?? '',
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -543,17 +567,20 @@ function AdminTicketsContent() {
       },
       {
         id: 'status',
-        header: 'Status',
+        header: 'Situação',
         accessorFn: (t) => t.status,
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        cell: ({ row }) => <StatusBadge status={row.original.status} chegou={Boolean(row.original.checkin_em)} />,
       },
       {
         id: 'emissao',
         header: 'Emitida',
         accessorFn: (t) => t.created_at,
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-muted-foreground">
-            {new Date(row.original.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+          <span
+            className="whitespace-nowrap text-muted-foreground"
+            title={new Date(row.original.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+          >
+            {emitidaCurta(row.original.created_at)}
           </span>
         ),
       },
@@ -587,7 +614,7 @@ function AdminTicketsContent() {
           </p>
         )}
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          <StatusBadge status={t.status} />
+          <StatusBadge status={t.status} chegou={Boolean(t.checkin_em)} />
           <TicketTags t={t} />
         </div>
       </div>
@@ -601,7 +628,44 @@ function AdminTicketsContent() {
   return (
     <div className={cn(selectedIds.length > 0 && 'pb-20')}>
       <div data-tour="tickets-header">
-        <PageHeader title="Senhas" subtitle={selectedGira ? giraLabel(selectedGira) : 'Escolha a gira para ver as senhas.'} />
+        <PageHeader
+          title="Senhas"
+          subtitle={
+            selectedGira
+              ? `${total} ${total === 1 ? 'senha' : 'senhas'} nesta gira`
+              : 'Escolha a gira para ver as senhas.'
+          }
+          // J4 v2 · 09: o seletor de gira e "Exportar PDF" no alto, ao lado do título.
+          actions={
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto" data-tour="tickets-gira-select">
+              <Select value={giraId || undefined} onValueChange={setGiraId}>
+            <SelectTrigger className="h-11 w-full sm:w-72" aria-label="Gira">
+              <SelectValue placeholder={girasLoaded && giras.length === 0 ? 'Nenhuma gira encontrada' : 'Escolha a gira'} />
+            </SelectTrigger>
+            <SelectContent>
+              {giras.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {giraLabel(g)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+              {canExport && giraId && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExportPdf}
+            disabled={exporting}
+            aria-label="Exportar PDF"
+            title="Baixar o PDF com a listagem completa das senhas desta gira"
+          >
+            <Download aria-hidden />
+            <span className="hidden sm:inline">{exporting ? 'Gerando PDF…' : 'Exportar PDF'}</span>
+          </Button>
+        )}
+            </div>
+          }
+        />
       </div>
 
       {/* ── Busca + filtros ── */}
@@ -656,35 +720,8 @@ function AdminTicketsContent() {
             )}
           </PopoverContent>
         </Popover>
-        {canExport && giraId && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleExportPdf}
-            disabled={exporting}
-            aria-label="Exportar PDF"
-            title="Baixar o PDF com a listagem completa das senhas desta gira"
-          >
-            <Download aria-hidden />
-            <span className="hidden sm:inline">{exporting ? 'Gerando PDF…' : 'Exportar PDF'}</span>
-          </Button>
-        )}
       </div>
 
-      <div className="mb-4" data-tour="tickets-gira-select">
-        <Select value={giraId || undefined} onValueChange={setGiraId}>
-          <SelectTrigger className="w-full sm:w-96" aria-label="Gira">
-            <SelectValue placeholder={girasLoaded && giras.length === 0 ? 'Nenhuma gira encontrada' : 'Escolha a gira'} />
-          </SelectTrigger>
-          <SelectContent>
-            {giras.map((g) => (
-              <SelectItem key={g.id} value={g.id}>
-                {giraLabel(g)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* ── Fila de espera ── */}
       {can('fila_espera') && giraId && (

@@ -98,7 +98,8 @@ describe('Senhas', () => {
     await renderPage();
     expect(api.get).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/v1\/admin\/giras\/hoje\/tickets\?skip=0&limit=50/));
     expect(screen.queryByText('#0042')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Aguardando').length).toBeGreaterThan(0);
+    // J4 v2 · 09: aguardando fala como a Porta ("A caminho" ou "Chegou").
+    expect(screen.getAllByText('A caminho').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /WhatsApp de Maria Souza/ })).toHaveAttribute('href', 'https://wa.me/5511988887777');
   });
 
