@@ -24,7 +24,7 @@ export default function ContasReceberRedirectPage() {
   }, [router, canView]);
 
   return (
-    <AdminLayout title="Contas a Receber">
+    <AdminLayout title="Contas a receber">
       {canView ? (
         <div className="flex flex-col gap-3" aria-busy="true" aria-label="Redirecionando para Lançamentos">
           <Skeleton className="h-8 w-56" />

@@ -378,7 +378,7 @@ function FluxoDeCaixaContent() {
 
   // ── Gates ──────────────────────────────────────────────────────────────────
 
-  if (!planAllows) return <PlanLocked feature="Fluxo de Caixa" minPlan={minPlanFor('contas_financeiras').label} />;
+  if (!planAllows) return <PlanLocked feature="Fluxo de caixa" minPlan={minPlanFor('contas_financeiras').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o fluxo de caixa." />;
 
   const tabela = [...dados].reverse();

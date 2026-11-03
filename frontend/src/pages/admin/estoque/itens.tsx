@@ -544,12 +544,6 @@ function AdminEstoqueItensContent() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="estoque-rel-kpis">
-        <KpiCard label="Em dia" value={counts.ok} icon={<CheckCircle2 />} color="var(--success)" loading={loading} />
-        <KpiCard label="Atenção" value={counts.atencao} icon={<AlertTriangle />} color="var(--warning)" loading={loading} subtitle="abaixo do mínimo" />
-        <KpiCard label="Críticos" value={counts.critico} icon={<XCircle />} color="var(--destructive)" loading={loading} subtitle="zerados ou negativos" />
-      </div>
-
       <div data-tour="estoque-itens-filtro" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <TextField
           aria-label="Buscar item"
@@ -585,6 +579,12 @@ function AdminEstoqueItensContent() {
           <AlertTriangle />
           Críticos
         </Toggle>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="estoque-rel-kpis">
+        <KpiCard label="Em dia" value={counts.ok} icon={<CheckCircle2 />} color="var(--success)" loading={loading} />
+        <KpiCard label="Atenção (abaixo do mínimo)" value={counts.atencao} icon={<AlertTriangle />} color="var(--warning)" loading={loading} />
+        <KpiCard label="Zerados ou negativos" value={counts.critico} icon={<XCircle />} color="var(--destructive)" loading={loading} />
       </div>
 
       <div data-tour="estoque-itens-tabela">
@@ -675,7 +675,7 @@ function AdminEstoqueItensContent() {
               </Button>
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFotoChange} aria-label="Selecionar foto" />
             </div>
-            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, máx. 2 MB.</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, até 2 MB.</p>
           </div>
         </div>
       </CrudDrawer>

@@ -74,8 +74,7 @@ describe('Admin Estoque — Grupos', () => {
     expect(await screen.findByText('Velas')).toBeInTheDocument();
     expect(screen.getByText('Ervas')).toBeInTheDocument();
     expect(screen.getByText('—')).toBeInTheDocument();
-    expect(screen.getByText('2 grupos')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Novo Grupo/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Novo grupo/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Editar Velas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Excluir Velas' })).toBeInTheDocument();
     expect(screen.getByText('Ações')).toBeInTheDocument();
@@ -84,7 +83,7 @@ describe('Admin Estoque — Grupos', () => {
     expect(document.querySelector('[data-tour="estoque-grupos-novo"]')).toBeInTheDocument();
     expect(document.querySelector('[data-tour="estoque-grupos-tabela"]')).toBeInTheDocument();
     // cores do terreiro chegam pelos tokens, não por cor fixa
-    expect(screen.getByRole('button', { name: /Novo Grupo/ }).className).toMatch(/bg-primary/);
+    expect(screen.getByRole('button', { name: /Novo grupo/ }).className).toMatch(/bg-primary/);
   });
 
   it('mostra o estado vazio quando não há grupos', async () => {
@@ -128,7 +127,7 @@ describe('Admin Estoque — Grupos', () => {
     render(<AdminEstoqueGruposPage />);
 
     expect(await screen.findByText('Velas')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Novo Grupo/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Novo grupo/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Excluir/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Ações')).not.toBeInTheDocument();
@@ -139,12 +138,12 @@ describe('Admin Estoque — Grupos', () => {
     render(<AdminEstoqueGruposPage />);
     await screen.findByText('Velas');
 
-    fireEvent.click(screen.getByRole('button', { name: /Novo Grupo/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Novo grupo/ }));
     const drawer = screen.getByTestId('crud-drawer');
-    expect(drawer).toHaveAttribute('aria-label', 'Novo Grupo');
+    expect(drawer).toHaveAttribute('aria-label', 'Novo grupo');
 
     fireEvent.change(screen.getByLabelText(/Nome do grupo/), { target: { value: 'Bebidas' } });
-    fireEvent.click(screen.getByText('salvar: Novo Grupo'));
+    fireEvent.click(screen.getByText('salvar: Novo grupo'));
 
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/estoque/grupos', { nome: 'Bebidas', descricao: null }),

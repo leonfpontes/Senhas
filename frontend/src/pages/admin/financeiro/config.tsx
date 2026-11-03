@@ -836,7 +836,7 @@ function FinanceiroConfigContent() {
   const activeTab = tab ?? tabDaUrl ?? (showContas ? 'categorias' : 'mensalidade');
 
   if (!planContas && !planMensalidade) {
-    return <PlanLocked feature="Configuração Financeira" minPlan={minPlanFor('mensalidade_mediun').label} />;
+    return <PlanLocked feature="Configuração financeira" minPlan={minPlanFor('mensalidade_mediun').label} />;
   }
   if (!showContas && !showMensalidade) {
     return <PermissionDenied message="Você não tem permissão para visualizar a configuração financeira." />;

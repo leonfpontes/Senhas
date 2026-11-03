@@ -326,7 +326,7 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
         {/* ── TABELA MENSAL ── */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#2C3E7A', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #DDE1F0' }}>
-            Detalhamento Mensal
+            Detalhamento mensal
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
             <thead>

@@ -11,6 +11,7 @@ import React, { useEffect, useState } from 'react';
 import { TextField } from '@/components/fields';
 import { PermissionDenied } from '@/components/gates';
 import { Boxes, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/admin/PageHeader';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
@@ -18,7 +19,6 @@ import { useSnackbar } from '../../../contexts/SnackbarContext';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import { apiClient } from '../../../services/api_client';
 import CrudDrawer from '../../../components/CrudDrawer';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,7 +55,7 @@ const TABLE_HEAD_CLASS = 'text-[0.72rem] font-bold text-muted-foreground';
 
 export default function AdminEstoqueGruposPage() {
   return (
-    <AdminLayout title="Grupos de Material">
+    <AdminLayout title="Grupos de material">
       <AdminEstoqueGruposContent />
     </AdminLayout>
   );
@@ -187,25 +187,25 @@ function AdminEstoqueGruposContent() {
 
   return (
     <div>
-      <div data-tour="estoque-grupos-header" className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <Boxes className="size-6 shrink-0 text-brand" aria-hidden />
-          <h1 className="m-0 text-2xl font-bold tracking-tight text-foreground">Grupos de Material</h1>
-          <Badge variant="outline" className="shrink-0">
-            {grupos.length} grupo{grupos.length !== 1 ? 's' : ''}
-          </Badge>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={loadGrupos} title="Atualizar" aria-label="Atualizar">
-            <RefreshCw />
-          </Button>
-          {canInsert && (
-            <Button data-tour="estoque-grupos-novo" onClick={openCreate}>
-              <Plus />
-              Novo Grupo
-            </Button>
-          )}
-        </div>
+      <div data-tour="estoque-grupos-header">
+        <PageHeader
+          title="Grupos de material"
+          eyebrow="Estoque"
+          subtitle="Velas, ervas, fumo… para filtrar e organizar os itens."
+          actions={
+            <>
+              <Button variant="ghost" size="icon" className="size-11" onClick={loadGrupos} title="Atualizar" aria-label="Atualizar">
+                <RefreshCw />
+              </Button>
+              {canInsert && (
+                <Button data-tour="estoque-grupos-novo" onClick={openCreate}>
+                  <Plus />
+                  Novo grupo
+                </Button>
+              )}
+            </>
+          }
+        />
       </div>
 
       {loading ? (
@@ -271,7 +271,7 @@ function AdminEstoqueGruposContent() {
       {/* Create/Edit Drawer — MUI, de propósito: prova a convivência das duas bibliotecas */}
       <CrudDrawer
         open={drawerOpen}
-        title={drawerMode === 'create' ? 'Novo Grupo' : 'Editar Grupo'}
+        title={drawerMode === 'create' ? 'Novo grupo' : 'Editar grupo'}
         onClose={closeDrawer}
         onSave={handleSave}
         saving={saving}
