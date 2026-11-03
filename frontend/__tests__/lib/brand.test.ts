@@ -134,3 +134,15 @@ describe('corDaCasa (jornadas v2)', () => {
     expect(corDaCasa('#b91c1c')).toBe('#b91c1c');
   });
 });
+
+describe('corSecundariaDaCasa (jornadas v2)', () => {
+  const { corSecundariaDaCasa } = require('@/lib/brand');
+  it('casa sem cor escolhida: o par antigo vira verde folha (sem degradê roxo)', () => {
+    expect(corSecundariaDaCasa('#4f46e5', '#818cf8')).toBe('#2E6A4E');
+    expect(corSecundariaDaCasa('', '')).toBe('#2E6A4E');
+  });
+  it('secundária escolhida pela casa é respeitada', () => {
+    expect(corSecundariaDaCasa('#4f46e5', '#0f766e')).toBe('#0f766e');
+    expect(corSecundariaDaCasa('#8a2be2', '#ffcc00')).toBe('#ffcc00');
+  });
+});

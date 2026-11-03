@@ -30,6 +30,16 @@ const COR_PADRAO_ANTIGA = '#4f46e5';
  * A cor de ação da casa: a escolhida pela casa, ou o verde folha quando não há escolha. O antigo
  * padrão (#4f46e5) é tratado como "não escolhida", porque era gravado sozinho no cadastro.
  */
+/** Cor secundária: sem cor escolhida (vazio ou o roxo antigo), acompanha o verde folha (sem degradê roxo). */
+const SECUNDARIAS_ANTIGAS = new Set(['#818cf8', '#ec4899']);
+export function corSecundariaDaCasa(primary?: string | null, secondary?: string | null): string {
+  const p = (primary || '').trim().toLowerCase();
+  const s2 = (secondary || '').trim();
+  const semEscolha = !p || p === COR_PADRAO_ANTIGA;
+  if (semEscolha && (!s2 || SECUNDARIAS_ANTIGAS.has(s2.toLowerCase()))) return COR_PADRAO_DA_CASA;
+  return s2 || corDaCasa(primary);
+}
+
 export function corDaCasa(primary?: string | null): string {
   const c = (primary || '').trim();
   if (!c || c.toLowerCase() === COR_PADRAO_ANTIGA) return COR_PADRAO_DA_CASA;

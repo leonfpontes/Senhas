@@ -17,7 +17,7 @@ import React, {
 } from 'react';
 
 import { apiClient } from '@/services/api_client';
-import { applyBrand, corDaCasa } from '@/lib/brand';
+import { applyBrand, corDaCasa, corSecundariaDaCasa } from '@/lib/brand';
 import { isAdminRoute, knownWithoutAdminArea, readStoredUser } from '@/lib/areas';
 import { useCurrentPathname } from '@/hooks/useAdminDataEnabled';
 
@@ -142,7 +142,7 @@ const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeC
     logoUrl: config.logo_url || undefined,
     colors: {
       primary: corDaCasa(config.primary_color),
-      secondary: config.secondary_color || DEFAULT_SECONDARY,
+      secondary: corSecundariaDaCasa(config.primary_color, config.secondary_color || DEFAULT_SECONDARY),
       font: fontColor,
     },
   };

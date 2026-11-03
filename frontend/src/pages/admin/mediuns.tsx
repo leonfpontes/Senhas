@@ -674,7 +674,8 @@ function MediunsContent() {
   // Usa a contagem do servidor para não liberar criação com a lista filtrada pela busca.
   const canCreate = canCreateMediumFn(subscription?.current_mediuns ?? mediuns.length);
   const maxMediuns = subscription?.max_mediuns ?? 0;
-  const showUsage = !!subscription && maxMediuns > 0 && maxMediuns < 999999;
+  // 999 ou mais = sem limite (Premium e registros antigos): barra sobre limite infinito não mede nada.
+  const showUsage = !!subscription && maxMediuns > 0 && maxMediuns < 999;
 
   // ── Render ──────────────────────────────────────────────────────────
 
