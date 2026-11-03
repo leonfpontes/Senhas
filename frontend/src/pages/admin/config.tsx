@@ -35,7 +35,7 @@ import { useSubscription, type PlanFeatures } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { minPlanFor, type PlanFeatureKey } from '@/constants/plans';
-import { pickForeground } from '@/lib/brand';
+import { corDaCasa, corSecundariaDaCasa, pickForeground } from '@/lib/brand';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -422,8 +422,9 @@ function AdminConfigContent() {
     return JSON.stringify(config) !== JSON.stringify(savedConfig);
   }, [config, savedConfig]);
 
-  const previewPrimary = config?.primary_color || '#4F46E5';
-  const previewSecondary = config?.secondary_color || '#EC4899';
+  // Jornadas v2: casa sem cor escolhida (vazio ou o roxo antigo) aparece como o verde folha, como no painel.
+  const previewPrimary = corDaCasa(config?.primary_color);
+  const previewSecondary = corSecundariaDaCasa(config?.primary_color, config?.secondary_color);
   const previewFontColor = getFontColor(config);
   const previewLogo = config?.logo_url?.trim() || '';
   const canTheme = can('tema_personalizado');
