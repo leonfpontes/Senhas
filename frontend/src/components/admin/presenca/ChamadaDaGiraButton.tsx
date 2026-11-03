@@ -93,7 +93,7 @@ export function ChamadaDaGiraButton({
       disabled={abrindo}
     >
       {abrindo ? <Loader2 className="animate-spin" aria-hidden /> : icone ? <ClipboardCheck aria-hidden /> : null}
-      Chamada
+      <span>Chamada</span>
     </Button>
   );
 }

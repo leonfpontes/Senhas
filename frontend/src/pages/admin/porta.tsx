@@ -26,14 +26,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
 import {
-  Clock,
+  ChevronDown,
   EllipsisVertical,
   LogIn,
   LogOut,
   Megaphone,
   Pencil,
   Search,
-  Star,
   Tv,
   Undo2,
   UserPlus,
@@ -64,6 +63,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChamadaDaGiraButton } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
@@ -190,34 +190,6 @@ function writeMuted(muted: boolean): void {
 
 // ── Peças visuais ─────────────────────────────────────────────────────────────
 
-function Tags({ item }: { item: QueueItem }) {
-  return (
-    <>
-      {item.is_sponsor && (
-        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-strong">
-          <Star aria-hidden /> Associado
-        </Badge>
-      )}
-      {item.is_walk_in && (
-        <Badge variant="outline" className="border-info/30 bg-info/10 text-info-strong">
-          Sem senha
-        </Badge>
-      )}
-      {item.is_acompanhante && <Badge variant="outline">Acompanhante</Badge>}
-      {item.preferencial && (
-        <Badge variant="outline" className="border-warning/40 text-warning-strong">
-          <Star aria-hidden /> {priorityLabel(item)}
-        </Badge>
-      )}
-      {item.horario_desejado && (
-        <Badge variant="outline">
-          <Clock aria-hidden /> {item.horario_desejado}
-        </Badge>
-      )}
-    </>
-  );
-}
-
 function SectionTitle({ children, count }: { children: React.ReactNode; count: number }) {
   return (
     <h2 className="mb-2 flex items-baseline gap-2 text-base font-semibold">
@@ -308,31 +280,49 @@ function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
 
 function QueueRow({ item, a, isNext }: { item: QueueItem; a: ItemActions; isNext: boolean }) {
   const arrived = !!item.checkin_em;
+  // J4 v2 · 01: sob o nome, a hora e de onde a senha veio; à direita, a situação e a prioridade.
+  const detalhe = [
+    arrived && item.checkin_em ? horaCurta(new Date(item.checkin_em)) : null,
+    item.is_walk_in ? 'Sem senha' : item.is_sponsor ? 'Associado' : item.is_acompanhante ? 'Acompanhante' : 'Pelo link',
+    !arrived && item.horario_desejado ? item.horario_desejado.slice(0, 5).replace(':', 'h') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <li
       className={cn(
-        'flex min-h-14 items-center gap-3 border-b px-3 py-1.5 last:border-b-0',
+        'flex min-h-[4.5rem] items-center gap-3 border-t border-border py-2.5',
         isNext && 'bg-primary/5',
         isDone(item) && 'opacity-60',
       )}
       data-testid="fila-item"
+      aria-current={isNext ? 'true' : undefined}
     >
-      <span className="w-14 shrink-0 font-display text-2xl leading-none tracking-[-0.02em] tabular-nums">{numeroDaSenha(item)}</span>
+      <span className="min-w-[4.25rem] shrink-0 font-display text-[2rem] leading-none tracking-[-0.03em] tabular-nums">{numeroDaSenha(item)}</span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
-        <div className="flex flex-wrap items-center gap-1">
-          {item.status === 'emitted' ? (
-            arrived ? (
-              <Badge variant="outline" className="border-success/30 bg-success/15 text-success-strong">
-                Chegou
-              </Badge>
-            ) : null
+        <p className="text-[1.0625rem] leading-snug font-semibold">{item.consulente_nome || '—'}</p>
+        <p className="text-sm text-muted-foreground">
+          {detalhe}
+          {isNext && <span className="sr-only"> · próximo a chamar</span>}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        {item.status === 'emitted' ? (
+          arrived ? (
+            <Badge variant="outline" className="border-success/30 bg-success/15 text-success-strong">
+              Chegou
+            </Badge>
           ) : (
-            <Badge variant="outline">{senhaStatusLabel(item.status)}</Badge>
-          )}
-          {isNext && <Badge>Próximo</Badge>}
-          <Tags item={item} />
-        </div>
+            <Badge variant="outline" className="bg-muted text-muted-foreground">
+              A caminho
+            </Badge>
+          )
+        ) : (
+          <Badge variant="outline">{senhaStatusLabel(item.status)}</Badge>
+        )}
+        {item.preferencial && (
+          <Badge className="border-transparent bg-[color:var(--color-ouro-300)] text-[color:var(--color-cafe-950)]">{priorityLabel(item)}</Badge>
+        )}
       </div>
       <ItemMenu item={item} a={a} />
     </li>
@@ -744,13 +734,10 @@ function PortaContent() {
     return !acc || quando > acc.quando ? { item: t, quando } : acc;
   }, null);
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* ── Topo fixo: gira + Chamar próximo ── */}
-      <div
-        data-tour="porta-header"
-        className="sticky top-14 z-20 -mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pt-4 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6"
-      >
+  const tablet = useMediaQuery('(min-width: 1200px)');
+  // J4 v2 · 07: no tablet (a partir de 1200 px), duas colunas — o Próximo e as duplas à esquerda, a
+  // busca e a fila à direita, e os contadores na linha do topo. No celular, a página inteira em uma.
+  const barra = (
         <div className="flex items-center gap-2">
           <h1 className="sr-only">Porta</h1>
           <div className="min-w-0 flex-1" data-tour="porta-gira-select">
@@ -776,22 +763,28 @@ function PortaContent() {
             onPressedChange={toggleMuted}
             aria-label={muted ? 'Ligar o aviso sonoro' : 'Silenciar o aviso sonoro'}
             title={muted ? 'Som desligado' : 'Som ligado'}
-            className="size-12 shrink-0"
+            className="size-12 shrink-0 rounded-[10px] border border-border bg-card"
           >
             {muted ? <VolumeX className="size-5" aria-hidden /> : <Volume2 className="size-5" aria-hidden />}
           </Toggle>
           {/* AM-17: chamada da corrente pela porta (PORTA:edit ou ESCALAS:edit; some sem o plano). */}
-          {selectedGiraId && <ChamadaDaGiraButton giraId={selectedGiraId} variant="ghost" className="h-12 shrink-0" />}
           {selectedGiraId && (
-            <Button asChild variant="ghost" size="icon-touch" aria-label="Abrir modo TV" title="Modo TV">
+            <ChamadaDaGiraButton
+              giraId={selectedGiraId}
+              variant="outline"
+              className="h-12 shrink-0 rounded-[10px] bg-card max-sm:w-12 max-sm:px-0 max-sm:[&>span]:sr-only"
+            />
+          )}
+          {selectedGiraId && (
+            <Button asChild variant="outline" size="icon-touch" className="size-12 rounded-[10px] bg-card" aria-label="Abrir modo TV" title="Modo TV">
               <a href={`/admin/porta/kiosk?gira=${encodeURIComponent(selectedGiraId)}`} target="_blank" rel="noopener noreferrer">
                 <Tv aria-hidden />
               </a>
             </Button>
           )}
         </div>
-
-        {selectedGiraId && (
+  );
+  const proximo = selectedGiraId ? (
           // ChamadaDaPorta (J4 v2): café com ouro, o próximo em Fraunces e quem vem. Sem conexão,
           // "Chamar próximo" fica desligado até a internet voltar (decisão do Leonardo, 02/11/2026).
           <section aria-label="Próximo da fila" className="flex flex-col gap-3 rounded-2xl bg-[color:var(--color-cafe-950)] px-[18px] pt-4 pb-[18px] text-[color:var(--color-areia-50)]">
@@ -856,31 +849,13 @@ function PortaContent() {
               )}
             </div>
           </section>
-        )}
-
-        {/* Fica no topo fixo: quem está na porta vê na hora que a fila parou de atualizar. */}
-        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} desde={lastUpdated} />
-      </div>
-
-      <InstallPortaHint />
-
-      {!selectedGiraId ? (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <p className="text-muted-foreground">
-            {giras.length === 0 ? 'Não há gira hoje nem nas próximas horas.' : 'Escolha uma gira para ver a fila.'}
-          </p>
-          <Button asChild variant="outline">
-            <Link href="/admin/giras">Ver giras</Link>
-          </Button>
-        </div>
-      ) : (
-        <>
-          {/* ── Indicadores numa linha ── */}
+  ) : null;
+  const contadores = (
           <button
             type="button"
             data-tour="porta-stats"
             onClick={() => setSummaryOpen(true)}
-            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md text-left text-[0.9375rem] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
             aria-label={`${counts.aguardando} aguardando, ${counts.atendidos} atendidos, ${counts.naoVeio} não veio. Ver resumo`}
           >
             <span data-testid="porta-indicadores">
@@ -894,9 +869,8 @@ function PortaContent() {
                 : 'carregando…'}
             </span>
           </button>
-
-          {/* ── Duplas da noite ── */}
-          {duplas.length > 0 ? (
+  );
+  const duplasBloco = duplas.length > 0 ? (
             <button
               type="button"
               onClick={() => canEdit && setDuplasOpen(true)}
@@ -928,8 +902,8 @@ function PortaContent() {
                 </Button>
               </div>
             )
-          )}
-
+          );
+  const busca = (
           <TextField
             data-tour="porta-busca"
             aria-label="Buscar senha por nome ou número"
@@ -939,8 +913,8 @@ function PortaContent() {
             startAdornment={<Search aria-hidden />}
             inputClassName="h-12 text-base"
           />
-
-          {!queueLoaded ? (
+  );
+  const filaBloco = !queueLoaded ? (
             <div className="flex flex-col gap-2" role="status" aria-label="Carregando a fila">
               <Skeleton className="h-28 rounded-xl" />
               <Skeleton className="h-14 rounded-xl" />
@@ -949,13 +923,16 @@ function PortaContent() {
           ) : (
             <>
               <section data-tour="porta-fila" aria-label="Fila">
-                <SectionTitle count={waiting.length}>Fila</SectionTitle>
+                <div className="flex items-baseline justify-between gap-3">
+                  <SectionTitle count={waiting.length}>Fila</SectionTitle>
+                  <span className="text-sm text-muted-foreground">quem já chegou tem a vez</span>
+                </div>
                 {waiting.length === 0 ? (
                   <p className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">
                     {search ? 'Nenhuma senha encontrada.' : 'Fila vazia.'}
                   </p>
                 ) : (
-                  <ul className="m-0 list-none overflow-hidden rounded-xl border p-0">
+                  <ul className="m-0 list-none border-b border-border p-0">
                     {waiting.map((t) => (
                       <QueueRow key={t.id} item={t} a={actionsFor(t)} isNext={next?.id === t.id} />
                     ))}
@@ -964,13 +941,71 @@ function PortaContent() {
               </section>
 
               {done.length > 0 && (
-                <Button type="button" variant="ghost" className="self-center" onClick={() => setSummaryOpen(true)}>
-                  Ver {done.length} finalizada{done.length !== 1 ? 's' : ''}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-12 self-center text-base font-semibold text-foreground underline underline-offset-4"
+                  onClick={() => setSummaryOpen(true)}
+                >
+                  Ver {done.length} finalizada{done.length !== 1 ? 's' : ''} <ChevronDown aria-hidden />
                 </Button>
               )}
             </>
-          )}
-        </>
+          );
+
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ── Topo fixo: gira + Chamar próximo ── */}
+      <div
+        data-tour="porta-header"
+        className="sticky top-14 z-20 -mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pt-4 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6"
+      >
+        {tablet ? (
+          <div className="flex items-center gap-4">
+            <div className="min-w-0 flex-1">{barra}</div>
+          </div>
+        ) : (
+          barra
+        )}
+        {!tablet && proximo}
+
+        {/* Fica no topo fixo: quem está na porta vê na hora que a fila parou de atualizar. */}
+        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} desde={lastUpdated} />
+      </div>
+
+      <InstallPortaHint />
+
+      {!selectedGiraId ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <p className="text-muted-foreground">
+            {giras.length === 0 ? 'Não há gira hoje nem nas próximas horas.' : 'Escolha uma gira para ver a fila.'}
+          </p>
+          <Button asChild variant="outline">
+            <Link href="/admin/giras">Ver giras</Link>
+          </Button>
+        </div>
+      ) : (
+        tablet ? (
+          <div className="grid grid-cols-[400px_minmax(0,1fr)] items-start gap-8">
+            <div className="sticky top-40 flex flex-col gap-4">
+              {proximo}
+              {duplasBloco}
+            </div>
+            <div className="flex flex-col gap-4">
+              {contadores}
+              {busca}
+              {filaBloco}
+            </div>
+          </div>
+        ) : (
+          <>
+            {contadores}
+            {duplasBloco}
+            {busca}
+            {filaBloco}
+          </>
+        )
       )}
 
       {/* ── Resumo do dia ── */}
