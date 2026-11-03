@@ -12,18 +12,15 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from 'recharts';
-import { CalendarClock, CheckCheck, Footprints, Send, TrendingUp, XCircle } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 
 import AdminLayout from './admin_layout';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -131,7 +128,7 @@ export default function AdminAnalyticsPage() {
 }
 
 function AdminAnalyticsContent() {
-  const { can, loading: subLoading } = useSubscription();
+  const { can, loading: subLoading, planLabel } = useSubscription();
   const { can: canGroup } = usePermissions();
   // Plano E grupo antes de qualquer chamada (o endpoint também exige analytics_basico).
   const canView = !subLoading && can('analytics_basico') && canGroup('analytics', 'view');
@@ -263,37 +260,48 @@ function AdminAnalyticsContent() {
     tickLine: false,
   } as const;
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div data-tour="analytics-header">
-        <PageHeader
-          title="Analytics"
-          subtitle="Métricas de emissão, uso e distribuição por período ou gira"
-          className="mb-0"
-        />
-      </div>
-
-      {/* Filtros */}
-      <Card data-tour="analytics-filtros" className="gap-0 py-4">
-        <CardContent className="flex flex-col gap-3 px-4">
-          <ToggleGroup
+  const filtros = (
+    <div className="flex flex-wrap items-center gap-2">
+      <ToggleGroup
             type="single"
             variant="outline"
             size="sm"
             value={preset}
             onValueChange={applyPreset}
             aria-label="Período"
-            className="flex w-full flex-wrap sm:w-fit"
+            className="flex h-11 w-full flex-wrap rounded-[10px] border border-border bg-card p-1 sm:w-fit"
           >
             {PRESETS.map((p) => (
-              <ToggleGroupItem key={p.key} value={p.key} className="flex-1 px-3 sm:flex-none">
+              <ToggleGroupItem key={p.key} value={p.key} className="h-full flex-1 rounded-[8px] border-0 px-3.5 text-sm font-semibold data-[state=on]:bg-foreground data-[state=on]:text-background sm:flex-none">
                 {p.label}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(2,minmax(0,11rem))_minmax(0,20rem)]">
-            {preset === 'personalizado' && (
-              <>
+      <Combobox
+              aria-label="Gira"
+              size="small"
+              options={giraOptions}
+              value={giraId}
+              onChange={setGiraId}
+              placeholder="Todas as giras"
+              searchPlaceholder="Buscar gira..."
+              emptyText="Nenhuma gira no período."
+              clearable
+              className="w-full sm:w-56"
+            />
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div data-tour="analytics-header">
+        {/* J4 v2 · 11: o período e a gira no alto, ao lado do título. */}
+        <PageHeader eyebrow={`Analytics · plano ${planLabel}`} title="Como a assistência cresce" className="mb-0" actions={filtros} />
+      </div>
+
+      {preset === 'personalizado' && (
+        <div className="grid max-w-md grid-cols-2 gap-3" data-tour="analytics-filtros">
+
                 <DateField
                   label="De"
                   size="small"
@@ -308,23 +316,8 @@ function AdminAnalyticsContent() {
                   min={dateFrom || undefined}
                   onChange={(v) => v && setDateTo(v)}
                 />
-              </>
-            )}
-            <Combobox
-              label="Gira"
-              size="small"
-              options={giraOptions}
-              value={giraId}
-              onChange={setGiraId}
-              placeholder="Todas as giras"
-              searchPlaceholder="Buscar gira..."
-              emptyText="Nenhuma gira no período."
-              clearable
-              className="sm:col-span-2 lg:col-span-1"
-            />
-          </div>
-        </CardContent>
-      </Card>
+                      </div>
+      )}
 
       {error && (
         <Alert variant="destructive" role="alert">
@@ -340,16 +333,16 @@ function AdminAnalyticsContent() {
       )}
 
       {/* KPIs — 2 / 3 / 6 colunas: nunca sobra um card sozinho na linha */}
-      <div data-tour="analytics-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total emitido" value={analytics?.total_emitted ?? '—'} icon={<Send />} color="var(--primary-text)" loading={showSkeleton} />
-        <KpiCard label="Total utilizado" value={analytics?.total_used ?? '—'} icon={<CheckCheck />} color={chartTokens.success} loading={showSkeleton} />
-        <KpiCard label="Taxa de uso" value={analytics ? `${analytics.usage_rate}%` : '—'} icon={<TrendingUp />} color={chartTokens.warning} loading={showSkeleton} />
-        <KpiCard label="Cancelados" value={analytics?.total_cancelled ?? '—'} icon={<XCircle />} color={chartTokens.destructive} loading={showSkeleton} />
-        <KpiCard label="Sem senha" value={analytics?.walk_in_total ?? '—'} icon={<Footprints />} color={chartTokens.info} loading={showSkeleton} subtitle="atendidos sem senha emitida" />
+      <div data-tour="analytics-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <KpiCard label="Total emitido" value={analytics?.total_emitted ?? '—'} color="var(--primary-text)" loading={showSkeleton} />
+        <KpiCard label="Total utilizado" value={analytics?.total_used ?? '—'} color={chartTokens.success} loading={showSkeleton} />
+        <KpiCard label="Taxa de uso" value={analytics ? `${analytics.usage_rate}%` : '—'} color={chartTokens.warning} loading={showSkeleton} />
+        <KpiCard label="Cancelados" value={analytics?.total_cancelled ?? '—'} color={chartTokens.destructive} loading={showSkeleton} />
+        <KpiCard label="Sem senha" value={analytics?.walk_in_total ?? '—'} color={chartTokens.info} loading={showSkeleton} subtitle="atendidos sem senha emitida" />
         <KpiCard
           label="Hoje"
           value={analytics?.emitted_today ?? '—'}
-          icon={<CalendarClock />}
+         
           color={chartTokens.secondary}
           loading={showSkeleton}
           subtitle={analytics ? `emitidas · ${analytics.used_today} utilizadas` : undefined}
@@ -387,19 +380,18 @@ function AdminAnalyticsContent() {
             empty={!categoryData.some((d) => d.value > 0)}
             height={260}
           >
-            <div data-tour="analytics-chart-pie" className="h-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={categoryData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value">
-                    {categoryData.map((entry) => (
-                      <Cell key={entry.key} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={chartTooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {/* J4 v2 · 11: a categoria em lista, com a porcentagem de cada uma (sem pizza). */}
+            <ul data-tour="analytics-chart-pie" className="m-0 list-none border-b border-border p-0">
+              {(() => {
+                const soma = categoryData.reduce((acc, d) => acc + d.value, 0) || 1;
+                return categoryData.map((d) => (
+                  <li key={d.key} className="flex items-baseline justify-between gap-3 border-t border-border py-2.5 text-[0.9375rem]">
+                    <span>{d.name}</span>
+                    <span className="font-semibold tabular-nums">{Math.round((d.value / soma) * 100)}%</span>
+                  </li>
+                ));
+              })()}
+            </ul>
           </ChartCard>
 
           <ChartCard
@@ -408,17 +400,17 @@ function AdminAnalyticsContent() {
             empty={!statusData.some((d) => d.value > 0)}
             height={260}
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={statusData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value">
-                  {statusData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip contentStyle={chartTooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
-              </PieChart>
-            </ResponsiveContainer>
+            <ul className="m-0 list-none border-b border-border p-0">
+              {(() => {
+                const soma = statusData.reduce((acc, d) => acc + d.value, 0) || 1;
+                return statusData.map((d) => (
+                  <li key={d.name} className="flex items-baseline justify-between gap-3 border-t border-border py-2.5 text-[0.9375rem]">
+                    <span>{d.name}</span>
+                    <span className="font-semibold tabular-nums">{Math.round((d.value / soma) * 100)}%</span>
+                  </li>
+                ));
+              })()}
+            </ul>
           </ChartCard>
 
           <Card data-tour="analytics-peak" className="h-full gap-4">

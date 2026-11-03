@@ -54,7 +54,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
           {loading ? (
             <Skeleton data-testid="kpi-skeleton" className="mt-1.5 h-8 w-20" />
           ) : (
-            <p className="mt-1 text-xl leading-none font-extrabold tracking-tight [overflow-wrap:anywhere] text-foreground sm:text-2xl">{value}</p>
+            <p className="mt-1.5 font-display text-[1.625rem] leading-none font-normal tracking-[-0.02em] [overflow-wrap:anywhere] text-foreground sm:text-[2rem]">{value}</p>
           )}
           {caption && <p className="mt-1.5 text-xs text-muted-foreground">{caption}</p>}
         </div>
