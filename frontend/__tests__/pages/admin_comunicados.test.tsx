@@ -124,9 +124,9 @@ describe('Avisos — gates', () => {
     setup();
     const itens = await screen.findAllByTestId('comunicado-item');
     expect(itens).toHaveLength(2);
-    expect(within(itens[0]).getByText('lido por 9 de 20')).toBeInTheDocument();
+    expect(within(itens[0]).getByRole('progressbar', { name: 'Lido por 9 de 20' })).toBeInTheDocument();
     expect(within(itens[0]).getByText('Fixado')).toBeInTheDocument();
-    expect(within(itens[1]).getByText('Agendado')).toBeInTheDocument();
+    expect(within(itens[1]).getByText(/^Agendado para/)).toBeInTheDocument();
     expect(within(itens[1]).getByText(/Só cambones/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Novo aviso/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Editar/ })).not.toBeInTheDocument();
@@ -333,7 +333,7 @@ describe('Avisos — público "Grupos da corrente" (AM-23)', () => {
     const [item] = await screen.findAllByTestId('comunicado-item');
     expect(within(item).getByText(/Só G1/)).toBeInTheDocument();
     expect(within(within(item).getByTestId('aviso-grupos')).getByText('G1')).toBeInTheDocument();
-    expect(within(item).getByText('lido por 1 de 4')).toBeInTheDocument();
+    expect(within(item).getByRole('progressbar', { name: 'Lido por 1 de 4' })).toBeInTheDocument();
   });
 
   it('publicar para grupos exige grupo e manda grupo_ids', async () => {
@@ -429,7 +429,7 @@ describe('Avisos — público "Médiuns específicos" (aviso individual)', () =>
     setupMediuns();
     const [item] = await screen.findAllByTestId('comunicado-item');
     expect(within(item).getByText(/Só Ana Paula/)).toBeInTheDocument();
-    expect(within(item).getByText('lido por 0 de 1')).toBeInTheDocument();
+    expect(within(item).getByRole('progressbar', { name: 'Lido por 0 de 1' })).toBeInTheDocument();
   });
 
   it('publicar para médiuns exige médium, avisa quem não tem acesso e manda medium_ids', async () => {

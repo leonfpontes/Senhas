@@ -51,7 +51,6 @@ import { fraunces } from '@/components/landing/fonts';
 import { AvisoLeitura, AvisoTexto, FixadoBadge, dataCurtaBr, dataHoraBr } from '@/components/avisos/AvisoLeitura';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -206,14 +205,15 @@ export function mensagemLembrete(titulo: string, link: string): string {
   return `Oi! Tem aviso novo da casa na Área do Médium: "${titulo}". Dá uma olhada lá: ${link}`;
 }
 
+/** A leitura do aviso (J5 v2 · 08): "28 de 31 leram" em cima e a barra embaixo. */
 function LidoPor({ lidos, total, className }: { lidos: number; total: number; className?: string }) {
   const pct = total > 0 ? Math.round((lidos / total) * 100) : 0;
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      <Progress value={pct} className="h-2 flex-1" aria-label={`Lido por ${lidos} de ${total}`} />
-      <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-        lido por {lidos} de {total}
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      <span className="text-sm font-semibold tabular-nums">
+        {lidos} de {total} {lidos === 1 ? 'leu' : 'leram'}
       </span>
+      <Progress value={pct} className="h-1.5" aria-label={`Lido por ${lidos} de ${total}`} />
     </div>
   );
 }
@@ -473,68 +473,74 @@ function AdminComunicadosContent() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3" aria-label="Avisos publicados">
-          {lista.map((c) => (
-            <li key={c.id}>
-              <Card className="flex-row items-start gap-2 p-0" data-testid="comunicado-item">
+        // J5 v2 · 08: uma tabela leve — o aviso à esquerda e a leitura à direita; a linha abre "Quem leu".
+        <div className="overflow-hidden rounded-[14px] border border-border bg-card">
+          <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_13rem_5.5rem] gap-4 border-b border-border px-4 py-2.5 text-[0.8125rem] font-medium text-muted-foreground sm:grid">
+            <span>Aviso</span>
+            <span>Leitura</span>
+            <span />
+          </div>
+          <ul className="m-0 list-none p-0" aria-label="Avisos publicados">
+            {lista.map((c) => (
+              <li
+                key={c.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 first:border-t-0 hover:bg-accent sm:grid-cols-[minmax(0,1fr)_13rem_5.5rem]"
+                data-testid="comunicado-item"
+              >
                 <button
                   type="button"
                   onClick={() => setDetalhe(c)}
-                  className="flex min-w-0 flex-1 flex-col gap-2 rounded-xl p-4 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="col-start-1 flex min-w-0 flex-col gap-0.5 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   aria-label={`Ver quem leu: ${c.titulo}`}
                 >
                   <span className="flex flex-wrap items-center gap-2">
-                    <strong className="text-base leading-snug">{c.titulo}</strong>
+                    <strong className="text-[0.9375rem] leading-snug font-semibold">{c.titulo}</strong>
                     {c.fixado && <FixadoBadge />}
-                    {c.situacao === 'agendado' && (
-                      <Badge variant="outline" className="gap-1">
-                        <CalendarClock aria-hidden />
-                        Agendado
-                      </Badge>
-                    )}
                     {c.situacao === 'expirado' && <Badge variant="outline">Saiu do ar</Badge>}
                   </span>
-                  <span className="text-sm text-muted-foreground">{descreverAviso(c)}</span>
+                  <span className="text-[0.8125rem] text-muted-foreground">
+                    Para: {descreverPublico(c)} · {descreverAviso(c).split(' · ').filter((x) => x !== descreverPublico(c)).join(' · ')}
+                  </span>
                   {c.publico === 'grupos' && (c.grupos?.length ?? 0) > 0 && (
-                    <span className="flex flex-wrap gap-1" data-testid="aviso-grupos">
+                    <span className="mt-1 flex flex-wrap gap-1" data-testid="aviso-grupos">
                       {(c.grupos ?? []).map((g) => (
                         <GrupoChip key={g.id} grupo={g} size="sm" />
                       ))}
                     </span>
                   )}
-                  {c.situacao !== 'agendado' && <LidoPor lidos={c.leituras.lidos} total={c.leituras.total} />}
                 </button>
-                {(canEdit || canDelete) && (
-                  <div className="flex shrink-0 gap-1 p-3">
-                    {canEdit && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => abrirEdicao(c)}
-                        title="Editar"
-                        aria-label={`Editar ${c.titulo}`}
-                      >
-                        <Pencil />
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => setExcluir(c)}
-                        title="Excluir"
-                        aria-label={`Excluir ${c.titulo}`}
-                      >
-                        <Trash2 />
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </Card>
-            </li>
-          ))}
-        </ul>
+                <div className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                  {c.situacao === 'agendado' ? (
+                    <span className="flex items-center gap-1.5 text-sm font-semibold">
+                      <CalendarClock aria-hidden className="size-4" /> Agendado para {dataCurtaBr(c.publicar_em)}
+                    </span>
+                  ) : (
+                    <LidoPor lidos={c.leituras.lidos} total={c.leituras.total} />
+                  )}
+                </div>
+                <div className="col-start-2 row-start-1 flex justify-end gap-1 sm:col-start-3">
+                  {canEdit && (
+                    <Button variant="ghost" size="icon-sm" onClick={() => abrirEdicao(c)} title="Editar" aria-label={`Editar ${c.titulo}`}>
+                      <Pencil />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setExcluir(c)}
+                      title="Excluir"
+                      aria-label={`Excluir ${c.titulo}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <CrudDrawer
