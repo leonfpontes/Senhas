@@ -65,8 +65,9 @@ export interface CrudDrawerProps {
   /** Ícone depois do rótulo do botão principal (modo `passos`). */
   saveIcon?: React.ReactNode;
   /**
-   * `v2` (jornadas v2, ex.: Configurar senhas): título em Fraunces sem ícone, campos no tamanho do
-   * desenho e os botões do rodapé maiores. O padrão continua o de sempre.
+   * `v2` (padrão desde as jornadas v2 — a `Gaveta` do design system): título em Fraunces sem ícone,
+   * campos no tamanho do desenho, botões do rodapé maiores e, no celular, sobe de baixo.
+   * `padrao` mantém o cabeçalho antigo, com o ícone.
    */
   estilo?: 'padrao' | 'v2';
 }
@@ -88,7 +89,7 @@ export default function CrudDrawer({
   passos,
   acaoSecundaria,
   saveIcon,
-  estilo = 'padrao',
+  estilo = 'v2',
 }: CrudDrawerProps) {
   const v2 = estilo === 'v2';
   const [confirmOpen, setConfirmOpen] = useState(false);

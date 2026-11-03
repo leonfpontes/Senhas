@@ -12,9 +12,9 @@ const baseProps = {
 beforeEach(() => jest.clearAllMocks());
 
 describe('CrudDrawer (shadcn Sheet, mesma API)', () => {
-  it('renderiza título, subtítulo, ícone e conteúdo quando aberto', () => {
+  it('renderiza título, subtítulo, ícone (estilo padrão) e conteúdo quando aberto', () => {
     render(
-      <CrudDrawer {...baseProps} subtitle="Preencha os dados" icon={<svg data-testid="icone" />}>
+      <CrudDrawer {...baseProps} estilo="padrao" subtitle="Preencha os dados" icon={<svg data-testid="icone" />}>
         <input aria-label="Nome" />
       </CrudDrawer>,
     );
@@ -23,6 +23,16 @@ describe('CrudDrawer (shadcn Sheet, mesma API)', () => {
     expect(screen.getByText('Preencha os dados')).toBeInTheDocument();
     expect(screen.getByTestId('icone')).toBeInTheDocument();
     expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+  });
+
+  it('estilo v2 (o padrão): título em Fraunces, sem o ícone', () => {
+    render(
+      <CrudDrawer {...baseProps} subtitle="Preencha os dados" icon={<svg data-testid="icone" />}>
+        <input aria-label="Nome" />
+      </CrudDrawer>,
+    );
+    expect(screen.getByRole('heading', { name: 'Novo médium' })).toHaveClass('font-display');
+    expect(screen.queryByTestId('icone')).not.toBeInTheDocument();
   });
 
   it('não renderiza nada quando fechado', () => {
