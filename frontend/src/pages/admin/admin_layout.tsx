@@ -90,11 +90,11 @@ export default function AdminLayout(props: AdminLayoutProps) {
     if (semPainel) void router.replace(AREA_HOME.medium);
   }, [semPainel, router]);
 
-  // Gavetas e diálogos vão para o <body> por portal: a variável da Fraunces também precisa estar
-  // lá, senão o título da gaveta (J2 v2) cai na fonte de texto.
+  // Gavetas e diálogos vão para o <body> por portal: a variável da Fraunces e o tema do painel
+  // (areia e barra café, J1 v2 · 11) também precisam estar lá.
   useEffect(() => {
-    document.body.classList.add(fraunces.variable);
-    return () => document.body.classList.remove(fraunces.variable);
+    document.body.classList.add(fraunces.variable, 'painel-terra');
+    return () => document.body.classList.remove(fraunces.variable, 'painel-terra');
   }, []);
 
   if (semPainel) {

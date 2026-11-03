@@ -146,6 +146,32 @@
   --sidebar-border: rgba(255, 255, 255, 0.08);
 }
 
+/* Painel /admin no tema GiraHub (jornadas v2, J1 · 11): areia e tinta no claro, e a barra lateral café
+ * (que não muda no escuro). Vai no <body> (AdminLayout), para valer também nas gavetas e diálogos, que
+ * abrem por portal. A cor da casa continua no --primary (applyBrand no :root). */
+html:not(.dark) body.painel-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+}
+body.painel-terra {
+  --sidebar: var(--color-cafe-950);
+  --sidebar-foreground: var(--color-areia-100);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+}
+
 /* Telas de conta (/login, /cadastro, esqueci/redefinir senha, reativar — `components/auth/AuthShell`):
  * o kit (Button, Checkbox, ToggleGroup, anel de foco, `text-brand`, campos) passa a usar a paleta
  * "terra" da landing, e não a cor do último terreiro que o applyBrand() deixou no :root. Sempre claro.

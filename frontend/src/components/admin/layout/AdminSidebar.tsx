@@ -10,8 +10,8 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useProfile } from '@/hooks/useProfile';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +23,8 @@ import {
 import { BrandHeader } from './BrandHeader';
 import { NavGroup } from './NavGroup';
 import { montarSidebarNav, useAdminNav, type NavAction } from './navConfig';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, LogOut } from 'lucide-react';
+import { adminLogout } from './AdminTopbar';
 import { estaNoMenu, lerPreferencia, gravarPreferencia, marcarUso, moduloDaRota, type PreferenciaDoMenu } from '@/constants/modulos';
 
 /**
@@ -32,11 +33,22 @@ import { estaNoMenu, lerPreferencia, gravarPreferencia, marcarUso, moduloDaRota,
  */
 export const DRAWER_WIDTH = 256;
 
-const PLAN_BADGE_CLASS: Record<string, string> = {
-  premium: 'bg-[#b45309] text-white',
-  pro: 'bg-[#7c3aed] text-white',
-  basic: 'bg-[#2563eb] text-white',
+const PAPEL: Record<string, string> = {
+  admin: 'Administração',
+  super_admin: 'Plataforma',
+  operator: 'Equipe',
 };
+
+function iniciaisDe(nome: string): string {
+  return (
+    nome
+      .split(/[\s@.]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p.charAt(0).toUpperCase())
+      .join('') || '?'
+  );
+}
 
 export interface AdminSidebarProps {
   isOperator: boolean;
@@ -75,7 +87,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
   return (
     <Sidebar collapsible="icon" aria-label="Navegação principal" data-testid="admin-sidebar">
       <SidebarHeader className="p-0">
-        <BrandHeader />
+        <BrandHeader
+          plano={subscriptionLoading ? null : subscription?.is_trial ? `${planLabel} · mês grátis` : `Plano ${planLabel}`}
+        />
       </SidebarHeader>
       <SidebarContent>
         {/* Jornada 1 v2: o dia de gira fixo; o resto da casa em "Da casa" e em "Ver os 12 módulos". */}
@@ -93,7 +107,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
             href="/admin/modulos"
             aria-current={modulosAtivo ? 'page' : undefined}
             className={cn(
-              'flex min-h-10 items-center gap-1.5 rounded-md px-2 text-[0.8125rem] font-semibold text-sidebar-primary hover:bg-sidebar-accent',
+              'flex min-h-10 items-center gap-1.5 rounded-md px-2 text-[0.8125rem] font-semibold text-[color:var(--color-ouro-300)] hover:bg-sidebar-accent',
               modulosAtivo && 'bg-sidebar-accent',
             )}
           >
@@ -103,21 +117,28 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter className="gap-1 px-3 py-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">
-        {subscriptionLoading ? (
-          <Skeleton className="h-5 w-14 rounded-full" />
-        ) : (
-          <Badge
-            asChild
-            className={cn(
-              'cursor-pointer text-[0.65rem] font-bold',
-              PLAN_BADGE_CLASS[subscription?.plan ?? ''] ?? 'bg-muted text-muted-foreground',
-            )}
+        {/* J1 v2 · 11: quem está no painel, com o "sair" ao lado; o plano mora no topo, sob a casa. */}
+        <div className="flex items-center gap-2.5">
+          <Avatar className="size-8 shrink-0">
+            <AvatarFallback className="bg-[color:var(--color-barro-600)] text-[0.75rem] font-bold text-white">
+              {iniciaisDe(profile?.full_name || profile?.username || '')}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+            <p className="truncate text-sm font-semibold text-sidebar-foreground">{profile?.full_name || profile?.username}</p>
+            <p className="truncate text-[0.75rem] text-sidebar-foreground/70">{PAPEL[profile?.role ?? ''] ?? 'Equipe'}</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
+            aria-label="Sair"
+            onClick={() => void adminLogout(router.push, profile?.id)}
           >
-            <Link href="/admin/billing" aria-label={`Plano ${planLabel} — ver assinatura`}>
-              {subscription?.is_trial ? `${planLabel} · mês grátis` : planLabel}
-            </Link>
-          </Badge>
-        )}
+            <LogOut aria-hidden />
+          </Button>
+        </div>
         <p className="text-[0.65rem] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden" data-testid="sidebar-version">
           {APP_VERSION_LABEL}
         </p>

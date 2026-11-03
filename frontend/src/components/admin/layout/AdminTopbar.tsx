@@ -11,6 +11,7 @@ import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
 import { ArrowLeftRight, BookOpen, Building2, CircleHelp, LogOut, MessageCircle, Moon, Newspaper, Search, Sun, User } from 'lucide-react';
 import { logout } from '@/services/authSession';
+import { cn } from '@/lib/utils';
 import { hasAdminArea, hasMediumArea, switchArea } from '@/lib/areas';
 import { useMinhasContas } from '@/hooks/useMinhasContas';
 import { areasHint } from '@/components/auth/AccountChoiceList';
@@ -119,8 +120,24 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
     >
       <SidebarTrigger className="-ml-1" aria-label="Abrir menu" />
 
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <div className="flex min-w-0 items-center gap-2">
+      {/* J1 v2 · 11: no desktop, a busca grande fica à esquerda (o título já está na página). */}
+      {onOpenCommand && (
+        <Button
+          type="button"
+          variant="outline"
+          className="hidden h-10 w-full max-w-[22rem] justify-start gap-2.5 rounded-[10px] bg-card px-3 font-normal text-muted-foreground md:inline-flex"
+          onClick={onOpenCommand}
+          aria-label="Buscar ações (Ctrl K)"
+          data-testid="topbar-command"
+        >
+          <Search aria-hidden />
+          <span className="flex-1 truncate text-left text-sm">Buscar senha, médium, gira…</span>
+          <kbd className="pointer-events-none rounded border bg-muted px-1.5 font-sans text-[0.6875rem] font-semibold">Ctrl K</kbd>
+        </Button>
+      )}
+
+      <div className={cn('flex min-w-0 flex-1 flex-col justify-center', onOpenCommand && 'md:pl-2')}>
+        <div className={cn('flex min-w-0 items-center gap-2', onOpenCommand && 'md:sr-only')}>
           <h2 className="truncate text-sm font-bold text-foreground sm:text-base">{title}</h2>
           {tenantName && (
             <span className="hidden truncate text-xs text-muted-foreground md:inline" data-testid="topbar-tenant">
@@ -170,27 +187,6 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
             ))}
           </SelectContent>
         </Select>
-      )}
-
-      {onOpenCommand && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="hidden gap-2 text-muted-foreground md:inline-flex"
-              onClick={onOpenCommand}
-              aria-label="Buscar ações (Ctrl K)"
-              data-testid="topbar-command"
-            >
-              <Search aria-hidden />
-              <span className="text-xs">Buscar…</span>
-              <kbd className="pointer-events-none rounded border bg-muted px-1 font-mono text-[0.65rem]">⌘K</kbd>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Buscar páginas e ações (⌘K / Ctrl K)</TooltipContent>
-        </Tooltip>
       )}
 
       {tourSteps.length > 0 && (
