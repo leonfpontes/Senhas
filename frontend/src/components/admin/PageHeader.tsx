@@ -37,7 +37,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, eyebrow
       </h1>
       {subtitle && <p className="mt-1 text-base text-muted-foreground">{subtitle}</p>}
     </div>
-    {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    {actions && (
+      // Jornadas v2: os botões do cabeçalho em 44 px, semibold, com o ícone depois do texto
+      // ("Grupos 👥", "Novo +"); botão só de ícone não muda.
+      <div className="flex flex-wrap items-center gap-2 [&>[data-slot=button]:not([data-size^=icon])]:h-11 [&>[data-slot=button]:not([data-size^=icon])_svg]:order-last [&>[data-slot=button]:not([data-size^=icon])]:px-4 [&>[data-slot=button]:not([data-size^=icon])]:text-[0.9375rem] [&>[data-slot=button]:not([data-size^=icon])]:font-semibold">
+        {actions}
+      </div>
+    )}
   </header>
 );
 
