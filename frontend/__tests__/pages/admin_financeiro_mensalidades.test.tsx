@@ -96,5 +96,5 @@ it('com a Área: KPI "Comprovantes para conferir" e selo na lista do mês', asyn
   expect(mockGet).toHaveBeenCalledWith(FILA);
   const tabela = await screen.findByTestId('cobranca-mediuns');
   expect((await within(tabela).findAllByText('Comprovante enviado', {}, ESPERA)).length).toBeGreaterThan(0);
-  expect(within(tabela).getAllByRole('button', { name: /Conferir/ }).length).toBeGreaterThan(0);
+  expect((await within(tabela).findAllByRole('button', { name: /Conferir/ }, ESPERA)).length).toBeGreaterThan(0);
 });
