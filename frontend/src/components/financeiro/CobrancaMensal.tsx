@@ -190,11 +190,12 @@ const STATUS_LABEL: Record<CobrancaStatusEfetivo, string> = {
   INADIMPLENTE: 'Inadimplente',
 };
 
+// J7 v2 (SeloDaMensalidade): tons claros, o texto na cor forte — o vermelho cheio fica para excluir.
 const STATUS_CLASS: Record<CobrancaStatusEfetivo, string> = {
-  PAGO: 'border-transparent bg-success text-success-foreground',
+  PAGO: 'border-transparent bg-success/15 text-success-strong',
   ISENTO: 'border-transparent bg-muted text-muted-foreground',
-  PENDENTE: 'border-transparent bg-warning text-warning-foreground',
-  INADIMPLENTE: 'border-transparent bg-destructive text-destructive-foreground',
+  PENDENTE: 'border-transparent bg-warning/20 text-warning-strong',
+  INADIMPLENTE: 'border-transparent bg-destructive/12 text-destructive-strong',
 };
 
 /** Selo "Comprovante enviado" (médium mandou pela Área, falta a casa conferir — AM-12). */
@@ -254,16 +255,12 @@ export function CobrancaStatusBadge({ status }: { status: CobrancaStatusEfetivo 
 /** Grade de KPIs do mês (2×2 no celular, 4 colunas no desktop — sem item solitário). */
 export function CobrancaKpisGrid({ kpis, loading }: { kpis: CobrancaKpis | null; loading?: boolean }) {
   return (
+    // J7 v2 · 03: esperado, arrecadado, em aberto e inadimplentes numa linha, na ordem do desenho.
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="cobranca-kpis">
       <KpiCard label="Esperado" value={kpis ? formatBRL(kpis.esperado) : '—'} loading={loading} />
-      <KpiCard label="Arrecadado" value={kpis ? formatBRL(kpis.arrecadado) : '—'} color="var(--success)" loading={loading} />
-      <KpiCard
-        label="Inadimplentes"
-        value={kpis ? kpis.inadimplentes : '—'}
-        color={kpis && kpis.inadimplentes > 0 ? 'var(--destructive)' : 'var(--success)'}
-        loading={loading}
-      />
-      <KpiCard label="Em aberto" value={kpis ? formatBRL(kpis.emAberto) : '—'} color="var(--warning)" loading={loading} />
+      <KpiCard label="Arrecadado" value={kpis ? formatBRL(kpis.arrecadado) : '—'} loading={loading} />
+      <KpiCard label="Em aberto" value={kpis ? formatBRL(kpis.emAberto) : '—'} loading={loading} />
+      <KpiCard label="Inadimplentes" value={kpis ? kpis.inadimplentes : '—'} loading={loading} />
     </div>
   );
 }
