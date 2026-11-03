@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { DateField } from '@/components/fields/DateField';
 import { DateTimeField } from '@/components/fields/DateTimeField';
 import {
@@ -88,27 +88,50 @@ describe('DateField', () => {
 });
 
 describe('DateTimeField', () => {
-  it('separa data e hora e devolve ISO local "YYYY-MM-DDTHH:mm"', () => {
+  // J2 v2: um campo só ("sáb, 6 de dezembro · 19h00") que abre o calendário com a data e a hora.
+  const abrir = (rotulo: string) => {
+    fireEvent.click(screen.getByLabelText(rotulo));
+    return within(screen.getByRole('dialog', { name: `${rotulo}: dia e hora` }));
+  };
+
+  it('mostra a data e a hora numa linha e devolve ISO local "YYYY-MM-DDTHH:mm"', () => {
     const onChange = jest.fn();
     render(<DateTimeField label="Início" value="2026-10-05T19:30" onChange={onChange} />);
-    expect((screen.getByLabelText('Início') as HTMLInputElement).value).toBe('05/10/2026');
-    const time = screen.getByLabelText('Hora') as HTMLInputElement;
-    expect(time.value).toBe('19:30');
+    expect(screen.getByLabelText('Início')).toHaveTextContent(/seg, 5 de outubro.* · 19h30/);
 
-    fireEvent.change(time, { target: { value: '20:00' } });
+    const dialogo = abrir('Início');
+    expect((dialogo.getByLabelText('Data') as HTMLInputElement).value).toBe('05/10/2026');
+    const hora = dialogo.getByLabelText('Hora') as HTMLInputElement;
+    expect(hora.value).toBe('19:30');
+
+    fireEvent.change(hora, { target: { value: '20:00' } });
     expect(onChange).toHaveBeenCalledWith('2026-10-05T20:00');
 
-    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '06/10/2026' } });
+    fireEvent.change(dialogo.getByLabelText('Data'), { target: { value: '06/10/2026' } });
     expect(onChange).toHaveBeenCalledWith('2026-10-06T19:30');
   });
 
   it('sem hora assume 00:00; limpar a data devolve null', () => {
     const onChange = jest.fn();
-    render(<DateTimeField label="Início" value={null} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '06/10/2026' } });
+    const { rerender } = render(<DateTimeField label="Início" value={null} onChange={onChange} />);
+    expect(screen.getByLabelText('Início')).toHaveTextContent('Escolher dia e hora');
+    fireEvent.change(abrir('Início').getByLabelText('Data'), { target: { value: '06/10/2026' } });
     expect(onChange).toHaveBeenCalledWith('2026-10-06T00:00');
-    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '' } });
+    rerender(<DateTimeField label="Início" value="2026-10-06T00:00" onChange={onChange} />);
+    fireEvent.change(screen.getByRole('dialog', { name: 'Início: dia e hora' }).querySelector('input[type="text"]') as HTMLInputElement, {
+      target: { value: '' },
+    });
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it('é um botão com o rótulo do campo e abre um diálogo pelo teclado', () => {
+    render(<DateTimeField label="Início" value="2026-10-05T19:30" onChange={jest.fn()} />);
+    const campo = screen.getByRole('button', { name: 'Início' });
+    expect(campo).toHaveAttribute('aria-haspopup', 'dialog');
+    campo.focus();
+    fireEvent.keyDown(campo, { key: 'Enter' });
+    fireEvent.click(campo);
+    expect(screen.getByRole('dialog', { name: 'Início: dia e hora' })).toBeInTheDocument();
   });
 });
 

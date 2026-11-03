@@ -119,6 +119,16 @@ beforeEach(() => {
   mockDelete.mockResolvedValue({ data: {} });
 });
 
+
+// O DateTimeField (J2 v2) é um campo só que abre um diálogo com a data, a hora e o calendário.
+function preencherInicio(dialog: HTMLElement, data: string, hora: string) {
+  fireEvent.click(within(dialog).getByLabelText(/^Início/));
+  const seletor = within(screen.getByRole('dialog', { name: /^Início.*dia e hora/ }));
+  fireEvent.change(seletor.getByLabelText('Data'), { target: { value: data } });
+  fireEvent.change(seletor.getByLabelText('Hora'), { target: { value: hora } });
+  fireEvent.click(seletor.getByRole('button', { name: 'Pronto' }));
+}
+
 describe('Atividades e escalas — gates', () => {
   it('sem area_medium: aviso neutro, sem oferta de plano e sem chamar a API', async () => {
     mockPlanCan.mockImplementation((f: string) => f !== 'area_medium');
@@ -209,12 +219,7 @@ describe('Atividades e escalas — agenda da casa', () => {
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Ritual individual' }));
     expect(within(dialog).getByRole('radio', { name: /Só quem estiver na escala/ })).toBeChecked();
     fireEvent.change(within(dialog).getByLabelText(/^Título/), { target: { value: 'Ritual da Ana' } });
-    fireEvent.change(within(dialog).getByLabelText(/^Início/), { target: { value: '20/10/2026' } });
-    let el: HTMLElement | null = within(dialog).getByLabelText(/^Início/);
-    while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
-    fireEvent.change((el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement, {
-      target: { value: '19:30' },
-    });
+    preencherInicio(dialog, '20/10/2026', '19:30');
     fireEvent.change(within(dialog).getByLabelText(/Orientações para a corrente/), { target: { value: 'Roupa branca' } });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Criar atividade' }));
@@ -525,12 +530,7 @@ describe('Atividades e escalas — presença (AM-17/AM-28)', () => {
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Faxina' }));
     expect(await within(dialog).findByTestId('criar-por-na-escala')).toBeInTheDocument();
 
-    fireEvent.change(within(dialog).getByLabelText(/^Início/), { target: { value: '20/10/2026' } });
-    let el: HTMLElement | null = within(dialog).getByLabelText(/^Início/);
-    while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
-    fireEvent.change((el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement, {
-      target: { value: '09:00' },
-    });
+    preencherInicio(dialog, '20/10/2026', '09:00');
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Criar atividade' }));
     });
@@ -547,12 +547,7 @@ describe('Atividades e escalas — presença (AM-17/AM-28)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Nova atividade/ }));
     const dialog = await screen.findByRole('dialog');
     await within(dialog).findByTestId('criar-por-na-escala');
-    fireEvent.change(within(dialog).getByLabelText(/^Início/), { target: { value: '20/10/2026' } });
-    let el: HTMLElement | null = within(dialog).getByLabelText(/^Início/);
-    while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
-    fireEvent.change((el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement, {
-      target: { value: '09:00' },
-    });
+    preencherInicio(dialog, '20/10/2026', '09:00');
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Criar atividade' }));
     });

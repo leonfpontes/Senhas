@@ -63,18 +63,30 @@ function wrap(ui: React.ReactElement) {
 }
 
 /** DateTimeField: data "dd/mm/aaaa" no campo rotulado e hora no input de hora ao lado. */
-function timeInputOf(label: RegExp | string): HTMLInputElement {
-  let el: HTMLElement | null = screen.getByLabelText(label);
-  while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
-  return (el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement;
+// O DateTimeField (J2 v2) é um campo só que abre um diálogo com a data, a hora e o calendário.
+function abrirDataHora(label: RegExp | string) {
+  fireEvent.click(screen.getByLabelText(label));
+  const nome = typeof label === 'string' ? `${label}: dia e hora` : new RegExp(`${label.source}.*dia e hora`);
+  return within(screen.getByRole('dialog', { name: nome }));
+}
+
+function fecharDataHora(dialogo: ReturnType<typeof within>) {
+  fireEvent.click(dialogo.getByRole('button', { name: 'Pronto' }));
 }
 
 function setDateTime(label: RegExp | string, date: string, time: string) {
-  fireEvent.change(screen.getByLabelText(label), { target: { value: date } });
-  fireEvent.change(timeInputOf(label), { target: { value: time } });
+  const dialogo = abrirDataHora(label);
+  fireEvent.change(dialogo.getByLabelText('Data'), { target: { value: date } });
+  fireEvent.change(dialogo.getByLabelText('Hora'), { target: { value: time } });
+  fecharDataHora(dialogo);
 }
 
-const timeOf = (label: RegExp | string) => timeInputOf(label).value;
+const timeOf = (label: RegExp | string) => {
+  const dialogo = abrirDataHora(label);
+  const hora = (dialogo.getByLabelText('Hora') as HTMLInputElement).value;
+  fecharDataHora(dialogo);
+  return hora;
+};
 
 const MOCK_GIRAS = [
   {
@@ -197,8 +209,8 @@ describe('Admin Giras Page', () => {
       await fillStepOne();
       expect(screen.getByTestId('create-senha-suggestion')).toBeInTheDocument();
       expect(screen.getByLabelText(/^Quantas senhas/)).toHaveValue(30);
-      expect((screen.getByLabelText(/^Senhas abrem em/) as HTMLInputElement).value).not.toBe('');
-      expect(screen.getByLabelText(/^Senhas fecham em/)).toHaveValue('10/01/2099');
+      expect(screen.getByLabelText(/^Senhas abrem em/)).not.toHaveTextContent('Escolher dia e hora');
+      expect(screen.getByLabelText(/^Senhas fecham em/)).toHaveTextContent(/10 de janeiro de 2099/);
       expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
       expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
     });

@@ -202,7 +202,8 @@
   display: none;
 }
 .public-terra [data-slot='field'] input:not([type='checkbox']):not([type='radio']),
-.gaveta-v2 [data-slot='field'] input:not([type='checkbox']):not([type='radio']) {
+.gaveta-v2 [data-slot='field'] input:not([type='checkbox']):not([type='radio']),
+.gaveta-v2 [data-slot='field'] [data-slot='datetime-trigger'] {
   height: 58px;
   font-size: 1.125rem;
 }
