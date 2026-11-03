@@ -404,6 +404,9 @@ function AdminGirasContent() {
   const [useTimeSlots, setUseTimeSlots] = useState(false);
   const [useTimeSlotsInitial, setUseTimeSlotsInitial] = useState(false);
   const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
+  // Horário marcado já na Nova gira (passo Senhas), quando a casa tem a funcionalidade.
+  const [createUseSlots, setCreateUseSlots] = useState(false);
+  const [createSlots, setCreateSlots] = useState<TimeSlotRow[]>([]);
   const [timeSlotsInitial, setTimeSlotsInitial] = useState<TimeSlotRow[]>([]);
 
   useEffect(() => {
@@ -564,8 +567,29 @@ function AdminGirasContent() {
     setCreateSenha(EMPTY_SENHA_FORM);
     setCreateTouched({});
     setSuggestedFor(null);
+    setCreateUseSlots(false);
+    setCreateSlots([]);
     setCreateStep(0);
     setCreateOpen(true);
+  };
+
+  /** Modelo de horários da casa (Configurações › Atendimento); sem modelo, uma linha vazia. */
+  const carregarModeloDeHorarios = async (): Promise<TimeSlotRow[]> => {
+    try {
+      const response = await apiClient.get('/api/v1/admin/config/time-slot-templates');
+      const rows: TimeSlotRow[] = (response.data || []).map((t: { horario: string; capacidade_maxima: number }) => ({
+        horario: timeToInputValue(t.horario),
+        capacidade_maxima: String(t.capacidade_maxima),
+      }));
+      return rows.length > 0 ? rows : [emptySlotRow()];
+    } catch {
+      return [emptySlotRow()];
+    }
+  };
+
+  const toggleCreateUseSlots = async (checked: boolean) => {
+    setCreateUseSlots(checked);
+    if (checked && createSlots.length === 0) setCreateSlots(await carregarModeloDeHorarios());
   };
 
   /** Beta "Repetir em outra data": a gaveta Nova gira já vem com o que a gira tinha, sem a data. */
@@ -586,6 +610,8 @@ function AdminGirasContent() {
     });
     setCreateTouched({});
     setSuggestedFor(null);
+    setCreateUseSlots(false);
+    setCreateSlots([]);
     setCreateStep(0);
     setCreateOpen(true);
   };
@@ -617,13 +643,21 @@ function AdminGirasContent() {
       ? 'O fim precisa ser depois do início'
       : '';
   const step0Valid = !!createForm.nome.trim() && !!createForm.data_inicio;
+  const podeHorarioNaCriacao = timeSlotSchedulingEnabled && can('agendamento_por_horario');
+  const createSlotsValid =
+    !podeHorarioNaCriacao ||
+    !createUseSlots ||
+    (createSlots.length > 0 &&
+      createSlots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1) &&
+      new Set(createSlots.map((s) => s.horario)).size === createSlots.length);
   const step1Valid =
     !!createSenha.max_tickets &&
     Number(createSenha.max_tickets) >= 1 &&
     !!createSenha.release_start_at &&
     !!createSenha.release_end_at &&
     releaseWindowHours(createSenha.release_start_at, createSenha.release_end_at) !== null &&
-    (!createSenha.allow_acompanhantes || Number(createSenha.max_acompanhantes) >= 1);
+    (!createSenha.allow_acompanhantes || Number(createSenha.max_acompanhantes) >= 1) &&
+    createSlotsValid;
 
   const createDirty =
     Object.values(createForm).some((v) => v !== '') || JSON.stringify(createSenha) !== JSON.stringify(EMPTY_SENHA_FORM);
@@ -685,7 +719,13 @@ function AdminGirasContent() {
             max_acompanhantes:
               createSenha.allow_acompanhantes && createSenha.max_acompanhantes ? Number(createSenha.max_acompanhantes) : null,
           });
-          toast.success('Gira criada e senhas configuradas!');
+          if (podeHorarioNaCriacao && createUseSlots) {
+            await apiClient.put(`/api/v1/admin/giras/${created.id}/time-slots`, {
+              use_time_slots: true,
+              slots: createSlots.map((s) => ({ horario: s.horario, capacidade_maxima: Number(s.capacidade_maxima) })),
+            });
+          }
+          toast.success(createUseSlots && podeHorarioNaCriacao ? 'Gira criada com horário marcado!' : 'Gira criada e senhas configuradas!');
           await loadUnifiedLinks();
           openShare('Gira criada! Compartilhe o link de senhas');
         } catch (error) {
@@ -1299,7 +1339,7 @@ function AdminGirasContent() {
                 setCreateSenha((prev) => ({ ...prev, release_start_at: s.start, release_end_at: s.end }))
               }
             />
-            <Accordion type="single" collapsible>
+            <Accordion type="single" collapsible defaultValue={timeSlotSchedulingEnabled ? 'avancado' : undefined}>
               <AccordionItem value="avancado">
                 <AccordionTrigger>Mais opções</AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
@@ -1326,9 +1366,86 @@ function AdminGirasContent() {
                       onChange={(e) => setCreateSenhaField('max_acompanhantes', e.target.value)}
                     />
                   )}
+                  {/* Horário marcado já na criação (J2 v2): com a funcionalidade ligada e o plano. Sem plano, o selo
+                      com "Ver planos"; com plano e sem ligar, o caminho para Configurações. */}
+                  {!subLoading && !can('agendamento_por_horario') ? (
+                    <PlanLockedInline
+                      feature="agendamento_por_horario"
+                      text="Deixe o consulente escolher um horário de atendimento ao pegar a senha."
+                    />
+                  ) : !timeSlotSchedulingEnabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      Senha com horário marcado: ative em{' '}
+                      <Link href="/admin/config" className="font-semibold text-brand underline-offset-4 hover:underline">
+                        Configurações → Funcionalidades
+                      </Link>
+                      .
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2" data-testid="create-horarios">
+                      <SwitchRow
+                        id="create-horarios"
+                        checked={createUseSlots}
+                        onCheckedChange={(c) => void toggleCreateUseSlots(c)}
+                        label="Consulente escolhe um horário ao pegar a senha"
+                        description="Cada horário (ex.: 20h, 20h30, 21h) tem as próprias vagas, para não juntar gente na porta."
+                      />
+                      {createUseSlots &&
+                        createSlots.map((slot, index) => (
+                          <div key={index} className="flex items-start gap-2">
+                            <TextField
+                              label="Horário"
+                              type="time"
+                              size="small"
+                              value={slot.horario}
+                              onChange={(e) =>
+                                setCreateSlots((prev) => prev.map((r, i) => (i === index ? { ...r, horario: e.target.value } : r)))
+                              }
+                              className="flex-1"
+                            />
+                            <TextField
+                              label="Vagas"
+                              type="number"
+                              size="small"
+                              min={1}
+                              value={slot.capacidade_maxima}
+                              onChange={(e) =>
+                                setCreateSlots((prev) =>
+                                  prev.map((r, i) => (i === index ? { ...r, capacidade_maxima: e.target.value } : r)),
+                                )
+                              }
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="mt-6"
+                              aria-label={`Remover horário ${slot.horario || index + 1}`}
+                              onClick={() => setCreateSlots((prev) => prev.filter((_, i) => i !== index))}
+                            >
+                              <Trash2 aria-hidden />
+                            </Button>
+                          </div>
+                        ))}
+                      {createUseSlots && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="self-start"
+                          onClick={() => setCreateSlots((prev) => [...prev, emptySlotRow()])}
+                        >
+                          <Plus aria-hidden /> Adicionar horário
+                        </Button>
+                      )}
+                      {createUseSlots && !createSlotsValid && (
+                        <p className="text-xs text-destructive">Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.</p>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    Senhas de associados, horários de atendimento e fila de espera ficam em “Configurar senhas”, no menu
-                    da gira.
+                    Senhas de associados e fila de espera ficam em “Configurar senhas”, no menu da gira.
                   </p>
                 </AccordionContent>
               </AccordionItem>

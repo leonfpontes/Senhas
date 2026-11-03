@@ -215,6 +215,39 @@ describe('Admin Giras Page', () => {
       expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
     });
 
+    it('com horário marcado ligado na casa, a Nova gira já oferece os horários e salva junto', async () => {
+      const api = mockApi([]);
+      const base = api.get.getMockImplementation();
+      api.get.mockImplementation((url: string) => {
+        if (url === '/api/v1/admin/giras/settings') return Promise.resolve({ data: { enable_time_slot_scheduling: true } });
+        if (url === '/api/v1/admin/config/time-slot-templates') {
+          return Promise.resolve({ data: [{ horario: '19:00:00', capacidade_maxima: 20 }, { horario: '20:00:00', capacidade_maxima: 20 }] });
+        }
+        return base(url);
+      });
+      await fillStepOne();
+      expect(screen.getByTestId('create-horarios')).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('switch', { name: /Consulente escolhe um horário/ }));
+      });
+      await waitFor(() => expect(screen.getAllByLabelText(/^Vagas/)).toHaveLength(2));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      await waitFor(() =>
+        expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/nova/time-slots', {
+          use_time_slots: true,
+          slots: [
+            { horario: '19:00', capacidade_maxima: 20 },
+            { horario: '20:00', capacidade_maxima: 20 },
+          ],
+        }),
+      );
+    });
+
     it('ao concluir, cria a gira, salva as senhas e oferece o link', async () => {
       const api = mockApi([]);
       await fillStepOne();
