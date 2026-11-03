@@ -284,7 +284,16 @@ describe('Emissão pública — estados da gira', () => {
   });
 
   it('esgotada com fila: formulário vira "Entrar na fila de espera"', async () => {
-    await renderOpenForm({ is_exhausted: true, waitlist_available: true, tickets_available: 0 });
+    await renderOpenForm({
+      is_exhausted: true,
+      waitlist_available: true,
+      tickets_available: 0,
+      waitlist_count: 2,
+      waitlist_confirmation_minutes: 120,
+    });
+    // J3 v2: a posição e o prazo aparecem antes de entrar.
+    expect(screen.getByTestId('fila-antes-de-entrar')).toHaveTextContent('2 pessoas · você seria a 3ª');
+    expect(screen.getByTestId('fila-antes-de-entrar')).toHaveTextContent('você tem 2 horas para confirmar');
     apiClient.post.mockResolvedValue({ data: { ticket_number: 'F003', waitlisted: true, waitlist_position: 3 } });
 
     fillRequired();

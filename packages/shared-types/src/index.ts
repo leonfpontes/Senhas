@@ -236,6 +236,10 @@ export interface GiraPublic {
   max_acompanhantes: number;
   /** Recado da casa para a gira (o mesmo do bilhete e do e-mail). */
   recados?: string | null;
+  /** Fila de espera (só com a gira lotada e a fila ligada): quantas pessoas esperam, sem dado pessoal. */
+  waitlist_count?: number;
+  /** Prazo, em minutos, para confirmar quando abre uma vaga. */
+  waitlist_confirmation_minutes?: number;
   /** Betas do Laboratório ligadas na casa que mudam a página do consulente (jornadas v2). */
   betas?: string[];
 }

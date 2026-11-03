@@ -37,7 +37,7 @@ def _db(*results):
     return db
 
 
-def _ticket(status=TicketStatus.EMITTED, numero=42, is_sponsor=False, time_slot_id=None):
+def _ticket(status=TicketStatus.EMITTED, numero=42, is_sponsor=False, time_slot_id=None, priority_category=None):
     t = MagicMock()
     t.id = uuid4()
     t.tenant_id = TENANT_ID
@@ -47,6 +47,7 @@ def _ticket(status=TicketStatus.EMITTED, numero=42, is_sponsor=False, time_slot_
     t.is_sponsor = is_sponsor
     t.is_acompanhante = False
     t.time_slot_id = time_slot_id
+    t.priority_category = priority_category
     t.consulente = MagicMock()
     t.consulente.nome = "Maria da Silva"
     return t
@@ -104,6 +105,7 @@ async def test_bilhete_completo():
     assert resp.tenant_logo_url is None
     assert resp.consulente_name == "Maria da Silva"
     assert resp.acompanhantes == []
+    assert resp.priority_category is None
 
 
 async def test_slug_errado_e_404_e_filtra_no_banco():
@@ -160,3 +162,15 @@ async def test_horario_do_slot_e_logo_servido_pela_api():
     assert resp.tenant_logo_url.endswith(f"/api/v1/public/tenant/{TENANT_ID}/logo")
     slot_query = str(db.execute.call_args_list[4].args[0])
     assert "gira_time_slots.tenant_id" in slot_query
+
+
+async def test_bilhete_traz_a_categoria_preferencial():
+    """Jornada 3 v2: o selo "Preferencial" do bilhete sai da categoria da senha."""
+    from src.api.v1.public.cancel_ticket import get_public_ticket
+
+    ticket = _ticket(priority_category="ELDERLY")
+    db = _db(_result(ticket), _result(_gira()), _result(_tenant()), _result(_config()), _result(many=[]))
+
+    resp = await get_public_ticket(MagicMock(), "tenda-pai-joaquim", str(ticket.id), db)
+
+    assert resp.priority_category == "ELDERLY"

@@ -106,6 +106,8 @@ class PublicTicketResponse(BaseModel):
     secondary_color: str | None = None
     consulente_name: str
     acompanhantes: list[AcompanhanteCancelInfo] = []
+    # Jornada 3 v2: o selo "Preferencial" do bilhete (categoria do produto, ou None).
+    priority_category: str | None = None
 
 
 _STATUS_LABELS = {
@@ -303,6 +305,7 @@ async def get_public_ticket(
             )
             for acomp in acompanhantes
         ],
+        priority_category=ticket.priority_category or None,
     )
 
 

@@ -153,6 +153,34 @@ async def _get_ticket_count(session, tenant_id, gira_id, is_sponsor: bool = Fals
     return max(0, sc.total_emitido - sc.slots_returned)
 
 
+async def _fila_de_espera(session, tenant_id, gira: Gira, is_sponsor: bool) -> dict:
+    """Jornada 3 v2: antes de entrar na fila, quantas pessoas esperam e o prazo para confirmar.
+
+    Só a contagem (nenhum dado pessoal), sempre filtrada pela casa e pela gira.
+    """
+    from sqlalchemy import func
+
+    from src.models.tickets import Ticket, TicketStatus
+
+    esperando = (
+        await session.execute(
+            select(func.count(Ticket.id)).where(
+                and_(
+                    Ticket.tenant_id == tenant_id,
+                    Ticket.gira_id == gira.id,
+                    Ticket.status == TicketStatus.WAITLISTED,
+                    Ticket.is_sponsor == is_sponsor,
+                    Ticket.is_acompanhante.is_(False),
+                    Ticket.deleted_at.is_(None),
+                )
+            )
+        )
+    ).scalar_one()
+    return {
+        "waitlist_count": int(esperando or 0),
+        "waitlist_confirmation_minutes": waitlist_service.confirmation_minutes(gira),
+    }
+
 
 # Betas que mudam a página do consulente (o resto do catálogo é do painel).
 BETAS_DO_CONSULENTE = {b.chave for b in _CATALOGO_BETAS if b.grupo == "Para o consulente"}
@@ -223,6 +251,8 @@ async def get_next_gira(
         waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
         response = _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
         response["use_time_slots"], response["time_slots"] = await _resolve_time_slots(session, tenant.id, gira)
+        if response["waitlist_available"] and response["is_exhausted"]:
+            response.update(await _fila_de_espera(session, tenant.id, gira, is_sponsor))
         # Laboratório (jornadas v2): só as betas do consulente que a casa beta tester ligou.
         response["betas"] = sorted(b for b in await betas_ligadas(session, tenant.id) if b in BETAS_DO_CONSULENTE)
         return response
@@ -273,6 +303,8 @@ async def get_gira_by_id(
         waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
         response = _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
         response["use_time_slots"], response["time_slots"] = await _resolve_time_slots(session, tenant.id, gira)
+        if response["waitlist_available"] and response["is_exhausted"]:
+            response.update(await _fila_de_espera(session, tenant.id, gira, is_sponsor))
         # Laboratório (jornadas v2): só as betas do consulente que a casa beta tester ligou.
         response["betas"] = sorted(b for b in await betas_ligadas(session, tenant.id) if b in BETAS_DO_CONSULENTE)
         return response

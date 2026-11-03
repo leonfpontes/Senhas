@@ -174,6 +174,14 @@ function partes(iso: string) {
 /** '19:40' -> '19h40' */
 const horaDoSlot = (hhmm: string) => (hhmm ? hhmm.slice(0, 5).replace(':', 'h') : '');
 const horaFala = (h: number, m: number) => (m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`);
+/** Prazo em palavras: 90 → "1h30", 120 → "2 horas", 45 → "45 minutos". */
+const duracao = (min: number) => {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (!h) return `${m} minutos`;
+  if (m) return `${h}h${String(m).padStart(2, '0')}`;
+  return h === 1 ? '1 hora' : `${h} horas`;
+};
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /** "Sábado, 8 de novembro · 19h" */
 function dataLonga(iso: string): string {
@@ -352,7 +360,7 @@ export default function PublicGiraPage() {
       gira_date_iso: g.data_inicio,
       gira_local: g.local ?? null,
       horario: slot?.horario ?? null,
-      recados: null,
+      recados: g.recados ?? null,
       tenant_name: g.tenant_name,
       tenant_slug: g.tenant_slug,
       tenant_address: null,
@@ -362,6 +370,7 @@ export default function PublicGiraPage() {
       secondary_color: g.secondary_color ?? null,
       consulente_name: values.nome.trim(),
       acompanhantes: (data.acompanhantes ?? []).map((a) => ({ ticket_number: a.ticket_number, name: a.name })),
+      priority_category: values.preferencial === 'sim' ? values.priorityCategory || null : null,
     };
   };
 
@@ -738,10 +747,33 @@ export default function PublicGiraPage() {
             {isSponsor && !waitlistMode && <h2 className="font-display text-2xl font-normal">Sua senha de associado</h2>}
 
             {waitlistMode && (
-              <p className="text-[1.0625rem] leading-relaxed">
-                As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar na fila de espera — se
-                alguma senha for cancelada, avisamos por e-mail.
-              </p>
+              <>
+                <p className="text-[1.0625rem] leading-relaxed">
+                  As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar na fila de espera — se
+                  alguma senha for cancelada, avisamos por e-mail.
+                </p>
+                {/* J3 v2: a posição e o prazo antes de entrar (contagem do servidor, nunca estimada). */}
+                {typeof gira.waitlist_count === 'number' && (
+                  <dl className="mt-3 border-b border-border" data-testid="fila-antes-de-entrar">
+                    <div className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+                      <dt className="text-[0.9375rem] text-muted-foreground">Na fila agora</dt>
+                      <dd className="m-0 text-right text-[0.9375rem] font-semibold">
+                        {gira.waitlist_count === 0
+                          ? 'Ninguém: você seria a 1ª'
+                          : `${gira.waitlist_count} ${gira.waitlist_count === 1 ? 'pessoa' : 'pessoas'} · você seria a ${gira.waitlist_count + 1}ª`}
+                      </dd>
+                    </div>
+                    {gira.waitlist_confirmation_minutes ? (
+                      <div className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+                        <dt className="text-[0.9375rem] text-muted-foreground">Se abrir uma vaga</dt>
+                        <dd className="m-0 text-right text-[0.9375rem] font-semibold">
+                          {`você tem ${duracao(gira.waitlist_confirmation_minutes)} para confirmar`}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                )}
+              </>
             )}
 
             {submitError && (

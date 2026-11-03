@@ -30,6 +30,14 @@ import {
   type PublicTicket,
 } from './bilhete-utils';
 
+/** Rótulo curto do selo "Preferencial" do bilhete (J3 v2), pela categoria do produto. */
+const SELO_PREFERENCIAL: Record<string, string> = {
+  ELDERLY: '60+',
+  DISABILITY_OR_AUTISM: 'PcD / TEA',
+  PREGNANT_LACTATING_OR_INFANT: 'Gestante ou colo',
+  REDUCED_MOBILITY: 'Mobilidade',
+};
+
 export interface BilheteProps {
   ticket: PublicTicket;
   /** UUID da senha — habilita "Cancelar minha senha" (link para /public/ticket/{id}/cancelar). */
@@ -111,6 +119,11 @@ export function Bilhete({
               {ticket.ticket_number}
             </p>
             {ticket.consulente_name && <p className="mt-2 text-lg font-semibold">{ticket.consulente_name.split(' ').slice(0, 2).join(' ')}</p>}
+            {ticket.priority_category && SELO_PREFERENCIAL[ticket.priority_category] && (
+              <span className="mt-2 inline-flex rounded-full bg-[color:var(--color-ouro-300)] px-2.5 py-0.5 text-[0.8125rem] font-semibold text-foreground">
+                Preferencial · {SELO_PREFERENCIAL[ticket.priority_category]}
+              </span>
+            )}
             {ticket.status !== 'emitted' && (
               <Badge
                 variant={done ? 'outline' : 'secondary'}

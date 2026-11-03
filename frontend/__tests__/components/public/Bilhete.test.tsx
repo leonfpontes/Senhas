@@ -145,4 +145,9 @@ describe('utilitários do bilhete', () => {
     expect(text).toContain('Salão principal · Rua das Flores, 123');
     expect(whatsappShareUrl('a b')).toBe('https://wa.me/?text=a%20b');
   });
+
+  it('preferencial: selo "Preferencial · 60+" com a categoria da senha', () => {
+    render(<Bilhete ticket={makeTicket({ priority_category: 'ELDERLY' })} />);
+    expect(screen.getByText('Preferencial · 60+')).toBeInTheDocument();
+  });
 });

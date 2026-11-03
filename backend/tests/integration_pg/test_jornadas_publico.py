@@ -107,6 +107,29 @@ async def test_gira_lotada_com_horarios_entra_na_fila_sem_escolher_horario(clien
     assert "email_sent" not in fila.json()
 
 
+async def test_pagina_da_gira_lotada_mostra_quantos_esperam_e_o_prazo(client, db, enqueued):
+    """J3 v2: antes de entrar na fila, a contagem (só número, da casa e da gira) e o prazo para confirmar."""
+    tenant = await create_tenant(db)
+    await _enable(db, tenant, enable_waitlist=True)
+    gira = await create_gira(db, tenant, max_tickets=1)
+    assert (await _emit(client, tenant, gira, "a@example.com")).status_code == 200
+    assert (await _emit(client, tenant, gira, "b@example.com")).json()["waitlisted"] is True
+    assert (await _emit(client, tenant, gira, "c@example.com")).json()["waitlisted"] is True
+
+    # Outra casa com gente na fila não entra na conta.
+    outra = await create_tenant(db)
+    await _enable(db, outra, enable_waitlist=True)
+    gira_outra = await create_gira(db, outra, max_tickets=1)
+    await _emit(client, outra, gira_outra, "x@example.com")
+    await _emit(client, outra, gira_outra, "y@example.com")
+
+    pagina = (await client.get(f"/api/v1/public/gira/{gira.id}")).json()
+    assert pagina["is_exhausted"] is True and pagina["waitlist_available"] is True
+    assert pagina["waitlist_count"] == 2
+    assert pagina["waitlist_confirmation_minutes"] > 0
+    assert "a@example.com" not in str(pagina) and "b@example.com" not in str(pagina)
+
+
 async def test_horario_obrigatorio_quando_a_senha_tem_vaga(client, db, enqueued):
     tenant, gira, _slot_ = await _gira_com_horario(db, max_tickets=10)
 
