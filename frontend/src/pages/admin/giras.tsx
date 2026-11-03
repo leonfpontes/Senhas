@@ -28,14 +28,14 @@ import {
   Clock,
   Info,
   Lock,
+  LockOpen,
   Plus,
   QrCode,
   RefreshCw,
-  Rocket,
-  Star,
+  Share2,
   Ticket,
   Trash2,
-  Users,
+  TriangleAlert,
 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
@@ -216,25 +216,49 @@ export function janelaEmFrase(inicio: string, fim: string): string | null {
 function GiraUsageBar({ used, max }: { used: number; max: number }) {
   const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
   const atLimit = used >= max;
+  const barra = (
+    <div className="flex w-full max-w-sm flex-col gap-1.5">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-semibold text-foreground">Giras criadas este mês</span>
+        <span className={cn('font-semibold tabular-nums text-[color:var(--color-barro-700)]', atLimit && 'text-warning-strong')}>
+          {used} de {max}
+        </span>
+      </div>
+      <Progress value={pct} className="h-1.5" aria-label="Giras criadas este mês" />
+    </div>
+  );
+  // J2 v2 · 12: no limite, a barra vira um aviso com o caminho para os planos.
+  if (atLimit) {
+    return (
+      <div className="flex w-full max-w-md flex-col gap-2 rounded-[10px] border border-warning/40 bg-warning/10 p-3.5" data-testid="limite-do-mes">
+        {barra}
+        <p className="text-sm font-semibold text-warning-strong">
+          Limite do plano atingido.{' '}
+          <Link href="/admin/billing" className="text-foreground underline underline-offset-4">
+            Ver planos
+          </Link>{' '}
+          <span className="font-normal text-foreground">para criar mais giras.</span>
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <div className="flex w-full max-w-sm flex-col gap-1.5">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-muted-foreground">Giras criadas este mês</span>
-          <span className={cn('font-semibold tabular-nums text-[color:var(--color-barro-700)]', atLimit && 'text-warning-strong')}>
-            {used} de {max}
-          </span>
-        </div>
-        <Progress value={pct} className="h-1.5" aria-label="Giras criadas este mês" />
-      </div>
+      {barra}
       <span className="flex-1" />
-      <p className="text-sm text-muted-foreground">
-        {atLimit && 'Limite do plano atingido. '}
-        <Link href="/admin/billing" className="font-semibold text-foreground underline underline-offset-4">
-          Ver planos
-        </Link>
-      </p>
+      <Link href="/admin/billing" className="text-sm font-semibold text-foreground underline underline-offset-4">
+        Ver planos
+      </Link>
     </div>
+  );
+}
+
+/** "🔒 Premium" no título da seção: o plano que libera, sem esconder a seção (J2 v2 · 11). */
+function SeloDoPlano({ feature }: { feature: PlanFeatureKey }) {
+  return (
+    <span className="flex items-center gap-1 text-[0.8125rem] font-semibold text-[color:var(--color-barro-700)]">
+      <Lock aria-hidden className="size-3.5" /> {minPlanFor(feature).label}
+    </span>
   );
 }
 
@@ -1298,6 +1322,17 @@ function AdminGirasContent() {
         {createStep === 0 && (
           <div className="flex flex-col gap-4">
             <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">Qual é a próxima gira?</h3>
+            {/* J2 v2 · 13: quem não edita giras sabe logo no primeiro passo que as senhas ficam para depois. */}
+            {!canEdit && (
+              <Alert variant="warning" data-testid="create-sem-senhas-aviso">
+                <TriangleAlert aria-hidden />
+                <AlertTitle>A gira será criada sem senhas liberadas</AlertTitle>
+                <AlertDescription>
+                  Configurar as senhas precisa da permissão de editar giras. Depois de criar, peça a quem tem essa
+                  permissão para abrir “Configurar senhas” na gira.
+                </AlertDescription>
+              </Alert>
+            )}
             <TextField
               label="Nome da gira"
               placeholder="Ex.: Gira de Caboclos"
@@ -1642,10 +1677,11 @@ function AdminGirasContent() {
         open={senhaDrawerOpen}
         onClose={closeSenhaDrawer}
         title="Configurar senhas"
-        subtitle={senhaTarget ? `Quantidade e horário das senhas de “${senhaTarget.nome}”.` : ''}
+        subtitle={senhaTarget ? [senhaTarget.nome, formatGiraCurta(senhaTarget.data_inicio)].filter(Boolean).join(' · ') : ''}
         icon={<Ticket />}
+        estilo="v2"
         onSave={handleSenhaSave}
-        saveLabel="Salvar"
+        saveLabel="Salvar senhas"
         saving={senhaSaving}
         saveDisabled={senhaSaveDisabled}
         isDirty={senhaDirty}
@@ -1711,8 +1747,11 @@ function AdminGirasContent() {
 
             {senhaConfig && senhaConfig.max_tickets > 0 && (
               <div className="flex flex-col gap-1.5">
-                <p className="text-sm text-muted-foreground">
-                  {senhaConfig.current_count} de {senhaConfig.max_tickets} senhas emitidas
+                <p className="flex items-center justify-between text-sm font-semibold">
+                  <span>Senhas emitidas</span>
+                  <span className="tabular-nums text-[color:var(--color-barro-700)]">
+                    {senhaConfig.current_count} de {senhaConfig.max_tickets}
+                  </span>
                 </p>
                 <Progress
                   value={Math.min(100, (senhaConfig.current_count / senhaConfig.max_tickets) * 100)}
@@ -1724,22 +1763,26 @@ function AdminGirasContent() {
 
             <div className="flex flex-col gap-2 sm:flex-row">
               {senhaConfig?.public_link && (
-                <Button type="button" variant="outline" className="flex-1" onClick={() => senhaTarget && void openGiraShare(senhaTarget, senhaConfig)}>
-                  <QrCode aria-hidden /> Compartilhar link
+                <Button type="button" variant="outline" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => senhaTarget && void openGiraShare(senhaTarget, senhaConfig)}>
+                  Compartilhar link <Share2 aria-hidden />
                 </Button>
               )}
               {senhaTarget && canEdit && (
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setReleaseTarget(senhaTarget)}>
-                  <Rocket aria-hidden /> Liberar agora
+                <Button type="button" variant="outline" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => setReleaseTarget(senhaTarget)}>
+                  Liberar agora <LockOpen aria-hidden />
                 </Button>
               )}
             </div>
 
-            <Accordion type="multiple" className="rounded-lg border px-3">
+            {/* J2 v2 · 11: seções separadas por filete; o que o plano não cobre diz o plano no título. */}
+            <Accordion type="multiple" className="border-t border-border [&_[data-slot=accordion-trigger]]:text-base [&_[data-slot=accordion-trigger]]:font-semibold">
               <AccordionItem value="acompanhantes">
                 <AccordionTrigger>
-                  <span className="flex items-center gap-2">
-                    <Users className="size-4" aria-hidden /> Acompanhantes
+                  <span className="flex flex-col items-start gap-0.5">
+                    Acompanhantes
+                    <span className="text-[0.8125rem] font-normal text-muted-foreground">
+                      {senhaForm.allow_acompanhantes ? `Até ${senhaForm.max_acompanhantes || 1} por senha` : 'Desligado'}
+                    </span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
@@ -1774,10 +1817,18 @@ function AdminGirasContent() {
                 </AccordionContent>
               </AccordionItem>
 
-              {can('fila_espera') && (
+              {(can('fila_espera') || !subLoading) && (
                 <AccordionItem value="fila">
-                  <AccordionTrigger>Fila de espera</AccordionTrigger>
+                  <AccordionTrigger>
+                    <span className="flex flex-1 items-center justify-between gap-3 pr-2">
+                      Fila de espera
+                      {!can('fila_espera') && <SeloDoPlano feature="fila_espera" />}
+                    </span>
+                  </AccordionTrigger>
                   <AccordionContent>
+                    {!can('fila_espera') ? (
+                      <PlanLockedInline feature="fila_espera" text="Quando as senhas acabam, quem chega entra na fila e é avisado se abrir uma vaga." />
+                    ) : (
                     <DurationField
                       label="Prazo para confirmar a vaga (hh:mm)"
                       min={WAITLIST_MIN_MINUTES}
@@ -1786,14 +1837,16 @@ function AdminGirasContent() {
                       onChange={(m) => handleSenhaChange('waitlist_confirmation_minutes', m == null ? '' : String(m))}
                       helperText="Quando abre uma vaga, quem está na fila tem esse prazo para confirmar antes de passar para o próximo. Aceita horas e minutos (ex.: 00:45, 01:30). Em branco: 24h."
                     />
+                    )}
                   </AccordionContent>
                 </AccordionItem>
               )}
 
               <AccordionItem value="horarios">
                 <AccordionTrigger>
-                  <span className="flex items-center gap-2">
-                    <Clock className="size-4" aria-hidden /> Horários de atendimento
+                  <span className="flex flex-1 items-center justify-between gap-3 pr-2">
+                    Horários de atendimento
+                    {!subLoading && !can('agendamento_por_horario') && <SeloDoPlano feature="agendamento_por_horario" />}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
@@ -1884,8 +1937,9 @@ function AdminGirasContent() {
 
               <AccordionItem value="associados">
                 <AccordionTrigger>
-                  <span className="flex items-center gap-2">
-                    <Star className="size-4 text-warning" aria-hidden /> Senhas de associados
+                  <span className="flex flex-1 items-center justify-between gap-3 pr-2">
+                    Senhas de associados
+                    {!subLoading && !can('associados') && <SeloDoPlano feature="associados" />}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">

@@ -64,6 +64,11 @@ export interface CrudDrawerProps {
   acaoSecundaria?: { rotulo: string; aoClicar: () => void };
   /** Ícone depois do rótulo do botão principal (modo `passos`). */
   saveIcon?: React.ReactNode;
+  /**
+   * `v2` (jornadas v2, ex.: Configurar senhas): título em Fraunces sem ícone, campos no tamanho do
+   * desenho e os botões do rodapé maiores. O padrão continua o de sempre.
+   */
+  estilo?: 'padrao' | 'v2';
 }
 
 export default function CrudDrawer({
@@ -83,7 +88,9 @@ export default function CrudDrawer({
   passos,
   acaoSecundaria,
   saveIcon,
+  estilo = 'padrao',
 }: CrudDrawerProps) {
+  const v2 = estilo === 'v2';
   const [confirmOpen, setConfirmOpen] = useState(false);
   // J2 v2 · 09: no celular, a gaveta em passos sobe de baixo (GavetaInferior), um passo por vez.
   const celular = useMediaQuery('(max-width: 639px)');
@@ -117,7 +124,7 @@ export default function CrudDrawer({
           className={cn(
             'flex w-full max-w-full flex-col gap-0 p-0',
             'min-[640px]:w-[480px] min-[640px]:max-w-[480px]',
-            passos && 'gaveta-v2',
+            (passos || v2) && 'gaveta-v2',
             inferior && 'max-h-[92dvh] rounded-t-[22px] border-t-0',
             className,
           )}
@@ -156,12 +163,20 @@ export default function CrudDrawer({
           <div className="px-6 pt-6 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                {icon && (
+                {icon && !v2 && (
                   <span className="flex shrink-0 items-center text-brand [&_svg]:size-6">
                     {icon}
                   </span>
                 )}
-                <SheetTitle className="truncate text-lg font-bold tracking-tight">{title}</SheetTitle>
+                <SheetTitle
+                  className={cn(
+                    v2
+                      ? 'font-display text-[2rem] leading-[1.1] font-normal tracking-[-0.02em]'
+                      : 'truncate text-lg font-bold tracking-tight',
+                  )}
+                >
+                  {title}
+                </SheetTitle>
               </div>
               <Button
                 type="button"
@@ -182,7 +197,7 @@ export default function CrudDrawer({
           </div>
           )}
 
-          {!passos && <div className="h-px w-full bg-border" role="presentation" />}
+          {!passos && !v2 && <div className="h-px w-full bg-border" role="presentation" />}
 
           {/* Corpo — área rolável do formulário */}
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
@@ -221,10 +236,10 @@ export default function CrudDrawer({
           <>
           <div className="h-px w-full bg-border" role="presentation" />
           <div className="flex justify-end gap-3 bg-card px-6 py-4">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
+            <Button type="button" variant="outline" className={cn(v2 && 'h-12 px-5 text-base font-semibold')} onClick={handleClose} disabled={saving}>
               Cancelar
             </Button>
-            <Button type="button" onClick={onSave} disabled={saving || saveDisabled}>
+            <Button type="button" className={cn(v2 && 'h-12 px-5 text-base font-semibold')} onClick={onSave} disabled={saving || saveDisabled}>
               {saving && <Loader2 className="animate-spin" aria-hidden />}
               {saveLabel}
             </Button>
