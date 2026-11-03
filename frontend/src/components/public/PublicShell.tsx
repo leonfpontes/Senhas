@@ -103,6 +103,21 @@ export function PublicShell({
   const showLogo = Boolean(logoUrl) && !logoFailed;
   const initial = (tenantName || '').trim().charAt(0).toUpperCase();
 
+  // A barra fixa de baixo muda de altura (botão, prazo, aviso de dados, quebra de linha no celular):
+  // o fim do conteúdo reserva a altura REAL dela, para o "Powered by GiraHub" não ficar por baixo.
+  const footerRef = React.useRef<HTMLDivElement | null>(null);
+  const [footerHeight, setFooterHeight] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const el = footerRef.current;
+    if (!footer || !el) return;
+    const medir = () => setFooterHeight(el.getBoundingClientRect().height);
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [footer]);
+
   return (
     <>
       <Head>
@@ -112,12 +127,16 @@ export function PublicShell({
       </Head>
       <div
         data-slot="public-shell"
-        style={brandStyle(brand)}
+        style={{
+          ...brandStyle(brand),
+          // A altura medida já inclui o env(safe-area-inset-bottom) da barra; mais 1rem de respiro.
+          ...(footer && footerHeight !== null ? { paddingBottom: `calc(${footerHeight}px + 1rem)` } : {}),
+        }}
         className={cn(
           // Jornada 3 v2: superfície "terra" (areia + tinta, títulos em Fraunces); a cor da casa continua no --primary.
           fraunces.variable,
           'public-terra flex min-h-screen flex-col bg-background text-base text-foreground antialiased',
-          footer && 'pb-[calc(6rem+env(safe-area-inset-bottom))]',
+          footer && footerHeight === null && 'pb-[calc(11rem+env(safe-area-inset-bottom))]',
           className,
         )}
       >
@@ -164,6 +183,7 @@ export function PublicShell({
 
         {footer && (
           <div
+            ref={footerRef}
             data-slot="public-shell-footer"
             className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
