@@ -22,7 +22,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { CalendarClock, CalendarX2, Clock, Hourglass, Loader2, Mail, MapPin, SearchX, Star, Ticket, Users, WifiOff } from 'lucide-react';
+import { ArrowRight, CalendarX2, Clock, Hourglass, Loader2, Mail, SearchX, Star, WifiOff } from 'lucide-react';
 import { guardarBilhete } from '@/lib/bilheteGuardado';
 import { PRIORITY_CATEGORY_LABELS, PRIORITY_ORDER } from 'shared-types';
 import type { GiraPublic } from 'shared-types';
@@ -48,7 +48,6 @@ import {
   PublicShell,
   errorStatus,
   formatGiraDate,
-  formatGiraDateShort,
   isTimeSlotError,
   publicErrorMessage,
   tenantAgendaPath,
@@ -162,13 +161,38 @@ function CountdownBlock({ seconds }: { seconds: number }) {
   );
 }
 
-function formatLongDate(iso: string): string {
+const TZ = 'America/Sao_Paulo';
+function partes(iso: string) {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
-  }).format(d);
+  if (Number.isNaN(d.getTime())) return null;
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('pt-BR', { ...o, timeZone: TZ }).format(d);
+  const h = Number(f({ hour: 'numeric', hour12: false }));
+  const m = Number(f({ minute: 'numeric' }));
+  const semana = f({ weekday: 'long' }).replace('-feira', '');
+  return { d, h, m, semana, dia: Number(f({ day: 'numeric' })), mes: Number(f({ month: 'numeric' })), mesNome: f({ month: 'long' }) };
 }
+/** '19:40' -> '19h40' */
+const horaDoSlot = (hhmm: string) => (hhmm ? hhmm.slice(0, 5).replace(':', 'h') : '');
+const horaFala = (h: number, m: number) => (m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`);
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+/** "Sábado, 8 de novembro · 19h" */
+function dataLonga(iso: string): string {
+  const p = partes(iso);
+  return p ? `${cap(p.semana)}, ${p.dia} de ${p.mesNome} · ${horaFala(p.h, p.m)}` : '';
+}
+/** "Sáb, 8/11 · 19h" */
+function dataCurta(iso: string): string {
+  const p = partes(iso);
+  return p ? `${cap(p.semana.slice(0, 3))}, ${p.dia}/${p.mes} · ${horaFala(p.h, p.m)}` : '';
+}
+/** "Sexta, 7 de novembro, ao meio-dia" / "às 18h30" */
+function aberturaEmFrase(iso: string): string {
+  const p = partes(iso);
+  if (!p) return '';
+  const quando = p.h === 12 && !p.m ? 'ao meio-dia' : p.h === 0 && !p.m ? 'à meia-noite' : `às ${horaFala(p.h, p.m)}`;
+  return `${cap(p.semana)}, ${p.dia} de ${p.mesNome}, ${quando}`;
+}
+
 
 function formatMinutes(seconds: number): string {
   const min = Math.max(0, Math.floor(seconds / 60));
@@ -458,7 +482,8 @@ export default function PublicGiraPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   const brand = { primary: gira?.primary_color, secondary: gira?.secondary_color };
-  const subtitle = gira ? [formatGiraDateShort(gira.data_inicio), gira.local].filter(Boolean).join(' · ') : undefined;
+  // Jornada 3 v2: na faixa da casa, o endereço dela (o link que circula no WhatsApp).
+  const subtitle = gira ? `girahub.com.br/${gira.tenant_slug}` : undefined;
   const pageTitle = gira ? `${gira.nome} · ${gira.tenant_name}` : 'Pegar minha senha';
 
   if (loading) {
@@ -502,6 +527,8 @@ export default function PublicGiraPage() {
   );
 
   const showForm = isOpen && !success;
+  // J3 v2 · 08: quem já tem senha vê uma tela própria, não um alerta no meio do formulário.
+  const jaTemSenha = showForm && submitError?.kind === 'conflict';
 
   const submitLabel = submitting
     ? 'Enviando…'
@@ -509,19 +536,55 @@ export default function PublicGiraPage() {
       ? 'Entrar na fila de espera'
       : paraOutraPessoa
         ? `Pegar a senha para ${(nomeDigitado || '').trim().split(/\s+/)[0] || 'essa pessoa'}`
-        : 'Pegar minha senha';
+        : 'Pegar a senha';
 
-  const footer = showForm ? (
+  const footer = jaTemSenha ? (
     <div className="flex flex-col gap-1.5">
-      <Button type="submit" form="emit-form" size="touch" className="w-full" disabled={submitting} aria-busy={submitting}>
-        {submitting ? <Loader2 className="animate-spin" /> : waitlistMode ? <Hourglass /> : <Ticket />}
+      <Button
+        type="button"
+        size="touch"
+        className="h-[58px] w-full text-[1.1875rem] font-bold"
+        onClick={handleResend}
+        disabled={resending}
+      >
+        {resending ? <Loader2 className="animate-spin" /> : null}
+        Reenviar meu e-mail
+        {!resending && <Mail aria-hidden />}
+      </Button>
+      <Button type="button" variant="ghost" size="touch" className="w-full text-base font-semibold" onClick={() => setSubmitError(null)}>
+        Usar outro e-mail
+      </Button>
+    </div>
+  ) : isExhausted && !success ? (
+    <Button asChild size="touch" className="h-[58px] w-full text-[1.1875rem] font-bold">
+      <Link href={tenantAgendaPath(gira.tenant_slug)}>
+        Ver próximas giras <ArrowRight aria-hidden />
+      </Link>
+    </Button>
+  ) : showForm ? (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        type="submit"
+        form="emit-form"
+        size="touch"
+        className="h-[58px] w-full text-[1.1875rem] font-bold"
+        disabled={submitting}
+        aria-busy={submitting}
+      >
+        {submitting ? <Loader2 className="animate-spin" /> : waitlistMode ? <Hourglass /> : null}
         {submitLabel}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">Emissão encerra em {formatMinutes(countdown.timeRemaining)}</p>
-      <p className="text-center text-xs text-muted-foreground">
-        Seus dados são usados para emitir sua senha e enviar avisos sobre ela.{' '}
-        <Link href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
-          Política de privacidade
+      {/* J3 v2: o prazo e a privacidade numa linha só, como no rodapé do desenho. */}
+      <p className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-semibold text-warning-strong">A emissão encerra em {formatMinutes(countdown.timeRemaining)}</span>
+        <Link
+          href="/privacidade"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-foreground underline-offset-2 hover:underline"
+          title="Seus dados são usados para emitir sua senha e enviar avisos sobre ela."
+        >
+          Privacidade
         </Link>
       </p>
     </div>
@@ -547,20 +610,81 @@ export default function PublicGiraPage() {
       {/* Cabeçalho da gira */}
       {!success && (
         <section aria-labelledby="gira-titulo" className="px-1 pt-1">
-          <h1 id="gira-titulo" className="font-display text-[2rem] font-semibold leading-tight [text-wrap:balance]">{gira.nome}</h1>
-          {gira.descricao && <p className="mt-1 text-base text-muted-foreground">{gira.descricao}</p>}
-          <ul className="mt-2 flex flex-col gap-1 text-base">
-            <li className="flex items-center gap-2">
-              <CalendarClock aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              <span className="font-semibold">{formatGiraDate(gira.data_inicio, '')}</span>
-            </li>
-            {gira.local && (
-              <li className="flex items-center gap-2">
-                <MapPin aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                <span>{gira.local}</span>
-              </li>
-            )}
-          </ul>
+          {waitlistMode && showForm && !jaTemSenha ? (
+            <>
+              <h1 id="gira-titulo" className="font-display text-[2rem] font-normal leading-tight tracking-[-0.02em] [text-wrap:balance]">
+                {gira.max_tickets ? `As ${gira.max_tickets} senhas ` : 'As senhas '}
+                <em className="text-[color:var(--color-barro-600)]">acabaram.</em>
+              </h1>
+              <p className="mt-0.5 text-base font-medium text-muted-foreground">
+                {gira.nome} · {dataCurta(gira.data_inicio)}
+              </p>
+            </>
+          ) : (
+            <h1 id="gira-titulo" className="font-display text-[2rem] font-normal leading-tight tracking-[-0.02em] [text-wrap:balance]">{gira.nome}</h1>
+          )}
+          {gira.descricao && !waitlistMode && <p className="mt-1 text-base text-muted-foreground">{gira.descricao}</p>}
+          {waitlistMode && showForm && !jaTemSenha ? null : isWaiting || !showForm || jaTemSenha ? (
+            <p className="mt-1 text-[1.0625rem] font-semibold">{dataLonga(gira.data_inicio)}</p>
+          ) : (
+            <p className="mt-1 flex items-center justify-between gap-3 text-[1.0625rem] font-semibold">
+              <span>{dataCurta(gira.data_inicio)}</span>
+              <span className={waitlistMode ? 'text-warning-strong' : 'text-[color:var(--color-folha-700)]'}>
+                {waitlistMode ? 'Lotou: fila de espera' : 'Ainda tem senha'}
+              </span>
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Beta: receber a senha de novo (só no e-mail) */}
+      {betaReceberDeNovo && !success && (isOpen || isExhausted) && (
+        <section className="flex flex-col gap-3 px-1" aria-labelledby="receber-de-novo">
+          {!receberAberto ? (
+            <Button
+              type="button"
+              variant="link"
+              className="h-11 self-start px-0 text-base font-semibold text-foreground underline underline-offset-4"
+              onClick={() => setReceberAberto(true)}
+            >
+              Já pegou? Receber a senha de novo <ArrowRight aria-hidden />
+            </Button>
+          ) : (
+            <form onSubmit={handleReceberDeNovo} className="flex flex-col gap-3" noValidate>
+              <h2 id="receber-de-novo" className="font-display text-2xl font-semibold">
+                Receber a senha <em className="text-[color:var(--color-barro-600)]">de novo.</em>
+              </h2>
+              <p className="text-base text-muted-foreground">
+                Digite o e-mail que você usou ao pegar a senha. Mandamos o bilhete para ele de novo.
+              </p>
+              <TextField
+                label="E-mail"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                inputClassName="h-12"
+                value={receberEmail}
+                onChange={(e) => {
+                  setReceberEmail(e.target.value);
+                  if (receberEstado !== 'enviando') setReceberEstado('idle');
+                }}
+              />
+              {receberEstado === 'pronto' && (
+                <Alert variant="success">
+                  <AlertTitle>Pronto</AlertTitle>
+                  <AlertDescription>Se este e-mail tiver senha nesta gira, ela chega em instantes. Olhe também o spam.</AlertDescription>
+                </Alert>
+              )}
+              {receberEstado === 'erro' && (
+                <Alert variant="destructive">
+                  <AlertDescription>Não foi possível mandar agora. Confira a internet e tente de novo.</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" size="touch" className="w-full" disabled={receberEstado === 'enviando' || !receberEmail.trim()}>
+                {receberEstado === 'enviando' ? <Loader2 className="animate-spin" /> : <Mail aria-hidden />} Mandar de novo
+              </Button>
+            </form>
+          )}
         </section>
       )}
 
@@ -577,59 +701,51 @@ export default function PublicGiraPage() {
 
       {/* Aguardando — contagem regressiva */}
       {isWaiting && (
-        <Card className="border-0 bg-transparent py-2 shadow-none ring-0">
-          <CardContent className="px-1 text-center">
-            <h2 className="font-display text-2xl font-semibold">As senhas abrem em</h2>
-            <CountdownBlock seconds={countdown.timeRemaining} />
-            <p className="text-base">
-              {formatLongDate(gira.release_start_at as string)}
-              {gira.max_tickets ? `. ${gira.max_tickets} senhas.` : '.'} Pode deixar esta página aberta: o formulário aparece aqui na hora.
-            </p>
-          </CardContent>
-        </Card>
+        <section className="flex flex-col gap-3 px-1 pt-2" aria-labelledby="abrem-em">
+          <h2 id="abrem-em" className="font-display text-[1.5rem] font-normal tracking-[-0.01em]">As senhas abrem em</h2>
+          <CountdownBlock seconds={countdown.timeRemaining} />
+          <p className="text-[1.0625rem]">
+            {aberturaEmFrase(gira.release_start_at as string)}.{gira.max_tickets ? ` ${gira.max_tickets} senhas.` : ''} Pode
+            deixar esta página aberta: o formulário aparece aqui na hora.
+          </p>
+          {gira.recados && (
+            <div className="border-t border-border pt-3">
+              <p className="text-base font-semibold">Recado da casa</p>
+              <p className="mt-1 text-base whitespace-pre-line text-muted-foreground">{gira.recados}</p>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Aberta — formulário (ou fila de espera, quando lotado mas com fila habilitada) */}
-      {showForm && (
+      {jaTemSenha && (
+        <section aria-labelledby="ja-tem-senha" className="px-1" ref={errorRef}>
+          <h2 id="ja-tem-senha" className="font-display text-[1.75rem] font-normal leading-tight tracking-[-0.02em]">
+            Você já tem <em className="text-[color:var(--color-barro-600)]">senha.</em>
+          </h2>
+          <p className="mt-2 text-[1.0625rem] leading-relaxed">
+            O e-mail {getValues('email').trim()} já pegou senha para esta gira. A senha é uma por pessoa.
+          </p>
+          <p className="mt-3 text-[0.9375rem] text-muted-foreground">
+            Não achou o e-mail? Olhe o spam ou peça de novo: mandamos a mesma senha.
+          </p>
+        </section>
+      )}
+
+      {showForm && !jaTemSenha && (
         <Card className="border-0 bg-transparent py-2 shadow-none ring-0">
           <CardContent className="px-1">
-            <h2 className="font-display text-2xl font-semibold">
-              {waitlistMode ? 'Entrar na fila de espera' : isSponsor ? 'Sua senha de associado' : 'Seus dados'}
-            </h2>
+            {isSponsor && !waitlistMode && <h2 className="font-display text-2xl font-normal">Sua senha de associado</h2>}
 
             {waitlistMode && (
-              <Alert variant="info" className="mt-3">
-                <Hourglass />
-                <AlertDescription>
-                  As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar na fila de espera —
-                  se alguma senha for cancelada, avisamos por e-mail.
-                </AlertDescription>
-              </Alert>
+              <p className="text-[1.0625rem] leading-relaxed">
+                As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar na fila de espera — se
+                alguma senha for cancelada, avisamos por e-mail.
+              </p>
             )}
 
             {submitError && (
               <div ref={errorRef} className="mt-3">
-                {submitError.kind === 'conflict' && (
-                  <Alert variant="warning">
-                    <Ticket />
-                    <AlertTitle>Você já tem senha para esta gira</AlertTitle>
-                    <AlertDescription>
-                      <p>{submitError.message}</p>
-                      <p>Não achou o e-mail? Reenviamos para o endereço informado acima.</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="touch"
-                        className="mt-1 w-full"
-                        onClick={handleResend}
-                        disabled={resending}
-                      >
-                        {resending && <Loader2 className="animate-spin" />}
-                        Reenviar meu e-mail
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
                 {submitError.kind === 'slot' && (
                   <Alert variant="warning">
                     <Clock />
@@ -670,11 +786,12 @@ export default function PublicGiraPage() {
             )}
 
             <form id="emit-form" onSubmit={submit} noValidate className="mt-4 flex flex-col gap-5">
-              {/* Horários */}
+              {/* Horários (J3 v2 · 03): uma linha de 60 px por horário, a hora e as vagas; esgotado é dito, não apagado. */}
               {requiresSlot && (
-                <fieldset ref={slotsRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
-                  <legend className="p-0 mb-2 flex items-center gap-2 text-base font-medium">
-                    <Clock aria-hidden className="size-4 text-muted-foreground" /> Escolha o horário que pretende ser atendido
+                <fieldset ref={slotsRef} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+                  <legend className="mb-2 p-0">
+                    <span className="block font-display text-[1.5rem] font-normal tracking-[-0.01em]">Que horas você chega?</span>
+                    <span className="block text-base text-muted-foreground">Cada senha tem hora marcada</span>
                   </legend>
                   {gira.time_slots.length === 0 ? (
                     <p className="text-base text-muted-foreground">Nenhum horário disponível no momento.</p>
@@ -683,33 +800,36 @@ export default function PublicGiraPage() {
                       control={control}
                       name="timeSlotId"
                       render={({ field }) => (
-                        <ToggleGroup
-                          type="single"
-                          variant="outline"
-                          spacing={2}
+                        <RadioGroup
                           value={field.value ?? ''}
                           onValueChange={(v) => field.onChange(v || null)}
                           aria-label="Horário de atendimento"
                           aria-invalid={Boolean(errors.timeSlotId) || undefined}
-                          className="flex-wrap"
+                          className="gap-2"
                         >
                           {gira.time_slots.map((slot) => {
                             const full = slot.vagas_disponiveis <= 0;
+                            const id = `slot-${slot.id}`;
+                            const escolhido = field.value === slot.id;
                             return (
-                              <ToggleGroupItem
+                              <Label
                                 key={slot.id}
-                                value={slot.id}
-                                disabled={full}
-                                className="h-auto min-w-[5.5rem] flex-col items-center gap-0.5 rounded-md px-3 py-2 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                                htmlFor={id}
+                                className={cn(
+                                  'flex min-h-[60px] items-center gap-3 rounded-[10px] border px-[18px] text-[1.1875rem] font-semibold',
+                                  full ? 'cursor-not-allowed border-transparent bg-muted text-muted-foreground' : 'cursor-pointer bg-card',
+                                  escolhido && 'border-[1.5px] border-primary bg-primary/5',
+                                )}
                               >
-                                <span className="text-base font-bold">{slot.horario}</span>
-                                <span className="text-sm opacity-80">
-                                  {full ? 'Esgotado' : `${slot.vagas_disponiveis} vaga${slot.vagas_disponiveis === 1 ? '' : 's'}`}
+                                <span className="flex-1">{horaDoSlot(slot.horario)}</span>
+                                <span className={cn('text-base font-semibold', full ? 'font-medium' : 'text-[color:var(--color-folha-700)]')}>
+                                  {full ? 'esgotado' : `${slot.vagas_disponiveis} vaga${slot.vagas_disponiveis === 1 ? '' : 's'}`}
                                 </span>
-                              </ToggleGroupItem>
+                                <RadioGroupItem id={id} value={slot.id} disabled={full} className="size-6" />
+                              </Label>
                             );
                           })}
-                        </ToggleGroup>
+                        </RadioGroup>
                       )}
                     />
                   )}
@@ -717,8 +837,8 @@ export default function PublicGiraPage() {
                     <p role="alert" className="text-sm text-destructive">{errors.timeSlotId.message}</p>
                   )}
                   {timeSlotId && !errors.timeSlotId && (
-                    <p className="text-sm text-muted-foreground">
-                      Horário escolhido: {gira.time_slots.find((s) => s.id === timeSlotId)?.horario}
+                    <p className="text-base font-semibold">
+                      Horário escolhido: {horaDoSlot(gira.time_slots.find((s) => s.id === timeSlotId)?.horario ?? '')}
                     </p>
                   )}
                 </fieldset>
@@ -742,13 +862,13 @@ export default function PublicGiraPage() {
                       >
                         <ToggleGroupItem
                           value="mim"
-                          className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                          className="h-12 flex-1 text-base data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background"
                         >
                           Para mim
                         </ToggleGroupItem>
                         <ToggleGroupItem
                           value="outra"
-                          className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                          className="h-12 flex-1 text-base data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background"
                         >
                           Para outra pessoa
                         </ToggleGroupItem>
@@ -775,7 +895,7 @@ export default function PublicGiraPage() {
                 required
                 autoComplete="email"
                 inputMode="email"
-                helperText={paraOutraPessoa ? 'A senha chega para você. Mostre ou encaminhe para quem vai.' : 'A senha chega aqui'}
+                helperText={paraOutraPessoa ? 'A senha chega para você. Mostre ou encaminhe para quem vai.' : 'A senha chega aqui.'}
                 error={errors.email?.message}
                 inputClassName="h-12"
                 {...register('email')}
@@ -797,7 +917,7 @@ export default function PublicGiraPage() {
                     onBlur={field.onBlur}
                     ref={field.ref}
                     error={errors.telefone?.message}
-                    helperText={errors.telefone ? undefined : 'Opcional'}
+                    helperText={errors.telefone ? undefined : 'Opcional.'}
                     inputClassName="h-12"
                   />
                 )}
@@ -806,11 +926,11 @@ export default function PublicGiraPage() {
 
               {/* Atendimento preferencial */}
               <fieldset ref={priorityRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
-                <legend className="p-0 mb-2 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base font-medium">
-                  <span>Precisa de atendimento preferencial?</span>
+                <legend className="p-0 mb-2 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base font-semibold">
+                  <span>Atendimento preferencial?</span>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button type="button" variant="link" size="sm" className="h-auto min-h-6 px-0 text-sm text-(color:--brand-text)">
+                      <Button type="button" variant="link" size="sm" className="h-auto min-h-6 px-0 text-[0.9375rem] font-semibold text-foreground underline underline-offset-4">
                         Saiba mais
                       </Button>
                     </PopoverTrigger>
@@ -838,13 +958,13 @@ export default function PublicGiraPage() {
                     >
                       <ToggleGroupItem
                         value="nao"
-                        className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                        className="h-12 flex-1 text-base data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background"
                       >
                         Não
                       </ToggleGroupItem>
                       <ToggleGroupItem
                         value="sim"
-                        className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                        className="h-12 flex-1 text-base data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background"
                       >
                         Sim
                       </ToggleGroupItem>
@@ -893,14 +1013,12 @@ export default function PublicGiraPage() {
               {/* Acompanhantes */}
               {gira.allow_acompanhantes && !waitlistMode && (
                 <fieldset className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
-                  <legend className="p-0 mb-2 flex items-center gap-2 text-base font-medium">
-                    <Users aria-hidden className="size-4 text-muted-foreground" /> Acompanhantes
-                  </legend>
+                  <legend className="sr-only">Acompanhantes</legend>
                   {acompanhantesDisponiveis ? (
                     <Collapsible open={levarAcompanhantes}>
                       <Label
                         htmlFor="levar-acompanhantes"
-                        className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-base font-normal"
+                        className="flex min-h-12 cursor-pointer items-center gap-3 text-[1.0625rem] font-normal"
                       >
                         <Controller
                           control={control}
@@ -918,7 +1036,7 @@ export default function PublicGiraPage() {
                             />
                           )}
                         />
-                        Vou levar acompanhante(s)
+                        Vou levar acompanhante
                       </Label>
                       <CollapsibleContent className="flex flex-col gap-4 pt-3">
                         <div className="flex flex-col gap-1.5">
@@ -971,15 +1089,23 @@ export default function PublicGiraPage() {
           ticketId={success.ticketId}
           shareLink={success.shareLink ?? undefined}
           heading={
-            success.waitlisted
-              ? 'Você está na fila de espera!'
-              : success.priorityUpgraded
-                ? 'Prioridade registrada!'
-                : 'Senha emitida!'
+            success.waitlisted ? (
+              <>
+                Você está na <em className="text-[color:var(--color-barro-600)]">fila.</em>
+              </>
+            ) : success.priorityUpgraded ? (
+              <>
+                Prioridade <em className="text-[color:var(--color-barro-600)]">registrada.</em>
+              </>
+            ) : (
+              <>
+                Senha <em className="text-[color:var(--color-barro-600)]">emitida.</em>
+              </>
+            )
           }
           intro={
             <>
-              Enviamos os detalhes para <strong className="text-foreground">{success.email}</strong>.
+              Mandamos os detalhes para <strong className="text-foreground">{success.email}</strong>.
               {success.paraQuem && <> Mostre ou encaminhe para {success.paraQuem}.</>}
             </>
           }
@@ -1009,65 +1135,26 @@ export default function PublicGiraPage() {
         />
       )}
 
-      {/* Beta: receber a senha de novo (só no e-mail) */}
-      {betaReceberDeNovo && !success && (isOpen || isExhausted) && (
-        <section className="mt-6 flex flex-col gap-3" aria-labelledby="receber-de-novo">
-          {!receberAberto ? (
-            <Button type="button" variant="link" className="h-12 self-start px-0 text-base" onClick={() => setReceberAberto(true)}>
-              <Mail aria-hidden /> Já pegou a senha? Receber de novo
-            </Button>
-          ) : (
-            <form onSubmit={handleReceberDeNovo} className="flex flex-col gap-3" noValidate>
-              <h2 id="receber-de-novo" className="font-display text-2xl font-semibold">
-                Receber a senha <em className="text-[color:var(--color-barro-600)]">de novo.</em>
-              </h2>
-              <p className="text-base text-muted-foreground">
-                Digite o e-mail que você usou ao pegar a senha. Mandamos o bilhete para ele de novo.
-              </p>
-              <TextField
-                label="E-mail"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                inputClassName="h-12"
-                value={receberEmail}
-                onChange={(e) => {
-                  setReceberEmail(e.target.value);
-                  if (receberEstado !== 'enviando') setReceberEstado('idle');
-                }}
-              />
-              {receberEstado === 'pronto' && (
-                <Alert variant="success">
-                  <AlertTitle>Pronto</AlertTitle>
-                  <AlertDescription>Se este e-mail tiver senha nesta gira, ela chega em instantes. Olhe também o spam.</AlertDescription>
-                </Alert>
-              )}
-              {receberEstado === 'erro' && (
-                <Alert variant="destructive">
-                  <AlertDescription>Não foi possível mandar agora. Confira a internet e tente de novo.</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" size="touch" className="w-full" disabled={receberEstado === 'enviando' || !receberEmail.trim()}>
-                {receberEstado === 'enviando' ? <Loader2 className="animate-spin" /> : <Mail aria-hidden />} Mandar de novo
-              </Button>
-            </form>
-          )}
-        </section>
-      )}
-
-      {/* Esgotada / encerrada */}
+      {/* Esgotada / encerrada (J3 v2 · 12): o fato dito na página, e a saída no rodapé. */}
       {isExhausted && !success && (
-        <PublicNotice
-          tone="warning"
-          icon={<CalendarX2 />}
-          title={gira.is_exhausted ? 'Senhas esgotadas' : 'Emissão encerrada'}
-          description={
-            gira.is_exhausted
-              ? 'Todas as senhas para esta gira já foram emitidas.'
-              : 'O período de emissão de senhas para esta gira já foi encerrado.'
-          }
-          actions={nextGirasButton}
-        />
+        <section aria-labelledby="acabaram" className="px-1">
+          <h2 id="acabaram" className="font-display text-[1.75rem] font-normal leading-tight tracking-[-0.02em]">
+            {gira.is_exhausted ? (
+              <>
+                As senhas <em className="text-[color:var(--color-barro-600)]">acabaram.</em>
+              </>
+            ) : (
+              <>
+                A emissão <em className="text-[color:var(--color-barro-600)]">encerrou.</em>
+              </>
+            )}
+          </h2>
+          <p className="mt-2 text-[1.0625rem] leading-relaxed">
+            {gira.is_exhausted
+              ? `Todas as ${gira.max_tickets ? `${gira.max_tickets} ` : ''}senhas desta gira foram pegas, e ela não tem fila de espera.`
+              : 'O período de emissão de senhas para esta gira já foi encerrado.'}
+          </p>
+        </section>
       )}
     </PublicShell>
   );

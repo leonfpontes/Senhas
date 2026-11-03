@@ -190,6 +190,23 @@
   --accent-foreground: var(--color-tinta);
 }
 
+/* Jornada 3 v2: o formulário do consulente em letra de quem lê sem óculos — rótulo 16 px, campo de
+ * 58 px com texto de 18 px, ajuda de 15 px. O asterisco sai da tela (o campo continua aria-required). */
+.public-terra [data-slot='field'] > [data-slot='label'] {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.public-terra [data-slot='field'] > [data-slot='label'] > span[aria-hidden] {
+  display: none;
+}
+.public-terra [data-slot='field'] input:not([type='checkbox']):not([type='radio']) {
+  height: 58px;
+  font-size: 1.125rem;
+}
+.public-terra [data-slot='field-message'] {
+  font-size: 0.9375rem;
+}
+
 /* Área do Médium (/medium/*, /escolher-area — `components/medium/MediumLayout`, AM-06): visual de
  * aplicativo, NEUTRO e claro (out/2026 — o dono achou a paleta areia + Fraunces "com cara de IA" e
  * pediu algo mais perto dos apps de terreiro da concorrência): fundo cinza bem claro, cartões

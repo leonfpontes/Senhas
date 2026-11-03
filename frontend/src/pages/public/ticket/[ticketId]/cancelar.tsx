@@ -14,11 +14,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { CalendarX2, CircleCheck, Loader2, Lock, SearchX } from 'lucide-react';
+import { CircleCheck, Loader2, Lock, SearchX, TriangleAlert } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Bilhete,
   PublicLoading,
@@ -143,9 +142,31 @@ export default function CancelTicketPage() {
 
   const title = info ? `Cancelar senha ${info.ticket_number} · ${info.tenant_name}` : 'Cancelar minha senha';
 
+  const footer =
+    (state === 'confirm' || state === 'cancelling') && info ? (
+      <div className="flex flex-col gap-1">
+        <Button
+          type="button"
+          variant="destructive"
+          size="touch"
+          className="h-[58px] w-full text-[1.1875rem] font-bold"
+          onClick={handleCancel}
+          disabled={state === 'cancelling'}
+          aria-busy={state === 'cancelling'}
+        >
+          {state === 'cancelling' && <Loader2 className="animate-spin" />}
+          {state === 'cancelling' ? 'Cancelando…' : 'Sim, cancelar minha senha'}
+        </Button>
+        <Button type="button" variant="ghost" size="touch" className="w-full text-base font-semibold" onClick={handleKeep} disabled={state === 'cancelling'}>
+          Manter minha senha
+        </Button>
+      </div>
+    ) : undefined;
+
   return (
     <PublicShell
       title={title}
+      footer={footer}
       noindex
       tenantName={ticket?.tenant_name ?? info?.tenant_name}
       logoUrl={ticket?.tenant_logo_url}
@@ -156,64 +177,40 @@ export default function CancelTicketPage() {
       {state === 'keeping' && <PublicLoading label="Buscando seu bilhete…" />}
 
       {(state === 'confirm' || state === 'cancelling') && info && (
-        <Card className="gap-4 border-0 bg-transparent py-2 shadow-none ring-0">
-          <CardContent className="flex flex-col gap-4 px-1">
-            <div className="text-center">
-              <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-warning/10 text-warning-strong [&_svg]:size-7">
-                <CalendarX2 />
-              </span>
-              <h1 className="font-display text-3xl font-semibold leading-tight">
-                Cancelar {info.waitlisted ? 'sua vaga na fila de espera' : 'sua senha'}?
-              </h1>
-            </div>
-
-            <div className="text-center">
-              <p data-testid="ticket-number" className="font-display text-[4.5rem] leading-none font-semibold tabular-nums tracking-tight text-(color:--brand-text)">
-                {info.ticket_number}
-              </p>
-              <p className="mt-2 text-base font-semibold">{info.gira_name}</p>
-              {(ticket?.gira_date_iso || info.gira_date) && (
-                <p className="text-base text-muted-foreground">
-                  {ticket ? formatGiraDate(ticket.gira_date_iso, info.gira_date) : info.gira_date}
-                </p>
-              )}
-              <p className="text-base text-muted-foreground">{info.tenant_name}</p>
-            </div>
-
-            {(info.acompanhantes?.length ?? 0) > 0 && (
-              <Alert variant="warning">
-                <AlertDescription>
-                  As senhas dos seus acompanhantes também serão canceladas:{' '}
-                  {info.acompanhantes!.map((a) => `${a.ticket_number} (${a.name})`).join(', ')}.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <p className="text-center text-base">
-              {info.waitlisted
-                ? 'Você sairá da fila de espera desta gira. Esta ação não pode ser desfeita.'
-                : 'Sua vaga será liberada para outra pessoa. Esta ação não pode ser desfeita.'}
-            </p>
-
-            <div className="flex flex-col gap-2">
-              <Button
-                type="button"
-                variant="destructive"
-                size="touch"
-                className="w-full"
-                onClick={handleCancel}
-                disabled={state === 'cancelling'}
-                aria-busy={state === 'cancelling'}
-              >
-                {state === 'cancelling' && <Loader2 className="animate-spin" />}
-                {state === 'cancelling' ? 'Cancelando…' : 'Sim, cancelar minha senha'}
-              </Button>
-              <Button type="button" variant="outline" size="touch" className="w-full" onClick={handleKeep} disabled={state === 'cancelling'}>
-                Manter minha senha
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        // Jornada 3 v2 · 07: a pergunta em Fraunces, o que acontece em frase, o aviso de que não tem volta e a
+        // senha em lista; os botões ficam na barra de baixo ("Sim, cancelar" e "Manter minha senha").
+        <section className="flex flex-col gap-4 px-1 pt-1" aria-labelledby="cancelar-titulo">
+          <h1 id="cancelar-titulo" className="font-display text-[2rem] leading-tight font-normal tracking-[-0.02em]">
+            Cancelar a {info.waitlisted ? 'sua vaga na fila de espera' : 'sua senha'}?
+          </h1>
+          <p className="text-[1.0625rem]">
+            {info.waitlisted
+              ? `A vaga ${info.ticket_number} na fila de espera deixa de valer${(info.acompanhantes?.length ?? 0) > 0 ? ', e a dos acompanhantes também' : ''}.`
+              : `A senha ${info.ticket_number} deixa de valer${(info.acompanhantes?.length ?? 0) > 0 ? ', e a dos acompanhantes também' : ''}. A vaga vai para quem está na fila de espera.`}
+          </p>
+          <Alert variant="warning">
+            <TriangleAlert aria-hidden />
+            <AlertTitle>Isso não pode ser desfeito</AlertTitle>
+            <AlertDescription>Se mudar de ideia depois, será preciso pegar outra senha, se ainda houver.</AlertDescription>
+          </Alert>
+          <dl className="m-0 border-b border-border">
+            {[
+              ['Senha', [info.ticket_number, ticket?.consulente_name].filter(Boolean).join(' · ')],
+              ['Gira', [info.gira_name, ticket ? formatGiraDate(ticket.gira_date_iso, info.gira_date) : info.gira_date].filter(Boolean).join(' · ')],
+              ...((info.acompanhantes?.length ?? 0) > 0
+                ? [['Acompanhantes', info.acompanhantes!.map((a) => `${a.ticket_number} · ${a.name}`).join(', ')]]
+                : []),
+            ].map(([k, v]) => (
+              <div key={k} className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+                <dt className="shrink-0 text-[0.9375rem] text-muted-foreground">{k}</dt>
+                <dd className="m-0 text-right text-[0.9375rem] font-semibold">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <p data-testid="ticket-number" className="sr-only">
+            {info.ticket_number}
+          </p>
+        </section>
       )}
 
       {state === 'keep' && ticket && (

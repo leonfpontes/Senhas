@@ -57,14 +57,14 @@ const GIRA = {
 
 async function fillAndPickSlot() {
   // O formulário aparece depois que a contagem regressiva calcula "aberta".
-  fireEvent.click(await screen.findByRole('radio', { name: /19:00/ }, { timeout: 5000 }));
-  expect(screen.getByText(/Horário escolhido: 19:00/)).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('radio', { name: /19h00/ }, { timeout: 5000 }));
+  expect(screen.getByText(/Horário escolhido: 19h00/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText(/Nome completo/i), { target: { value: 'Maria da Silva' } });
   fireEvent.change(screen.getByLabelText(/^E-mail/i), { target: { value: 'maria@example.com' } });
 }
 
 function submit() {
-  fireEvent.click(screen.getByRole('button', { name: /Pegar minha senha/i }));
+  fireEvent.click(screen.getByRole('button', { name: /Pegar a senha/i }));
 }
 
 describe('Emissão pública — jornadas', () => {
@@ -92,7 +92,7 @@ describe('Emissão pública — jornadas', () => {
 
     expect(await screen.findByText('Escolha outro horário')).toBeInTheDocument();
     expect(screen.queryByText(/As vagas acabaram/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Horário escolhido: 19:00/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Horário escolhido: 19h00/)).not.toBeInTheDocument();
   });
 
   it('horário removido (409 TIME_SLOT_UNAVAILABLE) não vira "você já tem senha"', async () => {
@@ -127,7 +127,7 @@ describe('Emissão pública — jornadas', () => {
 
   it('mostra o aviso de privacidade com link para /privacidade', async () => {
     render(<PublicGiraPage />);
-    expect(await screen.findByRole('link', { name: /Política de privacidade/i }, { timeout: 5000 })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /^Privacidade$/i }, { timeout: 5000 })).toHaveAttribute(
       'href',
       '/privacidade',
     );

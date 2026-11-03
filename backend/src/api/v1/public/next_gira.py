@@ -93,6 +93,8 @@ def _build_gira_response(
         "descricao": gira.descricao,
         "data_inicio": gira.data_inicio.isoformat() if gira.data_inicio else None,
         "local": gira.local,
+        # Jornada 3 v2: o "Recado da casa" aparece já na contagem regressiva (o mesmo texto do bilhete).
+        "recados": gira.recados,
         "release_start_at": start.isoformat() if start else None,
         "release_end_at": end.isoformat() if end else None,
         "max_tickets": max_t,

@@ -102,6 +102,14 @@ export function PublicShell({
   const column = wide ? 'max-w-2xl' : 'max-w-md';
   const showLogo = Boolean(logoUrl) && !logoFailed;
   const initial = (tenantName || '').trim().charAt(0).toUpperCase();
+  // "Terreiro Filhos de Fé" → "FF": as iniciais das palavras principais (sem "de", "do", "da"…).
+  const iniciais =
+    (tenantName || '')
+      .split(/\s+/)
+      .filter((w) => w && !/^(de|da|do|das|dos|e|terreiro|tenda|casa|centro)$/i.test(w))
+      .slice(0, 2)
+      .map((w) => w.charAt(0).toUpperCase())
+      .join('') || initial;
 
   // A barra fixa de baixo muda de altura (botão, prazo, aviso de dados, quebra de linha no celular):
   // o fim do conteúdo reserva a altura REAL dela, para o "Powered by GiraHub" não ficar por baixo.
@@ -141,8 +149,9 @@ export function PublicShell({
         )}
       >
         {!hideHeader && (tenantName || logoUrl) && (
-          <header className="bg-background">
-            <div className={cn('mx-auto flex w-full items-center gap-3 px-4 py-3', column)}>
+          // Jornada 3 v2: a faixa na cor da casa, com a inicial num círculo claro e o endereço da casa.
+          <header className="bg-primary text-primary-foreground">
+            <div className={cn('mx-auto flex w-full items-center gap-3 px-4 py-3.5', column)}>
               {showLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- logo de terreiro vem de host não allow-listado; onError cai na inicial
                 <img
@@ -150,28 +159,22 @@ export function PublicShell({
                   alt=""
                   width={40}
                   height={40}
-                  className="size-10 shrink-0 rounded-full border bg-muted object-cover"
+                  className="size-10 shrink-0 rounded-full bg-white object-cover"
                   onError={() => setLogoFailed(true)}
                 />
               ) : (
                 <span
                   aria-hidden
-                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[color:var(--brand-text,#2E6A4E)]"
                 >
-                  {initial || '•'}
+                  {iniciais || '•'}
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold leading-tight">{tenantName}</p>
-                {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
+                <p className="truncate text-[1.0625rem] font-semibold leading-tight">{tenantName}</p>
+                {subtitle && <p className="truncate text-sm opacity-90">{subtitle}</p>}
               </div>
               {headerExtra}
-            </div>
-            {/* O picote do bilhete separa a casa do conteúdo (peça Picote do design system). */}
-            <div aria-hidden className={cn('mx-auto flex w-full items-center gap-2 px-4', column)}>
-              <span className="size-3 shrink-0 rounded-full border border-border" />
-              <span className="h-px flex-1 border-t border-dashed border-border" />
-              <span className="size-3 shrink-0 rounded-full border border-border" />
             </div>
           </header>
         )}

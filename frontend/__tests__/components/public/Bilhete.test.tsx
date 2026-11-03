@@ -51,9 +51,9 @@ describe('Bilhete', () => {
     expect(screen.getByTestId('ticket-number')).toHaveTextContent(/^0042$/);
     expect(screen.queryByText(/#0042/)).not.toBeInTheDocument();
     expect(screen.getByText('Quinta-feira, 8 de outubro às 19h')).toBeInTheDocument();
-    expect(screen.getByText('Seu horário de atendimento: 20:30')).toBeInTheDocument();
+    expect(screen.getByText(/Seu horário de atendimento: 20:30/)).toBeInTheDocument();
     expect(screen.queryByText('Confirmada')).not.toBeInTheDocument();
-    expect(screen.getByText('Recados do terreiro')).toBeInTheDocument();
+    expect(screen.getByText('Recados da casa')).toBeInTheDocument();
   });
 
   it('WhatsApp abre wa.me com o texto do bilhete e o link', () => {
@@ -102,7 +102,7 @@ describe('Bilhete', () => {
 
   it('lista acompanhantes', () => {
     render(<Bilhete ticket={makeTicket({ acompanhantes: [{ ticket_number: '0043', name: 'João' }] })} />);
-    expect(screen.getByRole('heading', { name: /acompanhantes/i })).toBeInTheDocument();
+    expect(screen.getAllByText('Acompanhante').length).toBeGreaterThan(0);
     expect(screen.getByText('0043 · João')).toBeInTheDocument();
   });
 });
