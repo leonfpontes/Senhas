@@ -93,9 +93,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
       </SidebarHeader>
       <SidebarContent>
         {/* Jornada 1 v2: o dia de gira fixo; o resto da casa em "Da casa" e em "Ver os 12 módulos". */}
-        <NavGroup label="Dia de gira" items={fixos} activeHref={pathname} onAction={onAction} />
+        <NavGroup label="Dia de gira" items={fixos} activeHref={router.asPath} onAction={onAction} />
         {daCasa.length > 0 ? (
-          <NavGroup label="Da casa" items={daCasa} activeHref={pathname} onAction={onAction} />
+          <NavGroup label="Da casa" items={daCasa} activeHref={router.asPath} onAction={onAction} />
         ) : (
           <div className="mx-3 mt-2 border-t border-sidebar-border pt-3 group-data-[collapsible=icon]:hidden">
             <p className="text-xs font-medium text-sidebar-foreground/60">Quando a casa precisar</p>

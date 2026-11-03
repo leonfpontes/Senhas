@@ -92,6 +92,13 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
     href: '/' + segments.slice(0, idx + 1).join('/'),
     isLast: idx === segments.length - 1,
   }));
+  // "Notas da versão · Beta testers" (Laboratório, J1 v2 · 12) abre as Novidades daqui.
+  React.useEffect(() => {
+    const abrir = () => setNotesOpen(true);
+    window.addEventListener('girahub:abrir-novidades', abrir);
+    return () => window.removeEventListener('girahub:abrir-novidades', abrir);
+  }, [setNotesOpen]);
+
   const showBreadcrumbs = segments.length > 2;
 
   const { setSteps, setIsOpen, setCurrentStep } = useTour();

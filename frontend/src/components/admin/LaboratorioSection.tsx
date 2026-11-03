@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BETA_RELEASE_NOTES } from '@/constants/releaseNotes';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSnackbar } from '@/contexts/SnackbarContext';
+import { ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export interface BetaDoLaboratorio {
   chave: string;
@@ -74,9 +76,19 @@ export function LaboratorioSection({ canEdit, tenantName }: Props) {
             casa registrou não se perde ao desligar.
           </p>
         </div>
-        <p className="text-sm font-semibold text-(color:--primary-text)">
-          {tenantName ? `A ${tenantName} é beta tester do GiraHub.` : 'Esta casa é beta tester do GiraHub.'}
-        </p>
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <p className="text-sm font-semibold text-(color:--primary-text)">
+            {tenantName ? `A ${tenantName} é beta tester do GiraHub.` : 'Esta casa é beta tester do GiraHub.'}
+          </p>
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto gap-1 px-0 text-sm font-semibold text-foreground underline underline-offset-4"
+            onClick={() => window.dispatchEvent(new Event('girahub:abrir-novidades'))}
+          >
+            Notas da versão · Beta testers <ArrowRight aria-hidden className="size-3.5" />
+          </Button>
+        </div>
       </div>
 
       {grupos.map(([grupo, lista]) => (

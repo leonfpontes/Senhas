@@ -100,9 +100,16 @@ export function pathOf(href: string): string {
 
 export function isNavLinkActive(item: NavLink, pathname: string): boolean {
   if (item.action) return false;
-  const base = pathOf(item.href);
-  if (pathname === base) return true;
-  return (item.match ?? []).some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  // `pathname` pode vir com a query (asPath): link com query (ex.: a aba da Área do Médium em
+  // Configurações) só fica ativo nela; os demais comparam só o caminho.
+  const [caminho, query = ''] = pathname.split('#')[0].split('?');
+  const [base, queryDoLink] = item.href.split('?');
+  if (caminho === base) {
+    if (!queryDoLink) return true;
+    const atual = new URLSearchParams(query);
+    return [...new URLSearchParams(queryDoLink)].every(([k, v]) => atual.get(k) === v);
+  }
+  return (item.match ?? []).some((prefix) => caminho === prefix || caminho.startsWith(`${prefix}/`));
 }
 
 export function isSectionActive(section: NavSection, pathname: string): boolean {

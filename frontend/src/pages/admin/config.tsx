@@ -949,7 +949,7 @@ function AdminConfigContent() {
         )}
         {showLab && (
           <TabsContent value="laboratorio" className="mt-4">
-            <LaboratorioSection canEdit={canEdit} />
+            <LaboratorioSection canEdit={canEdit} tenantName={config.tenant_nome} />
           </TabsContent>
         )}
       </Tabs>

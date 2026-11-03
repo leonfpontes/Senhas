@@ -62,7 +62,12 @@ export function tenantSlugFromPath(path: string | undefined): string | null {
 /** Jornada 11 v2 · 13: recado claro e o caminho de volta, sobre o areia; sem ícones decorativos. */
 export default function Custom404() {
   const router = useRouter();
-  const slug = tenantSlugFromPath(router?.asPath);
+  // A 404 é estática: no servidor o caminho é "/404". O slug só se lê no navegador, depois da
+  // hidratação (antes, o texto do servidor e o do cliente divergiam).
+  const [slug, setSlug] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setSlug(tenantSlugFromPath(router?.asPath));
+  }, [router?.asPath]);
 
   return (
     <>
