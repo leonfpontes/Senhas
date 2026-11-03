@@ -1,5 +1,6 @@
 /**
- * UsageBar — "7 / 10" com barra; sem barra quando o limite é ilimitado.
+ * UsageBar — "7 de 10" com barra (BarraDeUso do design system, J1 v2 · 13); sem barra quando o limite é
+ * ilimitado ("4 · ilimitados").
  */
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -16,14 +17,14 @@ export interface UsageBarProps {
 export function UsageBar({ label, current, max, className }: UsageBarProps) {
   const unlimited = isUnlimited(max);
   const pct = unlimited || max <= 0 ? 0 : Math.min((current / max) * 100, 100);
-  const tone = pct >= 90 ? 'text-destructive' : pct >= 70 ? 'text-warning' : 'text-foreground';
+  const tone = pct >= 90 ? 'text-destructive' : pct >= 70 ? 'text-warning-strong' : 'text-[color:var(--color-barro-700)]';
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <span className={cn('font-mono text-xs font-bold', unlimited ? 'text-muted-foreground' : tone)}>
-          {unlimited ? `${current} / sem limite` : `${current} / ${max}`}
+        <span className="text-sm font-semibold text-foreground">{label}</span>
+        <span className={cn('text-sm font-semibold tabular-nums', unlimited ? 'text-muted-foreground' : tone)}>
+          {unlimited ? `${current} · ilimitados` : `${current} de ${max}`}
         </span>
       </div>
       {!unlimited && (

@@ -304,7 +304,7 @@ describe('/admin/billing', () => {
     render(<Billing />);
 
     expect(await screen.findByText('Pago até')).toBeInTheDocument();
-    expect(screen.getByText('PIX mensal')).toBeInTheDocument();
+    expect(screen.getByText(/^PIX pago até/)).toBeInTheDocument();
     expect(screen.getByText('PIX mês a mês (sem renovação automática)')).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`PIX — mês pago até ${shortDate}`))).toBeInTheDocument();
     // cartão/boleto esperam o fim do mês pago: sem escolha de forma de pagamento

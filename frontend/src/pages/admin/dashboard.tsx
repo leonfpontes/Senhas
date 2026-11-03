@@ -470,8 +470,13 @@ function DashboardContent() {
       </div>
       <div className="flex items-center gap-2">
         {onboardingOnly && onboarding && (
-          <Button type="button" variant="link" className="h-11 px-0 text-sm" onClick={esconderPassos}>
-            <X aria-hidden /> Esconder os primeiros passos
+          <Button
+            type="button"
+            variant="link"
+            className="h-11 px-0 text-sm font-semibold text-foreground underline underline-offset-4"
+            onClick={esconderPassos}
+          >
+            Esconder os primeiros passos <X aria-hidden />
           </Button>
         )}
         <Button

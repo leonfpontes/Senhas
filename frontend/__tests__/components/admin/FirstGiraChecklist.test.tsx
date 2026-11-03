@@ -54,7 +54,7 @@ describe('FirstGiraChecklist', () => {
   it('mostra o checklist para um terreiro novo, no passo 1', () => {
     renderChecklist();
     expect(screen.getByTestId('first-gira-checklist')).toBeInTheDocument();
-    expect(screen.getByText('0 de 4')).toBeInTheDocument();
+    expect(screen.getByText('0 de 5')).toBeInTheDocument();
     expect(screen.getByTestId('checklist-step-gira')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: 'Criar gira' })).toHaveAttribute('href', '/admin/giras?nova=1');
   });
@@ -136,7 +136,7 @@ describe('FirstGiraChecklist', () => {
     renderChecklist({ has_gira: true, public_tickets: 3 });
     expect(stepDone('share')).toBe('true');
     expect(stepDone('tickets')).toBe('true');
-    expect(screen.getByText('3 de 4')).toBeInTheDocument();
+    expect(screen.getByText('4 de 5')).toBeInTheDocument();
     expect(screen.getByTestId('checklist-step-porta')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: 'Abrir a Porta' })).toHaveAttribute('href', '/admin/porta');
   });
