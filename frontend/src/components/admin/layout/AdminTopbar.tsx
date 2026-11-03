@@ -87,11 +87,16 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
 
   // Breadcrumb a partir da rota (sem querystring); só a partir do 3º nível (/admin/x/y).
   const segments = router.asPath.split('?')[0].split('#')[0].split('/').filter(Boolean);
-  const crumbs = segments.map((seg, idx) => ({
-    label: routeLabel(seg),
-    href: '/' + segments.slice(0, idx + 1).join('/'),
-    isLast: idx === segments.length - 1,
-  }));
+  // Id na rota (/admin/mediuns/<uuid>/ficha) não vira degrau da trilha: aparecia o UUID cru.
+  const ehId = (seg: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(seg);
+  const crumbs = segments
+    .map((seg, idx) => ({
+      label: routeLabel(seg),
+      href: '/' + segments.slice(0, idx + 1).join('/'),
+      isLast: idx === segments.length - 1,
+      id: ehId(seg),
+    }))
+    .filter((c) => !c.id);
   // "Notas da versão · Beta testers" (Laboratório, J1 v2 · 12) abre as Novidades daqui.
   React.useEffect(() => {
     const abrir = () => setNotesOpen(true);

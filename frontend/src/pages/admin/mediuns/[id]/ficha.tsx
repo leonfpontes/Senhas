@@ -395,7 +395,7 @@ function FichaDoMediumContent() {
       />
 
       {consentido ? (
-        <Alert variant="info" data-testid="ficha-autorizada">
+        <Alert variant="success" data-testid="ficha-autorizada">
           <ShieldCheck aria-hidden />
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span>
@@ -451,7 +451,7 @@ function FichaDoMediumContent() {
       )}
 
       <Tabs defaultValue="ficha">
-        <TabsList>
+        <TabsList variant="line" className="gap-5 border-b border-border [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem]">
           <TabsTrigger value="ficha">Ficha</TabsTrigger>
           <TabsTrigger value="caminhada">Caminhada</TabsTrigger>
         </TabsList>
