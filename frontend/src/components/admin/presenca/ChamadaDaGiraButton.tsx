@@ -43,11 +43,14 @@ export function ChamadaDaGiraButton({
   className,
   variant = 'outline',
   size = 'default',
+  icone = true,
 }: {
   giraId: string;
   className?: string;
   variant?: 'outline' | 'default' | 'ghost';
   size?: 'default' | 'sm';
+  /** Sem ícone na agenda (J2 v2): só o texto, como no desenho. */
+  icone?: boolean;
 }) {
   const router = useRouter();
   const { showError } = useSnackbar();
@@ -78,7 +81,7 @@ export function ChamadaDaGiraButton({
       onClick={() => void abrir()}
       disabled={abrindo}
     >
-      {abrindo ? <Loader2 className="animate-spin" aria-hidden /> : <ClipboardCheck aria-hidden />}
+      {abrindo ? <Loader2 className="animate-spin" aria-hidden /> : icone ? <ClipboardCheck aria-hidden /> : null}
       Chamada
     </Button>
   );

@@ -53,6 +53,16 @@ export interface CrudDrawerProps {
    * A Área do Médium passa a paleta `.medium-terra`.
    */
   className?: string;
+  /**
+   * Gaveta em passos (jornadas v2, Nova gira): no lugar do cabeçalho, a barra de passos e
+   * "Passo 1 de 3 · A gira"; os campos ficam no tamanho do desenho e o rodapé põe a ação
+   * principal à esquerda, com a secundária (Cancelar ou Voltar) em texto ao lado.
+   */
+  passos?: { atual: number; total: number; rotulo: string };
+  /** Ação secundária do rodapé no modo `passos` (padrão: Cancelar). */
+  acaoSecundaria?: { rotulo: string; aoClicar: () => void };
+  /** Ícone depois do rótulo do botão principal (modo `passos`). */
+  saveIcon?: React.ReactNode;
 }
 
 export default function CrudDrawer({
@@ -69,6 +79,9 @@ export default function CrudDrawer({
   isDirty = false,
   error,
   className,
+  passos,
+  acaoSecundaria,
+  saveIcon,
 }: CrudDrawerProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -100,6 +113,7 @@ export default function CrudDrawer({
           className={cn(
             'flex w-full max-w-full flex-col gap-0 p-0',
             'min-[640px]:w-[480px] min-[640px]:max-w-[480px]',
+            passos && 'gaveta-v2',
             className,
           )}
           onInteractOutside={(e) => {
@@ -111,6 +125,28 @@ export default function CrudDrawer({
           }}
         >
           {/* Cabeçalho */}
+          {passos ? (
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-2">
+              <div className="flex flex-col gap-2.5">
+                <div className="flex gap-1.5" aria-hidden>
+                  {Array.from({ length: passos.total }, (_, i) => (
+                    <span
+                      key={i}
+                      className={cn('h-1 w-[66px] rounded-full', i <= passos.atual ? 'bg-primary' : 'bg-border')}
+                    />
+                  ))}
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Passo {passos.atual + 1} de {passos.total} · {passos.rotulo}
+                </p>
+                <SheetTitle className="sr-only">{title}</SheetTitle>
+                <SheetDescription className="sr-only">{subtitle ?? title}</SheetDescription>
+              </div>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={handleClose} aria-label="fechar" disabled={saving}>
+                <X />
+              </Button>
+            </div>
+          ) : (
           <div className="px-6 pt-6 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -138,8 +174,9 @@ export default function CrudDrawer({
               <SheetDescription className="sr-only">{title}</SheetDescription>
             )}
           </div>
+          )}
 
-          <div className="h-px w-full bg-border" role="presentation" />
+          {!passos && <div className="h-px w-full bg-border" role="presentation" />}
 
           {/* Corpo — área rolável do formulário */}
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
@@ -152,6 +189,30 @@ export default function CrudDrawer({
           </div>
 
           {/* Rodapé — ações fixas */}
+          {passos ? (
+            <div className="flex items-center gap-4 px-6 py-5">
+              <Button
+                type="button"
+                className="h-12 px-6 text-base font-semibold"
+                onClick={onSave}
+                disabled={saving || saveDisabled}
+              >
+                {saving && <Loader2 className="animate-spin" aria-hidden />}
+                {saveLabel}
+                {!saving && saveIcon}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-12 text-base font-semibold"
+                onClick={acaoSecundaria?.aoClicar ?? handleClose}
+                disabled={saving}
+              >
+                {acaoSecundaria?.rotulo ?? 'Cancelar'}
+              </Button>
+            </div>
+          ) : (
+          <>
           <div className="h-px w-full bg-border" role="presentation" />
           <div className="flex justify-end gap-3 bg-card px-6 py-4">
             <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
@@ -162,6 +223,8 @@ export default function CrudDrawer({
               {saveLabel}
             </Button>
           </div>
+          </>
+          )}
         </SheetContent>
       </Sheet>
 

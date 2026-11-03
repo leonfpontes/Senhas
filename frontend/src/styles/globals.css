@@ -192,14 +192,17 @@
 
 /* Jornada 3 v2: o formulário do consulente em letra de quem lê sem óculos — rótulo 16 px, campo de
  * 58 px com texto de 18 px, ajuda de 15 px. O asterisco sai da tela (o campo continua aria-required). */
-.public-terra [data-slot='field'] > [data-slot='label'] {
+.public-terra [data-slot='field'] > [data-slot='label'],
+.gaveta-v2 [data-slot='field'] > [data-slot='label'] {
   font-size: 1rem;
   font-weight: 600;
 }
-.public-terra [data-slot='field'] > [data-slot='label'] > span[aria-hidden] {
+.public-terra [data-slot='field'] > [data-slot='label'] > span[aria-hidden],
+.gaveta-v2 [data-slot='field'] > [data-slot='label'] > span[aria-hidden] {
   display: none;
 }
-.public-terra [data-slot='field'] input:not([type='checkbox']):not([type='radio']) {
+.public-terra [data-slot='field'] input:not([type='checkbox']):not([type='radio']),
+.gaveta-v2 [data-slot='field'] input:not([type='checkbox']):not([type='radio']) {
   height: 58px;
   font-size: 1.125rem;
 }

@@ -90,6 +90,13 @@ export default function AdminLayout(props: AdminLayoutProps) {
     if (semPainel) void router.replace(AREA_HOME.medium);
   }, [semPainel, router]);
 
+  // Gavetas e diálogos vão para o <body> por portal: a variável da Fraunces também precisa estar
+  // lá, senão o título da gaveta (J2 v2) cai na fonte de texto.
+  useEffect(() => {
+    document.body.classList.add(fraunces.variable);
+    return () => document.body.classList.remove(fraunces.variable);
+  }, []);
+
   if (semPainel) {
     return (
       <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Abrindo a Área do Médium">

@@ -3,7 +3,7 @@
  *
  * - Cada gira vira um GiraCard com o estado em palavras do terreiro e um botão primário por
  *   estado (Compartilhar link / Abrir Porta / Liberar agora / Configurar senhas).
- * - "Nova gira" abre um CrudDrawer com Stepper: A gira → Senhas (padrões de
+ * - "Nova gira" abre um CrudDrawer em passos (barra de passos no topo): A gira → Senhas (padrões de
  *   `giraSenhaDefaults`) → Recados. Ao criar, as senhas já são salvas e o link é oferecido.
  * - "Configurar senhas" (gira existente) mantém o drawer completo, com o avançado
  *   (acompanhantes, fila de espera, horários, associados) em Accordion.
@@ -21,9 +21,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
 import {
+  ArrowRight,
   CalendarDays,
+  Check,
   ChevronDown,
   Clock,
+  Info,
   Lock,
   Plus,
   QrCode,
@@ -42,7 +45,6 @@ import { ChamadaDaGiraButton, giraTemChamada } from '@/components/admin/presenca
 import { EscalaDaGiraButton } from '@/components/admin/atividades/EscalaDaGiraButton';
 import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
 import { PermissionDenied } from '@/components/gates';
-import { Stepper } from '@/components/Stepper';
 import { Checkbox } from '@/components/ui/checkbox';
 import CrudDrawer from '@/components/CrudDrawer';
 import { DateTimeField, DurationField, TextField, durationRangeError } from '@/components/fields';
@@ -133,9 +135,6 @@ const EMPTY_SENHA_FORM = {
 };
 type SenhaForm = typeof EMPTY_SENHA_FORM;
 
-const CREATE_STEPS = [{ label: 'A gira' }, { label: 'Senhas' }, { label: 'Recados', optional: true }];
-// Sem `giras:edit` não dá para salvar as senhas (PUT /senhas exige edit): a criação pula o passo.
-const CREATE_STEPS_SEM_SENHAS = [{ label: 'A gira' }, { label: 'Recados', optional: true }];
 
 /** Prazo da fila de espera em minutos — mesmos limites do backend (`waitlist_service`). */
 const WAITLIST_MIN_MINUTES = 5;
@@ -174,6 +173,16 @@ function isAbort(error: unknown): boolean {
 }
 
 /** "sáb, 8/11 · 19h" */
+/** "sex 12h", "sáb 18h30" — a abertura e o fechamento das senhas na revisão (J2 v2 · 10). */
+function formatJanelaCurta(local: string): string {
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return '';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${dia} ${m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`}`;
+}
+
 function formatGiraCurta(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -212,7 +221,7 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
       <div className="flex w-full max-w-sm flex-col gap-1.5">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium text-muted-foreground">Giras criadas este mês</span>
-          <span className={cn('font-semibold tabular-nums text-foreground', atLimit && 'text-warning-strong')}>
+          <span className={cn('font-semibold tabular-nums text-[color:var(--color-barro-700)]', atLimit && 'text-warning-strong')}>
             {used} de {max}
           </span>
         </div>
@@ -221,7 +230,7 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
       <span className="flex-1" />
       <p className="text-sm text-muted-foreground">
         {atLimit && 'Limite do plano atingido. '}
-        <Link href="/admin/billing" className="font-semibold text-brand underline-offset-4 hover:underline">
+        <Link href="/admin/billing" className="font-semibold text-foreground underline underline-offset-4">
           Ver planos
         </Link>
       </p>
@@ -261,14 +270,15 @@ function SwitchRow({
   description?: string;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="mt-0.5" />
+    // J2 v2: o texto à esquerda e o Interruptor à direita, como no desenho.
+    <div className="flex items-start justify-between gap-4">
       <div className="flex flex-col gap-0.5">
-        <Label htmlFor={id} className="leading-snug">
+        <Label htmlFor={id} className="text-[0.9375rem] font-semibold leading-snug">
           {label}
         </Label>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        {description && <p className="text-[0.8125rem] text-muted-foreground">{description}</p>}
       </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="mt-0.5 shrink-0" />
     </div>
   );
 }
@@ -682,6 +692,16 @@ function AdminGirasContent() {
       setSuggestedFor(createForm.data_inicio);
     }
     setCreateStep(1);
+  };
+
+  const usarSugestaoDaCriacao = () => {
+    const window = createForm.data_inicio ? suggestReleaseWindow(new Date(createForm.data_inicio).toISOString()) : null;
+    setCreateSenha((prev) => ({
+      ...prev,
+      max_tickets: String(suggestMaxTickets(giras)),
+      release_start_at: window?.start ?? prev.release_start_at,
+      release_end_at: window?.end ?? prev.release_end_at,
+    }));
   };
 
   const handleCreateSave = async () => {
@@ -1114,8 +1134,8 @@ function AdminGirasContent() {
       onRepeat={betaRepetir && canInsert ? (g) => openRepeat(g as Gira) : undefined}
       extraAction={
         <>
-          <EscalaDaGiraButton giraId={gira.id} />
-          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} />}
+          <EscalaDaGiraButton giraId={gira.id} icone={false} className="h-11 text-[0.9375rem] font-semibold" />
+          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} icone={false} className="h-11 text-[0.9375rem] font-semibold" />}
         </>
       }
     />
@@ -1149,20 +1169,20 @@ function AdminGirasContent() {
                 <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
               </Button>
               {unifiedLinks && (
-                <Button type="button" variant="outline" className="h-11" onClick={() => openShare()}>
-                  <QrCode aria-hidden /> Link do terreiro
+                <Button type="button" variant="outline" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => openShare()}>
+                  Link do terreiro <QrCode aria-hidden />
                 </Button>
               )}
               {canInsert && (
                 <Button
                   type="button"
-                  className="h-11"
+                  className="h-11 px-4 text-[0.9375rem] font-semibold"
                   data-tour="giras-nova"
                   onClick={openCreate}
                   disabled={!canCreateGira}
                   title={createBlockedReason || undefined}
                 >
-                  <Plus aria-hidden /> Nova gira
+                  Nova gira <Plus aria-hidden />
                 </Button>
               )}
             </>
@@ -1241,22 +1261,30 @@ function AdminGirasContent() {
         subtitle="Em três passos a gira fica pronta para os consulentes pegarem senha."
         icon={<Plus />}
         onSave={handleCreateSave}
-        saveLabel={createStep < 2 ? 'Continuar' : 'Criar gira'}
+        saveLabel={
+          createStep === 0
+            ? canEdit
+              ? 'Continuar para as senhas'
+              : 'Continuar para os recados'
+            : createStep === 1
+              ? 'Continuar para os recados'
+              : 'Criar a gira'
+        }
+        saveIcon={createStep < 2 ? <ArrowRight aria-hidden /> : <Check aria-hidden />}
         saving={saving}
         isDirty={createDirty}
+        // J2 v2 · 01/02/10: a barra de passos no topo e "Voltar" no rodapé (sem as senhas, 2 passos).
+        passos={
+          canEdit
+            ? { atual: createStep, total: 3, rotulo: ['A gira', 'Senhas', 'Recados (opcional)'][createStep] }
+            : { atual: createStep === 0 ? 0 : 1, total: 2, rotulo: createStep === 0 ? 'A gira' : 'Recados (opcional)' }
+        }
+        acaoSecundaria={
+          createStep > 0
+            ? { rotulo: 'Voltar', aoClicar: () => setCreateStep((st) => (!canEdit && st === 2 ? 0 : st - 1)) }
+            : undefined
+        }
       >
-        {canEdit ? (
-          <Stepper steps={CREATE_STEPS} active={createStep} onStepClick={(i) => i < createStep && setCreateStep(i)} className="mb-2" />
-        ) : (
-          // Sem o passo "Senhas": índices visuais 0 (A gira) e 1 (Recados = passo interno 2).
-          <Stepper
-            steps={CREATE_STEPS_SEM_SENHAS}
-            active={createStep === 0 ? 0 : 1}
-            onStepClick={(i) => i === 0 && setCreateStep(0)}
-            className="mb-2"
-          />
-        )}
-
         {createStep === 0 && (
           <div className="flex flex-col gap-4">
             <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">Qual é a próxima gira?</h3>
@@ -1295,11 +1323,22 @@ function AdminGirasContent() {
               </p>
               <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">Quantas senhas e quando?</h3>
             </div>
+            {/* J2 v2 · 02: a sugestão pelo histórico da casa, com "Usar sugestão" para voltar a ela. */}
             <Alert variant="info" data-testid="create-senha-suggestion">
-              <Ticket aria-hidden />
+              <Info aria-hidden />
+              <AlertTitle className="flex items-start justify-between gap-3">
+                <span>{giras.some((g) => (g.max_tickets ?? 0) > 0) ? 'Sugestão pelo histórico da casa' : 'Sugestão para começar'}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto shrink-0 p-0 text-sm font-semibold text-foreground underline underline-offset-4"
+                  onClick={usarSugestaoDaCriacao}
+                >
+                  Usar sugestão
+                </Button>
+              </AlertTitle>
               <AlertDescription>
-                Preenchemos uma sugestão: senhas liberadas a partir de agora até o início da gira, para quem vir o link
-                no grupo pegar na hora. Ajuste se precisar.
+                {suggestMaxTickets(giras)} senhas, abrindo agora e fechando quando a gira começa.
               </AlertDescription>
             </Alert>
             <TextField
@@ -1310,21 +1349,23 @@ function AdminGirasContent() {
               onChange={(e) => setCreateSenhaField('max_tickets', e.target.value)}
               required
               error={createMaxError}
-              helperText="Total de senhas disponíveis no link para esta gira."
+              helperText={`Preferencial e acompanhante entram dentro das ${createSenha.max_tickets || 'N'}.`}
             />
-            <DateTimeField
-              label="Senhas abrem em"
-              value={createSenha.release_start_at}
-              onChange={(v) => setCreateSenhaField('release_start_at', v ?? '')}
-              required
-            />
-            <DateTimeField
-              label="Senhas fecham em"
-              value={createSenha.release_end_at}
-              onChange={(v) => setCreateSenhaField('release_end_at', v ?? '')}
-              required
-              error={createWindowError}
-            />
+            <div className="flex flex-col gap-4">
+              <DateTimeField
+                label="Senhas abrem em"
+                value={createSenha.release_start_at}
+                onChange={(v) => setCreateSenhaField('release_start_at', v ?? '')}
+                required
+              />
+              <DateTimeField
+                label="Senhas fecham em"
+                value={createSenha.release_end_at}
+                onChange={(v) => setCreateSenhaField('release_end_at', v ?? '')}
+                required
+                error={createWindowError}
+              />
+            </div>
             {janelaEmFrase(createSenha.release_start_at, createSenha.release_end_at) && (
               <p className="flex items-center gap-2.5 rounded-[10px] bg-success/10 px-3.5 py-3 text-[0.9375rem] font-semibold text-success-strong">
                 <Clock aria-hidden className="size-[18px] shrink-0" />
@@ -1339,10 +1380,10 @@ function AdminGirasContent() {
                 setCreateSenha((prev) => ({ ...prev, release_start_at: s.start, release_end_at: s.end }))
               }
             />
-            <Accordion type="single" collapsible defaultValue={timeSlotSchedulingEnabled ? 'avancado' : undefined}>
-              <AccordionItem value="avancado">
-                <AccordionTrigger>Mais opções</AccordionTrigger>
-                <AccordionContent className="flex flex-col gap-3">
+            {/* J2 v2 · 02: "Mais opções" à vista, só o acompanhante (e o horário marcado, quando a casa usa). */}
+            <section aria-labelledby="mais-opcoes" className="flex flex-col gap-3">
+              <h4 id="mais-opcoes" className="text-sm font-semibold text-muted-foreground">Mais opções</h4>
+              <div className="flex flex-col gap-3">
                   <SwitchRow
                     id="create-acompanhantes"
                     checked={createSenha.allow_acompanhantes}
@@ -1353,8 +1394,12 @@ function AdminGirasContent() {
                         max_acompanhantes: checked && !prev.max_acompanhantes ? '1' : prev.max_acompanhantes,
                       }))
                     }
-                    label="Consulente pode levar acompanhantes"
-                    description="Cada acompanhante recebe uma senha própria, que conta na quantidade da gira."
+                    label="Consulente pode levar acompanhante"
+                    description={
+                      createSenha.allow_acompanhantes
+                        ? `Até ${createSenha.max_acompanhantes || 1} por senha`
+                        : 'Cada acompanhante recebe uma senha própria, que conta na quantidade da gira.'
+                    }
                   />
                   {createSenha.allow_acompanhantes && (
                     <TextField
@@ -1447,46 +1492,47 @@ function AdminGirasContent() {
                   <p className="text-xs text-muted-foreground">
                     Senhas de associados e fila de espera ficam em “Configurar senhas”, no menu da gira.
                   </p>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+              </div>
+            </section>
           </div>
         )}
 
         {createStep === 2 && (
           <div className="flex flex-col gap-4">
             <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">
-              Confira e deixe um <em className="text-[color:var(--color-barro-600)]">recado.</em>
+              Confira e deixe um recado
             </h3>
             {/* ListaDeDetalhes do design system: rótulo à esquerda, valor à direita, filete entre as linhas. */}
             <dl className="m-0 flex flex-col text-[0.9375rem]" data-testid="create-review">
               {[
                 ['Gira', createForm.nome],
-                [
-                  'Dia e hora',
-                  createForm.data_inicio &&
-                    new Date(createForm.data_inicio).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }),
-                ],
+                ['Quando', createForm.data_inicio && formatGiraCurta(createForm.data_inicio)],
                 ['Local', createForm.local.trim() || tenantEndereco || 'Endereço do terreiro'],
                 ...(canEdit
                   ? [
-                      ['Senhas', `${createSenha.max_tickets} senhas`],
                       [
-                        'Abrem',
-                        createSenha.release_start_at &&
-                          new Date(createSenha.release_start_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+                        'Senhas',
+                        [
+                          createSenha.max_tickets,
+                          createSenha.release_start_at &&
+                            createSenha.release_end_at &&
+                            `abrem ${formatJanelaCurta(createSenha.release_start_at)}, fecham ${formatJanelaCurta(createSenha.release_end_at)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
                       ],
                       [
-                        'Fecham',
-                        createSenha.release_end_at &&
-                          new Date(createSenha.release_end_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+                        'Acompanhante',
+                        createSenha.allow_acompanhantes
+                          ? `até ${createSenha.max_acompanhantes || 1} por senha`
+                          : 'não',
                       ],
                     ]
                   : []),
               ].map(([rotulo, valor]) => (
                 <div key={rotulo as string} className="flex items-baseline justify-between gap-4 border-t border-border py-2.5 first:border-t-0">
                   <dt className="text-muted-foreground">{rotulo}</dt>
-                  <dd className="m-0 text-right font-medium text-foreground">{valor || '—'}</dd>
+                  <dd className="m-0 text-right font-semibold text-foreground">{valor || '—'}</dd>
                 </div>
               ))}
             </dl>
@@ -1521,17 +1567,6 @@ function AdminGirasContent() {
           </div>
         )}
 
-        {createStep > 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="self-start"
-            onClick={() => setCreateStep((s) => (!canEdit && s === 2 ? 0 : s - 1))}
-          >
-            Voltar
-          </Button>
-        )}
       </CrudDrawer>
 
       {/* Editar gira */}

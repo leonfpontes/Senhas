@@ -3,7 +3,7 @@
  * Focus: CRUD table, ConfirmDialog for delete + release-now, status chips
  */
 import React from 'react';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 
 // Objeto mutável (prefixo `mock` para o jest permitir no factory): cada teste
 // pode ajustar query/isReady.
@@ -210,7 +210,7 @@ describe('Admin Giras Page', () => {
       setDateTime(/^Senhas abrem em/, '10/01/2099', '18:00');
       setDateTime(/^Senhas fecham em/, '10/01/2099', '18:30');
       expect(screen.getByTestId('short-window-warning')).toHaveTextContent('A liberação dura só 30 minutos');
-      fireEvent.click(screen.getByRole('button', { name: 'Usar sugestão' }));
+      fireEvent.click(within(screen.getByTestId('short-window-warning')).getByRole('button', { name: 'Usar sugestão' }));
       expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
       expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
     });

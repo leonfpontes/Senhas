@@ -21,10 +21,13 @@ export function EscalaDaGiraButton({
   giraId,
   className,
   variant = 'outline',
+  icone = true,
 }: {
   giraId: string;
   className?: string;
   variant?: 'outline' | 'default' | 'ghost';
+  /** Sem ícone na agenda (J2 v2): só o texto, como no desenho. */
+  icone?: boolean;
 }) {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
@@ -32,7 +35,7 @@ export function EscalaDaGiraButton({
   return (
     <Button asChild variant={variant} className={className}>
       <Link href={escalaDaGiraHref(giraId)}>
-        <Users aria-hidden /> Escala
+        {icone && <Users aria-hidden />} Escala
       </Link>
     </Button>
   );

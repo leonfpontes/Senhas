@@ -20,9 +20,11 @@ import {
   Copy,
   DoorOpen,
   Ellipsis,
+  LockOpen,
   Pencil,
   Rocket,
   Share2,
+  SlidersHorizontal,
   Ticket,
   Trash2,
   type LucideIcon,
@@ -178,8 +180,8 @@ export function primaryActionFor(phase: GiraPhase, p: GiraCardPermissions): Gira
 }
 
 const ACTION_META: Record<GiraPrimaryAction, { label: string; icon: LucideIcon }> = {
-  configure: { label: 'Configurar senhas', icon: Ticket },
-  release: { label: 'Liberar agora', icon: Rocket },
+  configure: { label: 'Configurar senhas', icon: SlidersHorizontal },
+  release: { label: 'Liberar agora', icon: LockOpen },
   share: { label: 'Compartilhar link', icon: Share2 },
   porta: { label: 'Abrir a Porta', icon: DoorOpen },
 };
@@ -304,16 +306,16 @@ export function GiraCard({
     const { label, icon: Icon } = ACTION_META[primary];
     if (primary === 'porta') {
       return (
-        <Button asChild className="h-11">
+        <Button asChild className="h-11 px-4 text-[0.9375rem] font-semibold">
           <Link href={`/admin/porta?gira=${encodeURIComponent(gira.id)}`}>
-            <Icon aria-hidden /> {label}
+            {label} <Icon aria-hidden />
           </Link>
         </Button>
       );
     }
     return (
-      <Button type="button" className="h-11" onClick={() => runAction(primary)}>
-        <Icon aria-hidden /> {label}
+      <Button type="button" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => runAction(primary)}>
+        {label} <Icon aria-hidden />
       </Button>
     );
   })();
