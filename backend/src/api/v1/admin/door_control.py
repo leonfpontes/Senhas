@@ -14,6 +14,7 @@ import logging
 from src.core.database import get_db
 from src.models import User, Ticket, TicketStatus, Consulente, TenantConfig, Gira, PermissionFeature
 from src.models.tickets import PriorityCategory, PRIORITY_ORDER
+from src.models.tenants import Tenant
 from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
@@ -90,6 +91,9 @@ class DoorTvResponse(BaseModel):
     gira_nome: str
     atual: Optional[DoorTvSenha] = None  # 1º da fila que já chegou: o número grande da TV
     proximas: List[str] = []  # numero_formatado das próximas (até 3)
+    # J4 v2 · 08: as mesmas próximas com o nome reduzido ("João B."), como o número grande.
+    proximas_detalhe: List[DoorTvSenha] = []
+    casa_nome: Optional[str] = None  # nome do terreiro, no canto da TV
     ultima_chamada: Optional[DoorTvUltimaChamada] = None  # última senha chamada (número + hora)
 
 
@@ -496,7 +500,8 @@ async def get_door_tv(
     # Mesma regra que a TV usava no navegador: o número grande é o primeiro da
     # fila que já chegou; as próximas são as demais que ainda esperam.
     atual = next((i for i in fila if i.checkin_em is not None), None)
-    proximas = [i.numero_formatado for i in fila if i is not atual][:TV_PROXIMAS]
+    seguintes = [i for i in fila if i is not atual][:TV_PROXIMAS]
+    proximas = [i.numero_formatado for i in seguintes]
 
     ultima = (
         await db.execute(
@@ -522,6 +527,12 @@ async def get_door_tv(
             chamado_em=atual.chamado_em,
         ) if atual else None,
         proximas=proximas,
+        proximas_detalhe=[
+            DoorTvSenha(numero_formatado=i.numero_formatado, nome=nome_para_tv(i.consulente_nome)) for i in seguintes
+        ],
+        casa_nome=(
+            await db.execute(select(Tenant.name).where(Tenant.id == current_user.tenant_id))
+        ).scalar_one_or_none(),
         ultima_chamada=DoorTvUltimaChamada(
             numero_formatado=_numero_formatado(ultima),
             chamado_em=ultima.chamado_em,

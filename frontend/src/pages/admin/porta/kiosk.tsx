@@ -48,13 +48,23 @@ export interface DoorTv {
   gira_nome: string;
   atual: TvSenha | null;
   proximas: string[];
+  /** As mesmas próximas com o nome reduzido no servidor (J4 v2 · 08). */
+  proximas_detalhe?: TvSenha[];
+  /** Nome do terreiro, no canto da TV. */
+  casa_nome?: string | null;
   ultima_chamada: TvSenha | null;
+}
+
+/** Iniciais da casa no avatar do canto ("Terreiro Filhos de Fé" → "FF"). */
+function iniciaisDaCasa(nome: string): string {
+  const partes = nome.split(/\s+/).filter((p) => p && !/^(de|da|do|das|dos|e|terreiro|tenda|casa|centro|templo)$/i.test(p));
+  return (partes.length ? partes : nome.split(/\s+/)).slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join('');
 }
 
 function horaCurta(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(d.getTime()) ? '' : `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export default function PortaKioskPage() {
@@ -79,7 +89,7 @@ function QrDaPresencaNaTv({ giraId }: { giraId: string }) {
     <QrPresenca
       url={`/api/v1/admin/atividades/da-gira/${encodeURIComponent(giraId)}/qr`}
       variante="tv"
-      className="absolute right-4 bottom-16 w-[min(34vw,320px)] md:right-8"
+      className="w-full max-w-[320px]"
     />
   );
 }
@@ -139,7 +149,11 @@ function KioskContent({ canView }: { canView: boolean }) {
   }, [giraId, loadQueue]);
 
   useEffect(() => {
-    const tick = () => setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+    // "19h14", como a casa fala (J4 v2 · 08).
+    const tick = () => {
+      const d = new Date();
+      setClock(`${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`);
+    };
     tick();
     const t = setInterval(tick, 30_000);
     return () => clearInterval(t);
@@ -172,79 +186,95 @@ function KioskContent({ canView }: { canView: boolean }) {
         <title>{numeroAtual ? `${numeroAtual} — Porta` : 'Modo TV — Porta'}</title>
         <meta name="robots" content="noindex, nofollow" />
       </Head>
+      {/* PainelModoTV (J4 v2 · 08): a casa, o relógio e a senha à esquerda; as próximas e o QR à direita. */}
       <main
         data-testid="kiosk"
-        className={cn(fraunces.variable, "flex min-h-screen flex-col items-center justify-center bg-[color:var(--color-cafe-950)] px-6 py-10 text-[color:var(--color-areia-50)] md:px-12")}
-      >
-        <header className="absolute inset-x-0 top-0 flex items-start justify-between px-6 py-5 text-lg text-white/60 md:px-10 md:text-2xl">
-          <span className="truncate pr-4">{giraNome}</span>
-          <span className="tabular-nums" aria-label="Hora atual">
-            {clock}
-          </span>
-        </header>
-
-        {loading ? (
-          <Loader2 className="size-12 animate-spin text-white/80" aria-label="Carregando" />
-        ) : !giraId ? (
-          <p className="text-3xl text-white/70">Nenhuma gira hoje.</p>
-        ) : (
-          <>
-            <p className="mb-2 text-xl text-[color:var(--color-areia-300)] md:text-3xl">Senha</p>
-            <p
-              data-testid="kiosk-numero"
-              className="font-display text-[6.5rem] leading-none font-normal tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums sm:text-[10rem] md:text-[16rem]"
-              aria-live="polite"
-            >
-              {numeroAtual ?? '—'}
-            </p>
-            {atual?.nome && (
-              <p className="mt-4 max-w-[90vw] truncate text-3xl font-bold md:text-6xl" data-testid="kiosk-nome">
-                {atual.nome}
-              </p>
-            )}
-            {!atual && (
-              <p className="mt-4 text-2xl text-white/60 md:text-4xl">Aguardando a próxima pessoa chegar</p>
-            )}
-
-            {upcoming.length > 0 && (
-              <section className="mt-12 flex flex-col items-center gap-3 md:mt-20" aria-label="Próximas senhas">
-                <p className="text-lg text-[color:var(--color-areia-300)] md:text-2xl">Próximas</p>
-                <ol className="flex flex-wrap justify-center gap-6 md:gap-12">
-                  {upcoming.map((numero) => (
-                    <li
-                      key={numero}
-                      className="font-display text-4xl text-[color:var(--color-areia-200)] tabular-nums md:text-7xl"
-                      data-testid="kiosk-proxima"
-                    >
-                      {numero}
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            )}
-
-            <QrDaPresencaNaTv giraId={giraId} />
-
-            {ultima && (
-              <p
-                className={cn(
-                  'absolute inset-x-0 bottom-0 px-6 py-5 text-center text-white/50',
-                  ultima.medium ? 'text-xl md:text-4xl' : 'text-lg md:text-2xl',
-                )}
-                data-testid="kiosk-ultima"
-              >
-                Última chamada: <span className="font-display tabular-nums">{ultima.numero_formatado}</span>
-                {ultima.medium && (
-                  <>
-                    {' '}
-                    com <span className="font-bold text-white" data-testid="kiosk-medium">{ultima.medium}</span>
-                  </>
-                )}
-                {horaCurta(ultima.chamado_em) && ` às ${horaCurta(ultima.chamado_em)}`}
-              </p>
-            )}
-          </>
+        className={cn(
+          fraunces.variable,
+          'grid min-h-screen grid-cols-1 bg-[color:var(--color-cafe-950)] text-[color:var(--color-areia-50)] md:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]',
         )}
+      >
+        <section className="flex min-h-[60vh] flex-col justify-between gap-8 px-[5vw] py-[5vh]" aria-label="Senha chamada">
+          <header className="flex items-start justify-between gap-6">
+            <div className="flex min-w-0 items-center gap-[1.2vw]">
+              {tv?.casa_nome && (
+                <span aria-hidden className="flex size-[3.6vw] min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-folha-700)] text-[1.1vw] font-bold text-white">
+                  {iniciaisDaCasa(tv.casa_nome)}
+                </span>
+              )}
+              <div className="min-w-0">
+                {tv?.casa_nome && <p className="truncate text-[clamp(1rem,1.5vw,2rem)] font-bold">{tv.casa_nome}</p>}
+                <p className="truncate text-[clamp(0.875rem,1.2vw,1.5rem)] text-[color:var(--color-ouro-300)]">{giraNome}</p>
+              </div>
+            </div>
+            <span className="text-[clamp(1.25rem,2vw,2.5rem)] font-semibold tabular-nums" aria-label="Hora atual">
+              {clock}
+            </span>
+          </header>
+
+          {loading ? (
+            <Loader2 className="size-12 animate-spin text-white/80" aria-label="Carregando" />
+          ) : !giraId ? (
+            <p className="text-3xl text-white/70">Nenhuma gira hoje.</p>
+          ) : (
+            <div>
+              <p className="text-[clamp(1.25rem,2vw,2.5rem)] font-semibold text-[color:var(--color-areia-200)]">Senha</p>
+              <p
+                data-testid="kiosk-numero"
+                className="font-display text-[clamp(6rem,22vw,26rem)] leading-[0.9] font-normal tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums"
+                aria-live="polite"
+              >
+                {numeroAtual ?? '—'}
+              </p>
+              {atual?.nome && (
+                <p className="mt-[1vh] truncate text-[clamp(2rem,4.5vw,5.5rem)] font-bold" data-testid="kiosk-nome">
+                  {atual.nome}
+                </p>
+              )}
+              {!atual && (
+                <p className="mt-[1vh] text-[clamp(1.5rem,3vw,3.5rem)] text-white/70">Aguardando a próxima pessoa chegar</p>
+              )}
+            </div>
+          )}
+
+          {ultima ? (
+            <p className={cn('text-white/80', ultima.medium ? 'text-[clamp(1.25rem,2.2vw,2.75rem)]' : 'text-[clamp(1rem,1.6vw,2rem)]')} data-testid="kiosk-ultima">
+              Última chamada: <span className="tabular-nums">{ultima.numero_formatado}</span>
+              {ultima.medium && (
+                <>
+                  {' '}
+                  com <span className="font-bold text-white" data-testid="kiosk-medium">{ultima.medium}</span>
+                </>
+              )}
+              {horaCurta(ultima.chamado_em) && ` às ${horaCurta(ultima.chamado_em)}`}
+            </p>
+          ) : (
+            <span />
+          )}
+        </section>
+
+        <aside className="flex flex-col justify-between gap-8 bg-[color:var(--color-cafe-900)] px-[3.5vw] py-[5vh]" aria-label="Próximas senhas">
+          <div>
+            <p className="text-[clamp(1.25rem,1.8vw,2.25rem)] font-semibold text-[color:var(--color-ouro-300)]">Próximas</p>
+            {upcoming.length === 0 ? (
+              <p className="mt-6 border-t border-white/10 pt-6 text-[clamp(1rem,1.6vw,2rem)] text-white/60">Ninguém esperando.</p>
+            ) : (
+              <ol className="m-0 mt-3 list-none p-0">
+                {(tv?.proximas_detalhe?.length ? tv.proximas_detalhe : upcoming.map((n) => ({ numero_formatado: n, nome: null }))).map((p) => (
+                  <li
+                    key={p.numero_formatado}
+                    className="flex items-baseline justify-between gap-4 border-t border-white/10 py-[2.2vh]"
+                    data-testid="kiosk-proxima"
+                  >
+                    <span className="font-display text-[clamp(2.5rem,5.5vw,7rem)] leading-none tabular-nums">{p.numero_formatado}</span>
+                    {p.nome && <span className="truncate text-[clamp(1rem,1.7vw,2.25rem)] font-semibold">{p.nome}</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+          <QrDaPresencaNaTv giraId={giraId} />
+        </aside>
       </main>
     </>
   );
