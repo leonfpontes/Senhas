@@ -262,6 +262,10 @@ export function ShareLinkDialog({
               <>
                 Mande o <em className="text-[color:var(--color-barro-600)]">link.</em>
               </>
+            ) : title === 'Gira criada! Compartilhe.' ? (
+              <>
+                Gira criada! <em className="text-[color:var(--color-barro-600)]">Compartilhe.</em>
+              </>
             ) : (
               title
             )}

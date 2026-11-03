@@ -310,6 +310,12 @@ export default function CadastroPage() {
         }
       }
 
+      // J1 v2 · 06: a agenda abre com "Conta da <casa> criada" e a gaveta Nova gira.
+      try {
+        sessionStorage.setItem('girahub:conta-criada', values.terreiroNome.trim());
+      } catch {
+        /* sem armazenamento: a agenda só não mostra o aviso */
+      }
       // Recarga completa para os providers remontarem com a sessão nova.
       window.location.href = AFTER_SIGNUP_PATH;
     } catch (err) {

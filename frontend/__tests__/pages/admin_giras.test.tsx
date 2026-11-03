@@ -112,6 +112,14 @@ describe('Admin Giras Page', () => {
     expect(container).toBeTruthy();
   });
 
+  it('vindo do cadastro, mostra "Conta da <casa> criada" uma vez (J1 v2 · 06)', async () => {
+    sessionStorage.setItem('girahub:conta-criada', 'Terreiro Filhos de Fé');
+    const AdminGiras = require('@/pages/admin/giras').default;
+    wrap(<AdminGiras />);
+    expect(await screen.findByTestId('conta-criada')).toHaveTextContent('Conta da Terreiro Filhos de Fé criada.');
+    expect(sessionStorage.getItem('girahub:conta-criada')).toBeNull();
+  });
+
   it('renders gira name after loading', async () => {
     const AdminGiras = require('@/pages/admin/giras').default;
     wrap(<AdminGiras />);
@@ -279,7 +287,7 @@ describe('Admin Giras Page', () => {
         expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/nova/senhas', expect.objectContaining({ max_tickets: 30 })),
       );
       await waitFor(() => expect(screen.getByTestId('share-link-dialog')).toBeInTheDocument());
-      expect(screen.getByText('Gira criada! Compartilhe o link de senhas')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Gira criada! Compartilhe.' })).toBeInTheDocument();
       expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(LINK);
     });
 

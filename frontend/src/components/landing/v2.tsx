@@ -123,7 +123,7 @@ export function AberturaV2({ whatsapp = supportWhatsappLink() }: { whatsapp?: st
             certa e a TV do salão mostra quem é o próximo.
           </p>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-            <Button asChild size="touch" className="h-14 rounded-[10px] bg-cafe-950 px-6 text-base font-semibold text-areia-50 hover:bg-cafe-900">
+            <Button asChild size="touch" className="h-14 rounded-[10px] bg-folha-600 px-6 text-base font-semibold text-white hover:bg-folha-700">
               <Link href="/cadastro">
                 Criar a conta da casa <ArrowRight aria-hidden />
               </Link>
@@ -421,7 +421,7 @@ export function FechoV2() {
         <Picote />
         <div className="mt-12 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <Manchete id="fecho-title" antes="Crie a gira de sábado " acento="hoje." className="text-4xl leading-tight sm:text-[4rem]" />
-          <Button asChild size="touch" className="h-14 rounded-[10px] bg-cafe-950 px-6 text-base font-semibold text-areia-50 hover:bg-cafe-900">
+          <Button asChild size="touch" className="h-14 rounded-[10px] bg-folha-600 px-6 text-base font-semibold text-white hover:bg-folha-700">
             <Link href="/cadastro">
               Criar a conta da casa <ArrowRight aria-hidden />
             </Link>

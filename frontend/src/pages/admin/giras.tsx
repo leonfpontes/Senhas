@@ -25,6 +25,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  CircleCheck,
   Clock,
   Info,
   Lock,
@@ -542,6 +543,20 @@ function AdminGirasContent() {
     };
   }, [giras, canView, canViewPorta]);
 
+  // J1 v2 · 06: vindo do cadastro, "Conta da <casa> criada" sobre a agenda (uma vez).
+  const [contaCriada, setContaCriada] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const nome = sessionStorage.getItem('girahub:conta-criada');
+      if (nome !== null) {
+        setContaCriada(nome);
+        sessionStorage.removeItem('girahub:conta-criada');
+      }
+    } catch {
+      /* sem armazenamento */
+    }
+  }, []);
+
   // ?nova=1 abre a criação (botão "Criar gira" do checklist / barra inferior); espera a
   // assinatura carregar para respeitar o limite do plano e remove o parâmetro.
   useEffect(() => {
@@ -775,7 +790,7 @@ function AdminGirasContent() {
           }
           toast.success(createUseSlots && podeHorarioNaCriacao ? 'Gira criada com horário marcado!' : 'Gira criada e senhas configuradas!');
           await loadUnifiedLinks();
-          openShare('Gira criada! Compartilhe o link de senhas');
+          openShare('Gira criada! Compartilhe.');
         } catch (error) {
           toast.error(extractApiErrorMessage(error, 'A gira foi criada, mas as senhas não foram salvas.'));
           openSenhaDrawer(created, { fromCreate: true });
@@ -1185,6 +1200,13 @@ function AdminGirasContent() {
   return (
     <div className="pb-6">
       <div data-tour="giras-header">
+        {contaCriada !== null && (
+          <Alert variant="success" role="status" className="mb-4" data-testid="conta-criada">
+            <CircleCheck aria-hidden />
+            <AlertTitle>{contaCriada ? `Conta da ${contaCriada} criada.` : 'Conta criada.'}</AlertTitle>
+            <AlertDescription>Agora, a primeira gira: o nome, o dia e as senhas.</AlertDescription>
+          </Alert>
+        )}
         <PageHeader
           title="Giras"
           subtitle="Crie a gira, mande o link e acompanhe as senhas."
