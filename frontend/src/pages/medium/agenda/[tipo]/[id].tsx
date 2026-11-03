@@ -27,11 +27,8 @@ import {
   Ban,
   CalendarDays,
   CalendarPlus,
-  Clock,
   Info,
-  MapPin,
   Share2,
-  Ticket,
   TriangleAlert,
 } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
@@ -57,7 +54,6 @@ import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
 import { TrocaNaAtividade } from '@/components/medium/troca/TrocaNaAtividade';
 import { cheguei, estaImpersonando, mensagemDoErro } from '@/components/medium/presenca/presencaApi';
 
-const CARD = 'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs';
 
 type Detalhe = ({ kind: 'gira' } & GiraDetalhe) | ({ kind: 'atividade' } & AtividadeDetalhe);
 
@@ -226,22 +222,23 @@ function DetalheDoItem() {
         </p>
       )}
 
-      <div className={CARD}>
-        <p className="flex items-start gap-3 text-base">
-          <Clock className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
-          <span>
-            <strong className="block font-semibold first-letter:uppercase">{horarioCompleto(item)}</strong>
+      {/* J6 v2 · 04 (ListaDeDetalhes): quando, onde e as senhas, rótulo à esquerda e valor à direita. */}
+      <dl className="m-0 border-b border-border">
+        <div className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+          <dt className="shrink-0 text-[0.9375rem] text-muted-foreground">Quando</dt>
+          <dd className="m-0 text-right text-[0.9375rem] font-semibold first-letter:uppercase">
+            {horarioCompleto(item)}
             {passou && (
-              <span className="block text-sm text-muted-foreground">
+              <span className="block text-sm font-normal text-muted-foreground">
                 {item.kind === 'gira' ? 'Esta gira já aconteceu.' : 'Esta atividade já aconteceu.'}
               </span>
             )}
-          </span>
-        </p>
+          </dd>
+        </div>
         {lugar.length > 0 && (
-          <p className="flex items-start gap-3 text-base">
-            <MapPin className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="flex flex-col">
+          <div className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+            <dt className="shrink-0 text-[0.9375rem] text-muted-foreground">Onde</dt>
+            <dd className="m-0 flex flex-col items-end text-right text-[0.9375rem] font-semibold">
               {lugar.map((l) => (
                 <span key={l}>{l}</span>
               ))}
@@ -255,16 +252,16 @@ function DetalheDoItem() {
                   Abrir no mapa
                 </a>
               )}
-            </span>
-          </p>
+            </dd>
+          </div>
         )}
         {senhas && (
-          <p className="flex items-start gap-3 text-base" data-testid="gira-senhas">
-            <Ticket className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
-            <span>{senhas}</span>
-          </p>
+          <div className="flex items-baseline justify-between gap-4 border-t border-border py-3" data-testid="gira-senhas">
+            <dt className="shrink-0 text-[0.9375rem] text-muted-foreground">Senhas</dt>
+            <dd className="m-0 text-right text-[0.9375rem] font-semibold">{senhas}</dd>
+          </div>
         )}
-      </div>
+      </dl>
 
       <section
         className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3.5 text-card-foreground shadow-xs"

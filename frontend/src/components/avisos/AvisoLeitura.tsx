@@ -108,7 +108,7 @@ export function AvisoLeitura({ titulo, corpo, fixado, assinatura, tituloAs = 'h1
       {fixado && <FixadoBadge />}
       <Titulo className="text-2xl leading-tight font-semibold tracking-tight">{titulo}</Titulo>
       <p className="text-sm text-muted-foreground">{assinatura}</p>
-      <AvisoTexto texto={corpo} className="text-[1.0625rem] leading-relaxed" />
+      <AvisoTexto texto={corpo} className="text-[1.1875rem] leading-relaxed" />
     </article>
   );
 }
