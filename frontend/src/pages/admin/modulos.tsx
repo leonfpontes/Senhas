@@ -53,7 +53,8 @@ export default function ModulosPage() {
 }
 
 function ModulosContent() {
-  const { can, beta, planLabel: planoDaCasa } = useSubscription();
+  const { can, beta, planLabel: planoDaCasa, subscription } = useSubscription();
+  const comDado = subscription?.modulos_com_dado ?? [];
   const { can: canGroup } = usePermissions();
   const { profile } = useProfile();
   const isOperator = profile?.role === 'operator';
@@ -75,11 +76,11 @@ function ModulosContent() {
       // A Área do Médium se configura em Configurações (aba Área do Médium); só no piloto.
       if (!can('area_medium')) return [];
       if (isOperator && !canGroup('configuracoes', 'view')) return [];
-      return [{ m, estado: 'menu', entrada: '/admin/config' }];
+      return [{ m, estado: !ajustavel || estaNoMenu(pref, m.key, comDado) ? 'menu' : 'livre', entrada: '/admin/config?aba=area-medium' }];
     }
     const entrada = m.rotas.find((r) => rotasLiberadas.has(r)) ?? null;
     if (entrada) {
-      const noMenu = !ajustavel || estaNoMenu(pref, m.key);
+      const noMenu = !ajustavel || estaNoMenu(pref, m.key, comDado);
       return [{ m, estado: noMenu ? 'menu' : 'livre', entrada }];
     }
     // Fora do plano: aparece com o plano que precisa (piloto não é oferecido).
@@ -134,7 +135,7 @@ function ModulosContent() {
                     {estado === 'menu' && (
                       <>
                         <span className="text-sm font-semibold text-success-strong">No menu</span>
-                        {ajustavel && m.key !== 'area-medium' && (
+                        {ajustavel && (
                           <Button type="button" variant="link" className="h-auto px-0 text-sm" onClick={() => mudar(tirarDoMenu(pref, m.key))}>
                             Tirar
                           </Button>

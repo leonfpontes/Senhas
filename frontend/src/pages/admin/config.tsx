@@ -9,6 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { Check, CircleAlert, CloudUpload, DoorOpen, FlaskConical, HeartHandshake, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader } from '@/components/admin';
@@ -396,6 +397,7 @@ export default function AdminConfigPage() {
 }
 
 function AdminConfigContent() {
+  const router = useRouter();
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
   // Laboratório (jornadas v2): a aba só existe para terreiro beta tester (o GET responde 403 sem isso).
@@ -613,6 +615,11 @@ function AdminConfigContent() {
   const showSaveBar = isDirty && canEdit;
   // Área do Médium em piloto: some sem a feature (plano Basic+ e chave da plataforma), sem oferta de upgrade.
   const showAreaMedium = can('area_medium');
+  // ?aba=area-medium (ou outra aba): abre direto nela — o atalho "Área do Médium" da barra e dos Módulos.
+  const abaPedida = typeof router.query.aba === 'string' ? router.query.aba : '';
+  const abaInicial = ['identidade', 'funcionalidades', 'atendimento', 'area-medium', 'laboratorio'].includes(abaPedida)
+    ? abaPedida
+    : 'identidade';
   const lockedPlan = lockedFeature ? minPlanFor(lockedFeature.gate) : null;
 
   return (
@@ -623,7 +630,7 @@ function AdminConfigContent() {
 
       {!canEdit && <ReadOnlyNotice />}
 
-      <Tabs defaultValue="identidade" data-tour="config-tabs">
+      <Tabs key={abaInicial} defaultValue={abaInicial} data-tour="config-tabs">
         <TabsList className={cn('grid w-full', [
           'max-w-lg grid-cols-3', 'max-w-2xl grid-cols-4', 'max-w-3xl grid-cols-5',
         ][Number(showAreaMedium) + Number(showLab)])}>

@@ -87,6 +87,13 @@ describe('AdminSidebar', () => {
     expect(screen.getByText('Pro · mês grátis')).toBeInTheDocument();
   });
 
+  it('Área do Médium aparece em "Da casa" e abre a aba dela em Configurações', () => {
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator={false} />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /Área do Médium/ })).toHaveAttribute('href', '/admin/config?aba=area-medium');
+  });
+
   it('montarSidebarNav: a conta inteira vai para o avatar, sem perder item', () => {
     const { montarSidebarNav } = require('@/components/admin/layout/navConfig');
     const L = (href: string, label: string) => ({ kind: 'link', href, label, icon: () => null });

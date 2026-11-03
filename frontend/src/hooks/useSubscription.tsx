@@ -67,6 +67,8 @@ export interface SubscriptionInfo {
   features: PlanFeatures;
   /** Laboratório (jornadas v2): betas ligadas na casa beta tester. */
   betas?: string[];
+  /** Beta "Menu que se ajusta ao uso": módulos com dado na casa (sobem sozinhos para "Da casa"). */
+  modulos_com_dado?: string[];
 }
 
 interface SubscriptionContextValue {

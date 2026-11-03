@@ -61,7 +61,8 @@ export const MODULOS: readonly Modulo[] = [
     grupo: 'Corrente',
     plano: 'area_medium',
     piloto: true,
-    rotas: ['/admin/config'],
+    // A Área se configura em Configurações, na aba própria (o atalho abre direto nela).
+    rotas: ['/admin/config?aba=area-medium'],
   },
   {
     key: 'avisos',
@@ -191,10 +192,10 @@ export function gravarPreferencia(tenantId: string | null | undefined, p: Prefer
   }
 }
 
-/** Está no menu ("Da casa") pela preferência: posto ou usado, e não tirado. */
-export function estaNoMenu(p: PreferenciaDoMenu, key: string): boolean {
+/** Está no menu ("Da casa"): posto à mão, aberto neste aparelho ou com dado na casa — e não tirado. */
+export function estaNoMenu(p: PreferenciaDoMenu, key: string, comDado: readonly string[] = []): boolean {
   if (p.tirados.includes(key)) return false;
-  return p.postos.includes(key) || p.usados.includes(key);
+  return p.postos.includes(key) || p.usados.includes(key) || comDado.includes(key);
 }
 
 export function marcarUso(p: PreferenciaDoMenu, key: string): PreferenciaDoMenu {

@@ -49,7 +49,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
   const { profile } = useProfile();
   const { planLabel, subscription, loading: subscriptionLoading } = useSubscription();
   const groups = useAdminNav({ isOperator, tenantId: profile?.tenant_id });
-  const { beta } = useSubscription();
+  const { beta, subscription: assinatura } = useSubscription();
+  const comDado = assinatura?.modulos_com_dado ?? [];
   const ajustavel = Boolean(beta?.('beta_menu_ajustavel'));
   const tenantId = profile?.tenant_id;
   const [pref, setPref] = useState<PreferenciaDoMenu>(() => lerPreferencia(tenantId));
@@ -68,7 +69,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
     const novo = marcarUso(atual, m.key);
     if (novo !== atual) gravarPreferencia(tenantId, novo);
   }, [ajustavel, pathname, tenantId]);
-  const { fixos, daCasa } = montarSidebarNav(groups, { ajustavel, noMenu: (k) => estaNoMenu(pref, k) });
+  const { fixos, daCasa } = montarSidebarNav(groups, { ajustavel, noMenu: (k) => estaNoMenu(pref, k, comDado) });
   const modulosAtivo = pathname === '/admin/modulos';
 
   return (

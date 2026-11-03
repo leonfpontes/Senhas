@@ -38,6 +38,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  Smartphone,
   Tags,
   Ticket,
   TrendingUp,
@@ -178,6 +179,14 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
+    // Área do Médium (AM-02): a configuração mora em Configurações › Área do Médium; o atalho abre a aba.
+    if (can('area_medium') && view('configuracoes')) {
+      corrente.push(
+        link('/admin/config?aba=area-medium', 'Área do Médium', Smartphone, {
+          keywords: ['área do médium', 'app da corrente', 'convite', 'médium'],
+        }),
+      );
+    }
     // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
     if (can('area_medium') && view('comunicados')) {
       corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
@@ -300,8 +309,10 @@ export interface SidebarNav {
   conta: NavLink[];
 }
 
+/** Caminhos de uma entrada: o href inteiro (para atalhos com ?aba=) e o caminho sem query. */
 function caminhoDe(entry: NavEntry): string[] {
-  return entry.kind === 'link' ? [pathOf(entry.href)] : entry.items.map((i) => pathOf(i.href));
+  const links = entry.kind === 'link' ? [entry] : entry.items;
+  return links.flatMap((i) => (i.href.includes('?aba=') ? [i.href] : [pathOf(i.href)]));
 }
 
 export function montarSidebarNav(
@@ -321,7 +332,7 @@ export function montarSidebarNav(
 
   const daCasa: NavEntry[] = [];
   for (const m of MODULOS) {
-    if (m.fixo || m.key === 'area-medium') continue;
+    if (m.fixo) continue;
     const entradas = todos.filter((e) => !daCasa.includes(e) && caminhoDe(e).some((c) => m.rotas.includes(c)));
     if (entradas.length === 0) continue;
     if (opts.ajustavel && !opts.noMenu(m.key)) continue;

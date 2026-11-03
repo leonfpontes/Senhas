@@ -71,3 +71,18 @@ async def test_grupos_de_permissao(client, db):
     assert r.status_code == 403
     sem_grupo = await create_user(db, tenant, UserRole.OPERATOR, name="semgrupo")
     assert (await client.get(LAB, headers=sem_grupo.headers)).status_code == 403
+
+
+async def test_modulos_com_dado_so_da_propria_casa(db):
+    from src.models.mediuns import Medium
+    from src.services.laboratorio import modulos_com_dado
+
+    casa = await create_tenant(db)
+    outra = await create_tenant(db, name="Outra Casa")
+    assert await modulos_com_dado(db, casa.id) == []
+    db.add(Medium(tenant_id=outra.id, nome="Médium da outra casa"))
+    await db.commit()
+    assert "mediuns" not in await modulos_com_dado(db, casa.id)
+    db.add(Medium(tenant_id=casa.id, nome="Médium da casa"))
+    await db.commit()
+    assert "mediuns" in await modulos_com_dado(db, casa.id)

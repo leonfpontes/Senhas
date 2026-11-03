@@ -77,3 +77,47 @@ async def betas_ligadas(db: AsyncSession, tenant_id: UUID) -> set[str]:
 
 async def beta_ligada(db: AsyncSession, tenant_id: UUID, chave: str) -> bool:
     return chave in await betas_ligadas(db, tenant_id)
+
+
+# ─── Beta "Menu que se ajusta ao uso": os módulos que a casa já usa (têm dado) ──────────────
+# A regra do desenho (J1 v2 · 11): módulo com dado sobe sozinho para "Da casa". As chaves são as
+# de frontend/src/constants/modulos.ts. Cada consulta filtra pelo tenant recebido e só pergunta
+# se existe ao menos uma linha (LIMIT 1), sem contar.
+async def modulos_com_dado(db: AsyncSession, tenant_id: UUID) -> list[str]:
+    from sqlalchemy import select
+
+    from src.models.associados import Associado
+    from src.models.atividades import Atividade
+    from src.models.comunicados import Comunicado
+    from src.models.contas_financeiras import ContaFinanceira
+    from src.models.cursos_presenciais import CursoPresencial
+    from src.models.estoque import EstoqueItem
+    from src.models.materiais import MaterialCorrente
+    from src.models.medium_convites import MediumConvite
+    from src.models.mediuns import Medium
+    from src.models.mensalidades import MensalidadePagamento
+    from src.models.site import TenantSite
+    from src.models.tickets import Ticket, TicketStatus
+
+    consultas = {
+        "mediuns": select(Medium.id).where(Medium.tenant_id == tenant_id),
+        "area-medium": select(MediumConvite.id).where(MediumConvite.tenant_id == tenant_id),
+        "avisos": select(Comunicado.id).where(Comunicado.tenant_id == tenant_id),
+        "estudos": select(MaterialCorrente.id).where(MaterialCorrente.tenant_id == tenant_id),
+        "atividades": select(Atividade.id).where(Atividade.tenant_id == tenant_id),
+        "mensalidades": select(MensalidadePagamento.id).where(MensalidadePagamento.tenant_id == tenant_id),
+        "site": select(TenantSite.id).where(TenantSite.tenant_id == tenant_id),
+        "associados": select(Associado.id).where(Associado.tenant_id == tenant_id),
+        "financeiro": select(ContaFinanceira.id).where(ContaFinanceira.tenant_id == tenant_id),
+        "estoque": select(EstoqueItem.id).where(EstoqueItem.tenant_id == tenant_id),
+        "relatorio": select(Ticket.id).where(Ticket.tenant_id == tenant_id, Ticket.status == TicketStatus.COMPLETED),
+    }
+    usados = []
+    for chave, consulta in consultas.items():
+        if (await db.execute(consulta.limit(1))).first() is not None:
+            usados.append(chave)
+    # Cursos contam como "Site e cursos".
+    if "site" not in usados:
+        if (await db.execute(select(CursoPresencial.id).where(CursoPresencial.tenant_id == tenant_id).limit(1))).first():
+            usados.append("site")
+    return usados
