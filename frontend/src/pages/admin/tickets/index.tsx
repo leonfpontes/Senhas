@@ -500,7 +500,7 @@ function AdminTicketsContent() {
         id: 'numero',
         header: 'Senha',
         accessorFn: (t) => t.numero,
-        cell: ({ row }) => <span className="font-mono font-bold tabular-nums">{numeroDaSenha(row.original)}</span>,
+        cell: ({ row }) => <span className="font-display text-lg tabular-nums">{numeroDaSenha(row.original)}</span>,
         meta: { width: 80 },
       },
       {
@@ -572,7 +572,7 @@ function AdminTicketsContent() {
           className="mt-2"
         />
       )}
-      <span className="font-mono text-3xl leading-none font-black tabular-nums">{numeroDaSenha(t)}</span>
+      <span className="font-display text-3xl leading-none tabular-nums">{numeroDaSenha(t)}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold">{t.consulente_nome || '—'}</p>
         {(t.consulente_telefone || t.consulente_email) && (
@@ -714,7 +714,7 @@ function AdminTicketsContent() {
               <ul className="m-0 flex list-none flex-col p-0">
                 {waitlist.map((item) => (
                   <li key={item.id} className="flex items-center gap-3 border-b py-2 last:border-b-0">
-                    <span className="font-mono font-bold tabular-nums">{numeroDaSenha(item)}</span>
+                    <span className="font-display text-lg tabular-nums">{numeroDaSenha(item)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
                       <p className="truncate text-xs text-muted-foreground">

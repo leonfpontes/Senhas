@@ -364,7 +364,7 @@ function RelatorioGiraContent() {
       {
         accessorKey: 'numero',
         header: 'Senha',
-        meta: { cellClassName: 'whitespace-nowrap font-mono font-bold' },
+        meta: { cellClassName: 'whitespace-nowrap font-display text-lg' },
         cell: ({ row }) => numeroDaSenha(row.original),
       },
       {
@@ -410,7 +410,7 @@ function RelatorioGiraContent() {
       <div className="flex flex-col gap-1.5 p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <span className="font-mono text-sm font-bold">{numeroDaSenha(t)}</span>
+            <span className="font-display text-lg">{numeroDaSenha(t)}</span>
             <p className="m-0 truncate text-sm font-medium">{t.consulente_nome || '—'}</p>
           </div>
           <Badge className={cn('border-transparent', TAG_CLASS[tag])}>{tag}</Badge>
