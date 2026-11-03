@@ -171,7 +171,7 @@ describe('cartão do mês', () => {
       ]),
     );
     const cartao = await screen.findByTestId('cartao-mensalidade');
-    expect(within(cartao).getByText('outubro de 2026')).toBeInTheDocument();
+    expect(within(cartao).getByText('Mensalidade de outubro')).toBeInTheDocument();
     expect(within(cartao).getByText('Em aberto')).toBeInTheDocument();
     expect(within(cartao).getByTestId('valor-mes')).toHaveTextContent('R$ 50,00');
     expect(within(cartao).getByText('Vence sábado, 10/10')).toBeInTheDocument();
