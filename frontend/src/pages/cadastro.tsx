@@ -596,6 +596,7 @@ export default function CadastroPage() {
                       <ChoiceCards
                         label="O que você mais precisa resolver?"
                         required
+                        estilo="lista"
                         options={DOR_CARDS}
                         value={field.value}
                         onChange={field.onChange}
@@ -612,7 +613,7 @@ export default function CadastroPage() {
                       <ChoiceCards
                         label="Como nos conheceu?"
                         required
-                        columns="2"
+                        estilo="pilulas"
                         options={COMO_CONHECEU_CARDS}
                         value={field.value}
                         onChange={field.onChange}
@@ -626,7 +627,7 @@ export default function CadastroPage() {
                     control={control}
                     name="aceiteTermos"
                     render={({ field }) => (
-                      <div className="flex flex-col gap-1.5 rounded-xl border border-areia-200 bg-areia-50 p-4">
+                      <div className="flex flex-col gap-1.5">
                         <div className="flex items-start gap-3">
                           <Checkbox
                             ref={field.ref}
