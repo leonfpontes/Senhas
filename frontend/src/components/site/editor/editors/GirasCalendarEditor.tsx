@@ -57,7 +57,7 @@ export function GirasCalendarEditor({ config, onChange }: SectionEditorProps) {
       </FieldGroup>
 
       <FieldGroup title="Cores">
-        <ColorField label="Destaque" value={String(config.calendar_highlight_color || '#6366f1')} onChange={(v) => patch({ calendar_highlight_color: v })} />
+        <ColorField label="Destaque" value={String(config.calendar_highlight_color || '#2E6A4E')} onChange={(v) => patch({ calendar_highlight_color: v })} />
         <ColorField label="Fundo do calendário" value={String(config.calendar_bg_color || '#f8f8f8')} onChange={(v) => patch({ calendar_bg_color: v })} />
         <ColorField label="Texto do calendário" value={String(config.calendar_text_color || '#111111')} onChange={(v) => patch({ calendar_text_color: v })} />
         <ColorField label="Fundo dos cartões" value={String(config.card_bg_color || '#ffffff')} onChange={(v) => patch({ card_bg_color: v })} />

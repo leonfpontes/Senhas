@@ -134,9 +134,9 @@ export interface HeroBackground {
 export function heroBackground(config: SectionConfig): HeroBackground {
   const bgType = String(config.bg_type || 'gradient');
   const bgUrl = config.bg_image_url ? String(config.bg_image_url) : '';
-  const solid = String(config.bg_color || '#6366f1');
-  const from = String(config.gradient_from || '#6366f1');
-  const to = String(config.gradient_to || '#ec4899');
+  const solid = String(config.bg_color || '#2E6A4E');
+  const from = String(config.gradient_from || '#2E6A4E');
+  const to = String(config.gradient_to || '#E9B04A');
   const dir = String(config.gradient_dir || '135deg');
 
   if (bgType === 'image' && bgUrl) {
@@ -145,11 +145,11 @@ export function heroBackground(config: SectionConfig): HeroBackground {
     return {
       bgType: 'image',
       background: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) ${x}% ${y}% / cover no-repeat`,
-      brandColor: parseColor(from) ? from : '#6366f1',
+      brandColor: parseColor(from) ? from : '#2E6A4E',
     };
   }
   if (bgType === 'solid') {
-    return { bgType: 'solid', background: solid, brandColor: parseColor(solid) ? solid : '#6366f1' };
+    return { bgType: 'solid', background: solid, brandColor: parseColor(solid) ? solid : '#2E6A4E' };
   }
   return {
     bgType: 'gradient',
@@ -157,7 +157,7 @@ export function heroBackground(config: SectionConfig): HeroBackground {
       dir === 'radial'
         ? `radial-gradient(circle, ${from} 0%, ${to} 100%)`
         : `linear-gradient(${dir}, ${from} 0%, ${to} 100%)`,
-    brandColor: parseColor(from) ? from : '#6366f1',
+    brandColor: parseColor(from) ? from : '#2E6A4E',
   };
 }
 
@@ -174,8 +174,8 @@ export function heroForeground(config: SectionConfig): string {
   }
   const stops =
     bgType === 'solid'
-      ? [String(config.bg_color || '#6366f1')]
-      : [String(config.gradient_from || '#6366f1'), String(config.gradient_to || '#ec4899')];
+      ? [String(config.bg_color || '#2E6A4E')]
+      : [String(config.gradient_from || '#2E6A4E'), String(config.gradient_to || '#E9B04A')];
   const valid = stops.filter((s) => parseColor(s));
   if (valid.length === 0) return preferred;
   const minContrast = (fg: string) => Math.min(...valid.map((bg) => contrastRatio(bg, fg)));
@@ -186,7 +186,7 @@ export function heroForeground(config: SectionConfig): string {
 /** Cor de marca do site: a do Hero (primeira seção HERO) ou o índigo padrão. */
 export function siteBrandColor(sections: SiteSection[]): string {
   const hero = sections.find((s) => s.section_type === 'HERO');
-  return hero ? heroBackground(hero.config).brandColor : '#4f46e5';
+  return hero ? heroBackground(hero.config).brandColor : '#2E6A4E';
 }
 
 // ── Fontes / layout ───────────────────────────────────────────────────────────
@@ -385,8 +385,8 @@ export function applyHeroPalette(config: SectionConfig, palette: HeroPalette): S
 
 export function activeHeroPalette(config: SectionConfig): HeroPalette | null {
   if (String(config.bg_type || 'gradient') !== 'gradient') return null;
-  const from = String(config.gradient_from || '#6366f1').toLowerCase();
-  const to = String(config.gradient_to || '#ec4899').toLowerCase();
+  const from = String(config.gradient_from || '#2E6A4E').toLowerCase();
+  const to = String(config.gradient_to || '#E9B04A').toLowerCase();
   return HERO_PALETTES.find((p) => p.from === from && p.to === to) ?? null;
 }
 

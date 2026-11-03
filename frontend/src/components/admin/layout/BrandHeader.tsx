@@ -7,7 +7,7 @@ import { useTenant } from '@/providers/ThemeProvider';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { APP_VERSION_SHORT } from '@/lib/version';
 
-const DEFAULT_PRIMARY = '#4F46E5';
+const DEFAULT_PRIMARY = '#2E6A4E';
 const DEFAULT_SECONDARY = '#EC4899';
 
 export interface BrandHeaderProps {

@@ -47,7 +47,7 @@ async function loadTenantFacts(): Promise<TenantFacts> {
   return {
     nome: typeof b.tenant_nome === 'string' && b.tenant_nome ? b.tenant_nome : typeof c.tenant_nome === 'string' ? c.tenant_nome : null,
     logoUrl: typeof b.logo_url === 'string' && b.logo_url ? b.logo_url : typeof c.logo_url === 'string' && c.logo_url ? c.logo_url : null,
-    primary: typeof b.primary_color === 'string' && b.primary_color ? b.primary_color : '#4f46e5',
+    primary: typeof b.primary_color === 'string' && b.primary_color && b.primary_color.toLowerCase() !== '#4f46e5' ? b.primary_color : '#2E6A4E',
     secondary: typeof b.secondary_color === 'string' && b.secondary_color ? b.secondary_color : '#ec4899',
     fontColor: typeof b.font_color === 'string' ? b.font_color : null,
     endereco: typeof c.endereco === 'string' && c.endereco ? c.endereco : null,

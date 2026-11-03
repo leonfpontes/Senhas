@@ -18,7 +18,7 @@ export function SiteFooter({ inert = false }: { inert?: boolean }) {
         {/* Logo estático do produto (SVG em /public) — não passa pelo otimizador. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/favicon.svg" alt="" className="size-7" />
-        <span className="bg-gradient-to-br from-[#4f46e5] to-[#818cf8] bg-clip-text text-base leading-none font-bold tracking-tight text-transparent">
+        <span className="bg-gradient-to-br from-[#2E6A4E] to-[#24543d] bg-clip-text text-base leading-none font-bold tracking-tight text-transparent">
           GiraHub
         </span>
       </a>

@@ -273,7 +273,7 @@ export function GirasCalendar({ config, ctx }: { config: SectionConfig; ctx: Sec
   const next = nextGira(giras);
   const displayMode = String(config.display_mode || 'calendar');
   const title = String(config.title || 'Próximas giras');
-  const brand = String(config.calendar_highlight_color || ctx.brandColor || '#4f46e5');
+  const brand = String(config.calendar_highlight_color || ctx.brandColor || '#2E6A4E');
   const cardBg = hexToRgba(String(config.card_bg_color || '#ffffff'), 100);
 
   const cardList = (className: string, itemClassName?: string) => (
