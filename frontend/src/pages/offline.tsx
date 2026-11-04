@@ -10,7 +10,11 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Head from 'next/head';
-import { RefreshCw, WifiOff } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+import { fraunces } from '@/components/landing/fonts';
+import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 
 import { Button } from '@/components/ui/button';
 import { Bilhete, PublicShell } from '@/components/public';
@@ -68,18 +72,22 @@ export default function OfflinePage() {
         <title>Sem conexão | GiraHub</title>
         <meta name="robots" content="noindex" />
       </Head>
-      <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background px-6 py-12 text-center text-foreground">
-        <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <WifiOff className="size-8" aria-hidden />
-        </span>
-        <div className="flex max-w-sm flex-col gap-2">
-          <h1 className="text-2xl font-bold">Sem conexão</h1>
-          <p className="text-base text-muted-foreground">{OFFLINE_MESSAGE}</p>
-        </div>
-        <Button type="button" size="touch" onClick={retry}>
-          <RefreshCw aria-hidden /> Tentar de novo
-        </Button>
-      </main>
+      {/* J11 v2 · 14: a barra café com a marca, o ícone num círculo areia e o título em Fraunces. */}
+      <div className={cn(fraunces.variable, 'flex min-h-svh flex-col bg-areia-50 text-tinta')}>
+        <header className="flex h-16 items-center bg-cafe-950 px-4 sm:px-6">
+          <GiraHubLogo className="text-white" />
+        </header>
+        <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+          <span aria-hidden className="flex size-20 items-center justify-center rounded-full bg-areia-100">
+            <WifiOff className="size-8 text-barro-700" />
+          </span>
+          <h1 className="font-display text-4xl font-medium tracking-[-0.02em]">Sem conexão</h1>
+          <p className="max-w-sm text-base text-tinta-suave">{OFFLINE_MESSAGE}</p>
+          <Button type="button" size="touch" className="mt-2 rounded-[10px] bg-folha-600 text-white hover:bg-folha-700" onClick={retry}>
+            Tentar de novo
+          </Button>
+        </main>
+      </div>
     </>
   );
 }

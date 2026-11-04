@@ -13,6 +13,7 @@ import { useRouter } from 'next/router';
 import { ArrowLeft, Home, MapPinOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fraunces } from '@/components/landing/fonts';
+import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { Button } from '@/components/ui/button';
 
 /** Primeiro segmento de rotas da plataforma — nunca é slug de terreiro. */
@@ -76,12 +77,16 @@ export default function Custom404() {
         <meta name="robots" content="noindex" />
       </Head>
 
+      <div className={cn(fraunces.variable, 'flex min-h-screen flex-col bg-areia-50')}>
+      {/* J11 v2 · 13: a barra café com a marca, como nas telas de conta. */}
+      <header className="flex h-16 items-center bg-cafe-950 px-4 sm:px-6">
+        <Link href="/" aria-label="GiraHub — página inicial" className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60">
+          <GiraHubLogo className="text-white" />
+        </Link>
+      </header>
       <main
         data-slot="not-found-page"
-        className={cn(
-          fraunces.variable,
-          'flex min-h-screen flex-col items-center justify-center gap-4 bg-areia-50 px-4 text-center text-base text-tinta',
-        )}
+        className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12 text-center text-base text-tinta"
       >
         <span aria-hidden className="flex size-20 items-center justify-center rounded-full bg-areia-100">
           <MapPinOff className="size-8 text-barro-700" />
@@ -120,6 +125,7 @@ export default function Custom404() {
           </Button>
         </div>
       </main>
+      </div>
     </>
   );
 }

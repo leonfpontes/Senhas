@@ -1,6 +1,6 @@
 /**
  * AuthShell — moldura das telas de conta com a identidade da landing: marca que volta para `/`,
- * painel da marca (promessa + depoimento real mais recente) e paleta terra no kit (`auth-terra`).
+ * painel da marca (promessa e provas) e paleta terra no kit (`auth-terra`).
  */
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
@@ -25,7 +25,7 @@ describe('AuthShell', () => {
     expect(screen.getByRole('main').closest('.auth-terra')).not.toBeNull();
   });
 
-  it('painel da marca traz a promessa e o depoimento real mais recente', () => {
+  it('painel da marca traz a promessa, sem depoimento (J11 v2)', () => {
     render(
       <AuthShell title="Entrar">
         <p>x</p>
@@ -33,10 +33,8 @@ describe('AuthShell', () => {
     );
     const panel = screen.getByRole('complementary', { name: 'Sobre o GiraHub' });
     expect(within(panel).getByText(AUTH_PANEL.promise)).toBeInTheDocument();
-    const t = latestTestimonial();
-    expect(t).toBeDefined();
-    expect(within(panel).getByText(t!.nome)).toBeInTheDocument();
-    expect(within(panel).getByText(`“${testimonialExcerpt(t!)}”`)).toBeInTheDocument();
+    const t = TESTIMONIALS[0];
+    expect(within(panel).queryByText(t.nome)).not.toBeInTheDocument();
   });
 });
 

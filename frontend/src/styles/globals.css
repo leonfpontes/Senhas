@@ -207,10 +207,11 @@ body.painel-terra {
   --muted-foreground: var(--color-tinta-suave);
   --accent: var(--color-areia-100);
   --accent-foreground: var(--color-tinta);
-  --primary: var(--color-barro-600);
+  /* Ação em verde folha, o padrão sem cor de casa (ADR 0011; J11 v2). */
+  --primary: var(--color-folha-700);
   --primary-foreground: #ffffff;
-  --primary-text: var(--color-barro-700);
-  --ring: var(--color-barro-600);
+  --primary-text: var(--color-folha-700);
+  --ring: var(--color-folha-700);
 }
 
 /* Páginas públicas do consulente (PublicShell, jornada 3 v2): a superfície "terra" (areia + tinta) com a

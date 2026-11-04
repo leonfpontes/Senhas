@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { ArrowLeft, ChevronDown, CircleCheck, Info, Loader2, Mail, TriangleAlert, CircleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, CircleCheck, Info, Loader2, Mail, TriangleAlert, CircleAlert } from 'lucide-react';
 import { AccountChoiceList, AuthShell, AUTH_INPUT, AUTH_LINK } from '@/components/auth';
 import { cn } from '@/lib/utils';
 import { TextField, PasswordField } from '@/components/fields';
@@ -67,7 +67,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,6 +207,10 @@ export default function LoginPage() {
             Entrando como <strong className="font-semibold text-tinta">{email}</strong>
           </p>
           <AccountChoiceList options={choice.options} onSelect={handleSelect} selectingId={selectingId} />
+          {/* J11 v2 · 03: o aviso do tempo para escolher (a escolha expira no servidor). */}
+          <p className="text-xs text-tinta-suave">
+            Dá para trocar depois pelo menu do perfil, sem sair. O tempo para escolher acaba em alguns minutos: aí é só entrar de novo.
+          </p>
         </div>
       </AuthShell>
     );
@@ -219,17 +223,12 @@ export default function LoginPage() {
       subtitle="Entre para cuidar das giras, da porta e da casa."
       headerAction={{ label: 'Criar conta grátis', href: '/cadastro' }}
       footer={
-        <div className="text-center">
-          <p className="mb-3 text-sm text-tinta-suave">Ainda não tem conta? Comece grátis, sem cartão.</p>
-          <Button
-            asChild
-            variant="outline"
-            size="touch"
-            className="w-full border-barro-600 bg-transparent font-bold text-barro-700 hover:bg-areia-100 hover:text-barro-700"
-          >
-            <Link href="/cadastro">Criar conta grátis</Link>
-          </Button>
-        </div>
+        <p className="text-sm text-tinta-suave">
+          Ainda não tem conta? Comece grátis, sem cartão.{' '}
+          <Link href="/cadastro" className="font-semibold text-tinta underline underline-offset-4">
+            Criar conta grátis
+          </Link>
+        </p>
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
@@ -317,6 +316,7 @@ export default function LoginPage() {
         <Button type="submit" size="touch" className="w-full font-bold" disabled={loading || !email || !password}>
           {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
           {loading ? 'Entrando…' : 'Entrar'}
+          {!loading && <ArrowRight aria-hidden />}
         </Button>
 
         <ConviteDaCasa />
