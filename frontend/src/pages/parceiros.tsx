@@ -77,7 +77,7 @@ export default function ParceirosPage() {
               </h1>
               <p className="mt-5 max-w-2xl text-lg text-tinta-suave">
                 Se a sua palavra chega nas casas de axé, o GiraHub quer caminhar junto.{' '}
-                {QUEM_PODE.map((q) => q.title.charAt(0) + q.title.slice(1).toLowerCase()).join(', ')}.
+                {QUEM_PODE.map((q, i) => (i === 0 ? q.title : q.title.charAt(0).toLowerCase() + q.title.slice(1))).join(', ')}.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-4">
                 <Button asChild size="touch" className="bg-folha-600 font-semibold text-white hover:bg-folha-700">
@@ -96,7 +96,7 @@ export default function ParceirosPage() {
             <div id="vantagens" className="mt-10 grid scroll-mt-20 gap-10 md:grid-cols-2 md:gap-14">
               <div>
                 <h2 className="font-display text-2xl font-normal">Para o terreiro indicado</h2>
-                <ul className="mt-4">
+                <ul className="mt-4 border-t border-areia-200">
                   <li className="border-b border-areia-200 py-3">
                     <p className="font-semibold">{DESCONTO_PCT}% de desconto</p>
                     <p className="text-sm text-tinta-suave">Nos {DESCONTO_MESES} primeiros meses de plano pago, com o cupom do parceiro.</p>
@@ -113,7 +113,7 @@ export default function ParceirosPage() {
               </div>
               <div>
                 <h2 className="font-display text-2xl font-normal">Para você, parceiro</h2>
-                <ul className="mt-4">
+                <ul className="mt-4 border-t border-areia-200">
                   <li className="border-b border-areia-200 py-3">
                     <p className="font-semibold">{COMISSAO_PCT}% de tudo o que a casa paga</p>
                     <p className="text-sm text-tinta-suave">
@@ -129,7 +129,8 @@ export default function ParceirosPage() {
                   <li className="py-3">
                     <p className="font-semibold">Material pronto</p>
                     <p className="text-sm text-tinta-suave">
-                      {MATERIAL.map((m) => m.title).join(', ')}. Tudo pronto para usar no balcão, no grupo e nas redes.
+                      {MATERIAL.map((m, i) => (i === 0 ? m.title : m.title.charAt(0).toLowerCase() + m.title.slice(1))).join(', ')}: tudo
+                      pronto para usar no balcão, no grupo e nas redes.
                     </p>
                   </li>
                 </ul>
@@ -150,7 +151,7 @@ export default function ParceirosPage() {
                 <TableBody>
                   {PAID_PLANS.map((p) => (
                     <TableRow key={p.key}>
-                      <TableCell className="font-semibold">{p.label}</TableCell>
+                      <TableCell className="py-3.5 font-semibold">{p.label}</TableCell>
                       <TableCell className="tabular-nums text-tinta-suave">{formatBRL(p.price)}/mês</TableCell>
                       <TableCell className="font-semibold tabular-nums">{formatBRL(comissaoMensal(p))}</TableCell>
                       <TableCell className="font-semibold tabular-nums">{formatBRL(comissaoTotal(p))}</TableCell>
