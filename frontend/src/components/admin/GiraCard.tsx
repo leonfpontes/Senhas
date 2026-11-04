@@ -21,7 +21,6 @@ import {
   DoorOpen,
   Ellipsis,
   LockOpen,
-  Pencil,
   Rocket,
   Share2,
   SlidersHorizontal,
@@ -32,6 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CamadaDeAbrir, CLASSE_CONTEUDO_SOBRE_A_CAMADA } from '@/components/admin/CartaoClicavel';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -367,7 +367,7 @@ export function GiraCard({
   if (permissions.canEdit) {
     menu.push(
       <DropdownMenuItem key="edit" onSelect={() => onEdit(gira)}>
-        <Pencil aria-hidden /> Editar a gira
+        Editar a gira
       </DropdownMenuItem>,
     );
   }
@@ -394,16 +394,22 @@ export function GiraCard({
     max > 0 && typeof issued === 'number' && (phase === 'aberta' || phase === 'hoje' || phase === 'emissao_encerrada');
 
   return (
+    // Clique para editar (04/11/2026): o cartão da gira abre a edição; as ações seguem como botões e no ⋮.
     <Card
       data-testid="gira-card"
       data-phase={phase}
       className={cn(
         'gap-0 rounded-[14px] py-0 shadow-none',
+        permissions.canEdit && [
+          CLASSE_CONTEUDO_SOBRE_A_CAMADA,
+          'cursor-pointer transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-0.5 hover:border-primary hover:shadow-md motion-reduce:hover:translate-y-0',
+        ],
         phase === 'hoje' && 'border-primary/60',
         isPast && 'opacity-80',
         className,
       )}
     >
+      {permissions.canEdit && <CamadaDeAbrir rotulo={`Editar ${gira.nome}`} aoAbrir={() => onEdit(gira)} />}
       <div className="flex flex-col gap-3.5 p-5">
         <div className="flex items-start gap-3">
           {validStart && (

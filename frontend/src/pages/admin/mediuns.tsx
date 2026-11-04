@@ -13,7 +13,6 @@ import {
   KeyRound,
   Loader2,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   ScrollText,
@@ -525,7 +524,6 @@ function MediunsContent() {
       <DropdownMenuContent align="end">
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(m)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -783,6 +781,9 @@ function MediunsContent() {
 
       <div data-tour="mediuns-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(m) => `Editar ${m.nome}`}
           columns={columns}
           data={rows}
           getRowId={(m) => m.id}

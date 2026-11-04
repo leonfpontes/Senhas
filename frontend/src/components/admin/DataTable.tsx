@@ -109,6 +109,8 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   /** Nome acessível da linha clicável, ex.: (aviso) => `Editar ${aviso.titulo}`. */
   rowLabel?: (row: T) => string;
+  /** Só estas linhas são clicáveis (ex.: a regra de quem pode editar quem). Padrão: todas. */
+  isRowClickable?: (row: T) => boolean;
   dense?: boolean;
   className?: string;
   'data-testid'?: string;
@@ -119,9 +121,16 @@ export interface DataTableProps<T> {
 export function cliqueEmControle(e: React.SyntheticEvent): boolean {
   const alvo = e.target as HTMLElement | null;
   const linha = e.currentTarget as HTMLElement;
+  // Menus e diálogos abrem em portal (fora da linha no DOM), mas o evento do React sobe até a linha:
+  // clique que não aconteceu dentro da linha não é "abrir a linha".
+  if (!alvo || !linha.contains(alvo)) return true;
   const controle = alvo?.closest?.('button, a, input, select, textarea, label, [role="menuitem"], [role="checkbox"], [data-no-row-click]');
   return Boolean(controle && controle !== linha && linha.contains(controle));
 }
+
+/** Aparência da linha clicável fora do DataTable (fundo suave por token, mão e foco visível). */
+export const CLASSE_LINHA_CLICAVEL =
+  'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50';
 
 /** Props da linha/cartão clicável (foco, Enter/Espaço, nome e o filtro de controles), para listas fora do DataTable. */
 export function propsDaLinhaClicavel<T>(row: T, onRowClick?: (row: T) => void, rowLabel?: (row: T) => string, role?: 'button') {
@@ -178,6 +187,7 @@ export function DataTable<T>({
   renderCard,
   onRowClick,
   rowLabel,
+  isRowClickable,
   dense = false,
   className,
   'data-testid': testId,
@@ -285,7 +295,7 @@ export function DataTable<T>({
                   onRowClick &&
                     'cursor-pointer outline-none transition-[border-color,box-shadow] active:bg-accent hover:border-primary/60 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50',
                 )}
-                {...propsDaLinhaClicavel(row.original, onRowClick, rowLabel)}
+                {...propsDaLinhaClicavel(row.original, onRowClick && (!isRowClickable || isRowClickable(row.original)) ? onRowClick : undefined, rowLabel)}
               >
                 {renderCard ? (
                   renderCard(row.original, {
@@ -382,8 +392,8 @@ export function DataTable<T>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() ? 'selected' : undefined}
-                className={cn(onRowClick && 'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50')}
-                {...propsDaLinhaClicavel(row.original, onRowClick, rowLabel)}
+                className={cn(onRowClick && (!isRowClickable || isRowClickable(row.original)) && 'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50')}
+                {...propsDaLinhaClicavel(row.original, onRowClick && (!isRowClickable || isRowClickable(row.original)) ? onRowClick : undefined, rowLabel)}
               >
                 {row.getVisibleCells().map((cell) => {
                   const meta = cell.column.columnDef.meta;

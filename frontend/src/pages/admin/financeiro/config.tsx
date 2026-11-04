@@ -8,7 +8,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Landmark, MoreHorizontal, Pencil, Plus, Power, PowerOff, Save, Settings2, Tags, Trash2, Loader2 } from 'lucide-react';
+import { Landmark, MoreHorizontal, Plus, Power, PowerOff, Save, Settings2, Tags, Trash2, Loader2 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
@@ -17,12 +17,14 @@ import { usePermissions } from '../../../hooks/usePermissions';
 import { useSnackbar } from '../../../contexts/SnackbarContext';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { PageHeader } from '@/components/admin/PageHeader';
+import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/EmptyState';
 import { PermissionDenied, PlanLocked, ReadOnlyNotice } from '@/components/gates';
 import { DateField, MoneyInput, TextField } from '@/components/fields';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
@@ -105,7 +107,6 @@ function RowMenu({
       <DropdownMenuContent align="end">
         {onEdit && (
           <DropdownMenuItem onSelect={onEdit}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -265,7 +266,14 @@ function CategoriasTab() {
         <Card className="gap-0 overflow-hidden py-0">
           <ul className="divide-y">
             {items.map((cat) => (
-              <li key={cat.id} className={`flex items-center gap-3 px-4 py-3 ${cat.ativo ? '' : 'opacity-60'}`}>
+              <CartaoClicavel
+                as="li"
+                variante="linha"
+                key={cat.id}
+                aoAbrir={canEdit ? () => openEdit(cat) : undefined}
+                rotulo={`Editar ${cat.nome}`}
+                className={cn('flex items-center gap-3 px-4 py-3', !cat.ativo && 'opacity-60')}
+              >
                 <span className="size-3.5 shrink-0 rounded-full" style={{ backgroundColor: cat.cor ?? '#888' }} aria-hidden />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{cat.nome}</span>
                 {!cat.ativo && <InativoBadge />}
@@ -277,7 +285,7 @@ function CategoriasTab() {
                   onToggleAtivo={canEdit ? () => toggleAtivo(cat) : undefined}
                   onDelete={canDelete ? () => setDeleteTarget(cat) : undefined}
                 />
-              </li>
+              </CartaoClicavel>
             ))}
           </ul>
         </Card>
@@ -508,7 +516,14 @@ function ContasBancariasTab() {
         <Card className="gap-0 overflow-hidden py-0">
           <ul className="divide-y">
             {items.map((conta) => (
-              <li key={conta.id} className={`flex items-center gap-3 px-4 py-3 ${conta.ativo ? '' : 'opacity-60'}`}>
+              <CartaoClicavel
+                as="li"
+                variante="linha"
+                key={conta.id}
+                aoAbrir={canEdit ? () => openEdit(conta) : undefined}
+                rotulo={`Editar ${conta.nome}`}
+                className={cn('flex items-center gap-3 px-4 py-3', !conta.ativo && 'opacity-60')}
+              >
                 <Landmark className="size-5 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{conta.nome}</p>
@@ -524,7 +539,7 @@ function ContasBancariasTab() {
                   onToggleAtivo={canEdit ? () => toggleAtivo(conta) : undefined}
                   onDelete={canDelete ? () => setDeleteTarget(conta) : undefined}
                 />
-              </li>
+              </CartaoClicavel>
             ))}
           </ul>
         </Card>

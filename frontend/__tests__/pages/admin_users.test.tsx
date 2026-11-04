@@ -222,7 +222,8 @@ describe('Admin Users Page', () => {
     await waitFor(() => screen.getByText('alice@test.com'));
     // alice (u1) é a própria e a única admin ativa: só bob tem Excluir
     expect(screen.getAllByRole('button', { name: 'Excluir usuário' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Editar usuário' })).toHaveLength(2);
+    // Clique para editar (04/11/2026): a linha editável é "Editar <usuário>"; sem lápis.
+    expect(screen.getAllByRole('row', { name: /^Editar / })).toHaveLength(2);
     mockProfile.role = 'operator';
     mockProfile.id = undefined;
   });
@@ -232,6 +233,6 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
     expect(screen.getAllByRole('button', { name: 'Excluir usuário' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Editar usuário' })).toHaveLength(1);
+    expect(screen.getAllByRole('row', { name: /^Editar / })).toHaveLength(1);
   });
 });

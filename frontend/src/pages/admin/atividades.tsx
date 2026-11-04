@@ -41,7 +41,6 @@ import {
   ExternalLink,
   EyeOff,
   ListOrdered,
-  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -80,7 +79,7 @@ import { DateTimeField, TextField } from '@/components/fields';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -546,7 +545,7 @@ function AgendaDaCasa({
           {canEdit && !item.cancelada && (
             <>
               <DropdownMenuItem onSelect={() => void abrirEdicao(item)}>
-                <Pencil aria-hidden /> Editar
+                Editar
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => abrirCancelar(item)}>
                 <Ban aria-hidden /> Cancelar
@@ -715,8 +714,11 @@ function AgendaDaCasa({
         <ul className="flex flex-col gap-3" aria-label="Agenda da casa">
           {itens.map((item) => (
             <li key={`${item.origem}-${item.id}`}>
-              <Card
-                className={cn('flex-row items-start gap-3 p-4', item.cancelada && 'opacity-75')}
+              {/* Clique para editar (04/11/2026): o cartão da atividade abre a edição (a gira se edita em Giras). */}
+              <CartaoClicavel
+                aoAbrir={canEdit && !item.cancelada && item.origem !== 'gira' ? () => void abrirEdicao(item) : undefined}
+                rotulo={`Editar ${item.titulo}`}
+                className={cn('flex flex-row items-start gap-3 p-4 shadow-sm', item.cancelada && 'opacity-75')}
                 data-testid="agenda-item"
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -782,15 +784,6 @@ function AgendaDaCasa({
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={() => void abrirEdicao(item)}
-                            title="Editar"
-                            aria-label={`Editar ${item.titulo}`}
-                          >
-                            <Pencil />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
                             onClick={() => abrirCancelar(item)}
                             title="Cancelar"
                             aria-label={`Cancelar ${item.titulo}`}
@@ -824,7 +817,7 @@ function AgendaDaCasa({
                     </div>
                   )
                 )}
-              </Card>
+              </CartaoClicavel>
             </li>
           ))}
         </ul>

@@ -4,6 +4,7 @@
  * Sem permissão (sem aoAbrir/onRowClick), não há clique.
  */
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
 import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
@@ -34,6 +35,25 @@ describe('linha clicável do DataTable', () => {
     expect(abrir).not.toHaveBeenCalled();
   });
 
+  it('clique num menu aberto em portal (fora da linha) não abre a edição', () => {
+    const abrir = jest.fn();
+    const cols: ColumnDef<Linha>[] = [
+      { accessorKey: 'nome', header: 'Nome' },
+      { id: 'menu', header: '', cell: () => createPortal(<span role="menuitem">Cancelar lançamento</span>, document.body) },
+    ];
+    render(<DataTable columns={cols} data={DADOS} onRowClick={abrir} rowLabel={(l) => `Editar ${l.nome}`} />);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Cancelar lançamento' }));
+    expect(abrir).not.toHaveBeenCalled();
+  });
+
+  it('isRowClickable: só as linhas permitidas abrem', () => {
+    const abrir = jest.fn();
+    render(
+      <DataTable columns={COLS} data={[...DADOS, { id: '2', nome: 'Outro' }]} onRowClick={abrir} rowLabel={(l) => `Editar ${l.nome}`} isRowClickable={(l) => l.id === '1'} />,
+    );
+    expect(screen.getAllByRole('row', { name: /^Editar / })).toHaveLength(1);
+  });
+
   it('sem onRowClick, a linha não recebe foco nem nome de edição', () => {
     render(<DataTable columns={COLS} data={DADOS} />);
     expect(screen.queryByRole('row', { name: /Editar/ })).not.toBeInTheDocument();
@@ -41,7 +61,7 @@ describe('linha clicável do DataTable', () => {
 });
 
 describe('<CartaoClicavel />', () => {
-  it('é um botão "Editar grupo G1" que abre com clique e Enter; arquivar não abre', () => {
+  it('tem o botão "Editar grupo G1" (sem botão dentro de botão); arquivar não abre a edição', () => {
     const abrir = jest.fn();
     const arquivar = jest.fn();
     render(
@@ -52,12 +72,15 @@ describe('<CartaoClicavel />', () => {
         </button>
       </CartaoClicavel>,
     );
-    const cartao = screen.getByRole('button', { name: 'Editar grupo G1' });
-    fireEvent.click(cartao);
-    fireEvent.keyDown(cartao, { key: 'Enter' });
+    // Um <button> de verdade esticado no cartão: Enter e Espaço são do próprio navegador, e não há botão
+    // dentro de botão (arquivar fica fora dele).
+    const editar = screen.getByRole('button', { name: 'Editar grupo G1' });
+    expect(editar.tagName).toBe('BUTTON');
+    fireEvent.click(editar);
     fireEvent.click(screen.getByRole('button', { name: 'Arquivar G1' }));
-    expect(abrir).toHaveBeenCalledTimes(2);
+    expect(abrir).toHaveBeenCalledTimes(1);
     expect(arquivar).toHaveBeenCalledTimes(1);
+    expect(editar.contains(screen.getByRole('button', { name: 'Arquivar G1' }))).toBe(false);
   });
 
   it('sem permissão (sem aoAbrir) não é clicável', () => {

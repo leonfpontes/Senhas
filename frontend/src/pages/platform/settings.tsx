@@ -14,7 +14,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Check, KeyRound, Minus, Pencil, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
+import { Check, KeyRound, Minus, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/services/api_client';
 import PlatformLayout from './layout';
@@ -255,7 +255,6 @@ function AdminsTab() {
         meta: { align: 'right' },
         cell: ({ row }) => (
           <span className="inline-flex">
-            <Button variant="ghost" size="icon-sm" onClick={() => openEdit(row.original)} aria-label={`Editar ${row.original.email}`}><Pencil /></Button>
             <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => setDeleteTarget(row.original)} aria-label={`Remover ${row.original.email}`}><Trash2 /></Button>
           </span>
         ),
@@ -275,7 +274,7 @@ function AdminsTab() {
       </div>
       {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="rounded-xl border bg-card">
-        <DataTable columns={columns} data={users ?? []} getRowId={(u) => u.id} loading={users === null} emptyMessage="Nenhum administrador." emptyIcon={<Shield />} data-testid="admins-table" />
+        <DataTable columns={columns} data={users ?? []} getRowId={(u) => u.id} onRowClick={openEdit} rowLabel={(u) => `Editar ${u.email}`} loading={users === null} emptyMessage="Nenhum administrador." emptyIcon={<Shield />} data-testid="admins-table" />
       </div>
 
       <CrudDrawer

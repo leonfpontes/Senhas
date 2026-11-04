@@ -8,7 +8,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, Pencil, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react';
+import { MoreHorizontal, Plus, RefreshCw, Search, Trash2, Users } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -246,7 +246,6 @@ function AdminAssociadosContent() {
       <DropdownMenuContent align="end">
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(a)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -340,6 +339,9 @@ function AdminAssociadosContent() {
 
       <div data-tour="associados-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(a) => `Editar ${a.nome}`}
           columns={columns}
           data={rows}
           getRowId={(a) => a.id}

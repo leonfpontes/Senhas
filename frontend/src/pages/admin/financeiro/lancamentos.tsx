@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   Ban,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -439,7 +438,6 @@ function LancamentosContent() {
       <DropdownMenuContent align="end">
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(c)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -696,6 +694,9 @@ function LancamentosContent() {
       </div>
 
       <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(c) => `Editar ${c.descricao}`}
         columns={columns}
         data={contas}
         getRowId={(c) => c.id}

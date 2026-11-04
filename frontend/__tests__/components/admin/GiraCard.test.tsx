@@ -37,7 +37,10 @@ function renderCard(gira: Partial<GiraCardData>, extra: Record<string, unknown> 
 }
 
 const primaryButtons = () =>
-  screen.queryAllByRole('button').filter((b) => !b.getAttribute('aria-label')?.startsWith('Mais ações'));
+  screen
+    .queryAllByRole('button')
+    // "Editar <gira>" é o cartão inteiro (clique para editar, 04/11/2026), não uma ação primária.
+    .filter((b) => !b.getAttribute('aria-label')?.startsWith('Mais ações') && !b.hasAttribute('data-camada-de-abrir'));
 
 describe('GiraCard', () => {
   it('sem senhas configuradas → "Configurar senhas"', () => {

@@ -19,7 +19,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Pencil, RefreshCw, Trash2, UserPlus } from 'lucide-react';
+import { RefreshCw, Trash2, UserPlus } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { permissionGroupsService, type PermissionGroup } from '@/services/permissionGroupsService';
@@ -383,11 +383,6 @@ function AdminUsersContent() {
           const guard = rowGuards(row.original);
           return (
             <div className="flex justify-end gap-1">
-              {canEdit && guard.canEditRow && (
-                <Button size="icon-sm" variant="ghost" aria-label="Editar usuário" onClick={() => openEdit(row.original)}>
-                  <Pencil />
-                </Button>
-              )}
               {canDelete && guard.canDeleteRow && (
                 <Button
                   size="icon-sm"
@@ -455,6 +450,10 @@ function AdminUsersContent() {
 
       <div data-tour="users-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          isRowClickable={(u) => rowGuards(u).canEditRow}
+          rowLabel={(u) => `Editar ${u.username || u.email}`}
           columns={columns}
           data={users}
           getRowId={(u) => u.id}

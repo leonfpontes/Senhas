@@ -75,7 +75,7 @@ describe('Admin Estoque — Grupos', () => {
     expect(screen.getByText('Ervas')).toBeInTheDocument();
     expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Novo grupo/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Editar Velas' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: 'Editar Velas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Excluir Velas' })).toBeInTheDocument();
     expect(screen.getByText('Ações')).toBeInTheDocument();
     // data-tour preservados para o tour da tela

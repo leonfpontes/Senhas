@@ -14,7 +14,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, ArrowLeft, Check, Eye, EyeOff, MessageSquarePlus, Pencil, Plus, ScrollText, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, Check, Eye, EyeOff, MessageSquarePlus, Plus, ScrollText, Trash2, X } from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -29,6 +29,7 @@ import { Combobox, TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -407,7 +408,13 @@ function FichaConfigContent() {
               <ul className="grid gap-2 md:grid-cols-2" aria-label="Campos da ficha">
                 {campos.map((c) => (
                   <li key={c.id}>
-                    <Card className="h-full flex-row items-start gap-3 p-4" data-testid="ficha-campo">
+                    {/* Clique para editar (04/11/2026): o campo abre a edição; arquivar segue como botão. */}
+                    <CartaoClicavel
+                      aoAbrir={!c.arquivado_em && canEdit ? () => abrirEdicao(c) : undefined}
+                      rotulo={`Editar ${c.rotulo}`}
+                      className="flex h-full flex-row items-start gap-3 p-4 shadow-sm"
+                      data-testid="ficha-campo"
+                    >
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="font-medium">{c.rotulo}</span>
                         <span className="flex flex-wrap gap-1.5 text-xs">
@@ -426,11 +433,6 @@ function FichaConfigContent() {
                       </div>
                       {(canEdit || canDelete) && (
                         <div className="flex shrink-0 gap-1">
-                          {!c.arquivado_em && canEdit && (
-                            <Button variant="ghost" size="icon-sm" onClick={() => abrirEdicao(c)} aria-label={`Editar ${c.rotulo}`}>
-                              <Pencil />
-                            </Button>
-                          )}
                           {!c.arquivado_em && canDelete && (
                             <Button variant="ghost" size="icon-sm" onClick={() => setArquivar(c)} aria-label={`Arquivar ${c.rotulo}`}>
                               <Archive />
@@ -448,7 +450,7 @@ function FichaConfigContent() {
                           )}
                         </div>
                       )}
-                    </Card>
+                    </CartaoClicavel>
                   </li>
                 ))}
               </ul>

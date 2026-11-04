@@ -21,7 +21,6 @@ import {
   MapPin,
   MoreHorizontal,
   Paperclip,
-  Pencil,
   Search,
   Trash2,
   UserPlus,
@@ -752,7 +751,6 @@ function ParticipantesContent() {
         <DropdownMenuContent align="end">
           {canEdit && (
             <DropdownMenuItem onSelect={() => openEdit(p)}>
-              <Pencil />
               {gerarMensalidade ? 'Editar matrícula' : 'Editar matrícula / pagamento'}
             </DropdownMenuItem>
           )}
@@ -971,6 +969,9 @@ function ParticipantesContent() {
       </div>
 
       <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(p) => `Editar ${p.nome}`}
         columns={columns}
         data={filteredParticipantes}
         getRowId={(p) => p.id}

@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { TextField } from '@/components/fields';
 import { PermissionDenied } from '@/components/gates';
-import { Boxes, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Boxes, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/admin/PageHeader';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
@@ -20,6 +20,7 @@ import UpgradePrompt from '../../../components/UpgradePrompt';
 import { apiClient } from '../../../services/api_client';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { Button } from '@/components/ui/button';
+import { CLASSE_LINHA_CLICAVEL, propsDaLinhaClicavel } from '@/components/admin/DataTable';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -229,24 +230,18 @@ function AdminEstoqueGruposContent() {
             </TableHeader>
             <TableBody>
               {grupos.map((g) => (
-                <TableRow key={g.id} className="hover:bg-accent">
+                // Clique para editar (04/11/2026): a linha abre a edição; excluir segue como botão.
+                <TableRow
+                  key={g.id}
+                  {...propsDaLinhaClicavel(g, canEdit ? openEdit : undefined, (x) => `Editar ${x.nome}`)}
+                  className={canEdit ? CLASSE_LINHA_CLICAVEL : undefined}
+                >
                   <TableCell className="px-4 py-3 font-medium">{g.nome}</TableCell>
                   <TableCell className="hidden py-3 whitespace-normal text-muted-foreground sm:table-cell">
                     {g.descricao || '—'}
                   </TableCell>
                   {showActions && (
                     <TableCell className="px-4 py-2 text-right">
-                      {canEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openEdit(g)}
-                          title="Editar"
-                          aria-label={`Editar ${g.nome}`}
-                        >
-                          <Pencil />
-                        </Button>
-                      )}
                       {canDelete && (
                         <Button
                           variant="ghost"

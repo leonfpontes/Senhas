@@ -13,7 +13,7 @@
  * Backend: `api/v1/admin/atividades.py` (`/tipos`, `/funcoes`).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, ArchiveRestore, Pencil, Plus, Shapes, UserCog } from 'lucide-react';
+import { Archive, ArchiveRestore, Plus, Shapes, UserCog } from 'lucide-react';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import CrudDrawer from '@/components/CrudDrawer';
@@ -23,7 +23,7 @@ import { MultiCombobox, TextField } from '@/components/fields';
 import { TipoChip } from '@/components/atividades/TipoChip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -509,7 +509,13 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
           <ul className="grid gap-3 md:grid-cols-2" aria-label="Tipos de atividade">
             {tipos.map((t) => (
               <li key={t.id}>
-                <Card className={cn('h-full flex-row items-start gap-3 p-4', t.arquivado_em && 'opacity-75')} data-testid="tipo-item">
+                {/* Clique para editar (04/11/2026): o cartão abre a edição; arquivar segue como botão. */}
+                <CartaoClicavel
+                  aoAbrir={!t.arquivado_em && canEdit ? () => abrirEdicaoTipo(t) : undefined}
+                  rotulo={`Editar ${t.nome}`}
+                  className={cn('flex h-full flex-row items-start gap-3 p-4 shadow-sm', t.arquivado_em && 'opacity-75')}
+                  data-testid="tipo-item"
+                >
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <span className="flex flex-wrap items-center gap-2">
                       <TipoChip tipo={t} />
@@ -520,17 +526,6 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
                   </div>
                   {(canEdit || canDelete) && (
                     <div className="flex shrink-0 gap-1">
-                      {!t.arquivado_em && canEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => abrirEdicaoTipo(t)}
-                          title="Editar"
-                          aria-label={`Editar ${t.nome}`}
-                        >
-                          <Pencil />
-                        </Button>
-                      )}
                       {!t.arquivado_em && canDelete && t.natureza !== 'gira' && (
                         <Button
                           variant="ghost"
@@ -555,7 +550,7 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
                       )}
                     </div>
                   )}
-                </Card>
+                </CartaoClicavel>
               </li>
             ))}
           </ul>
@@ -591,7 +586,15 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
         ) : (
           <ul className="flex flex-col divide-y rounded-xl border" aria-label="Funções da corrente">
             {funcoes.map((f) => (
-              <li key={f.id} className={cn('flex items-center gap-3 p-3', f.arquivado_em && 'opacity-75')} data-testid="funcao-item">
+              <CartaoClicavel
+                as="li"
+                variante="linha"
+                key={f.id}
+                aoAbrir={!f.arquivado_em && canEdit ? () => abrirFuncao(f) : undefined}
+                rotulo={`Editar ${f.nome}`}
+                className={cn('flex items-center gap-3 p-3', f.arquivado_em && 'opacity-75')}
+                data-testid="funcao-item"
+              >
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="font-medium">
                     {f.nome}
@@ -599,11 +602,6 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
                   </span>
                   {f.descricao && <span className="text-sm text-muted-foreground">{f.descricao}</span>}
                 </div>
-                {!f.arquivado_em && canEdit && (
-                  <Button variant="ghost" size="icon-sm" onClick={() => abrirFuncao(f)} aria-label={`Editar ${f.nome}`}>
-                    <Pencil />
-                  </Button>
-                )}
                 {!f.arquivado_em && canDelete && (
                   <Button variant="ghost" size="icon-sm" onClick={() => setArquivarFuncao(f)} aria-label={`Arquivar ${f.nome}`}>
                     <Archive />
@@ -619,7 +617,7 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
                     <ArchiveRestore />
                   </Button>
                 )}
-              </li>
+              </CartaoClicavel>
             ))}
           </ul>
         )}

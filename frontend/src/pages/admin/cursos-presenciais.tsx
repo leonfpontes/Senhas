@@ -8,7 +8,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Link2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { Link2, MoreHorizontal, Plus, Trash2, Users } from 'lucide-react';
 
 import AdminLayout from './admin_layout';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -283,7 +283,6 @@ function CursosPresenciaisContent() {
         {(canEdit || canDelete) && <DropdownMenuSeparator />}
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(curso)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -413,6 +412,9 @@ function CursosPresenciaisContent() {
       />
 
       <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(c) => `Editar ${c.titulo}`}
         columns={columns}
         data={cursos}
         getRowId={(c) => c.id}

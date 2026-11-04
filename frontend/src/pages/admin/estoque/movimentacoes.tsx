@@ -10,7 +10,6 @@ import {
   ArrowUpDown,
   Filter,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -213,7 +212,6 @@ function AdminEstoqueMovimentacoesContent() {
       <DropdownMenuContent align="end">
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(m)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -358,6 +356,9 @@ function AdminEstoqueMovimentacoesContent() {
 
       <div data-tour="estoque-mov-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(m) => `Editar a movimentação de ${m.item_nome ?? "item"}`}
           columns={columns}
           data={movimentacoes}
           getRowId={(m) => m.id}

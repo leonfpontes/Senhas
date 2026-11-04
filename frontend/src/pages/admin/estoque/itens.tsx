@@ -20,7 +20,6 @@ import {
   Layers,
   Loader2,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -444,7 +443,6 @@ function AdminEstoqueItensContent() {
           <DropdownMenuContent align="end">
             {canEdit && (
               <DropdownMenuItem onSelect={() => openEdit(item)}>
-                <Pencil />
                 Editar
               </DropdownMenuItem>
             )}
@@ -600,6 +598,9 @@ function AdminEstoqueItensContent() {
 
       <div data-tour="estoque-itens-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? (i) => void openEdit(i) : undefined}
+          rowLabel={(i) => `Editar ${i.nome}`}
           columns={columns}
           data={rows}
           getRowId={(i) => i.id}

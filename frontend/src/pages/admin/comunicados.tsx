@@ -50,7 +50,7 @@ import { fraunces } from '@/components/landing/fonts';
 import { AvisoLeitura, AvisoTexto, FixadoBadge, dataCurtaBr, dataHoraBr } from '@/components/avisos/AvisoLeitura';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { propsDaLinhaClicavel } from '@/components/admin/DataTable';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -485,13 +485,13 @@ function AdminComunicadosContent() {
             {lista.map((c) => (
               // Clique para editar (04/11/2026): a linha abre a edição do aviso (só com permissão); "Quem leu"
               // fica no botão da coluna Leitura e excluir segue como botão.
-              <li
+              <CartaoClicavel
+                as="li"
+                variante="linha"
                 key={c.id}
-                {...propsDaLinhaClicavel(c, canEdit ? abrirEdicao : undefined, (x) => `Editar ${x.titulo}`, 'button')}
-                className={cn(
-                  'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 first:border-t-0 sm:grid-cols-[minmax(0,1fr)_13rem_5.5rem]',
-                  canEdit && 'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50',
-                )}
+                aoAbrir={canEdit ? () => abrirEdicao(c) : undefined}
+                rotulo={`Editar ${c.titulo}`}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 first:border-t-0 sm:grid-cols-[minmax(0,1fr)_13rem_5.5rem]"
                 data-testid="comunicado-item"
               >
                 <div className="col-start-1 flex min-w-0 flex-col gap-0.5 text-left">
@@ -542,7 +542,7 @@ function AdminComunicadosContent() {
                     </Button>
                   )}
                 </div>
-              </li>
+              </CartaoClicavel>
             ))}
           </ul>
         </div>
