@@ -46,12 +46,19 @@ import { ChamadaDaGiraButton, giraTemChamada } from '@/components/admin/presenca
 import { EscalaDaGiraButton } from '@/components/admin/atividades/EscalaDaGiraButton';
 import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
 import { PermissionDenied } from '@/components/gates';
-import { Checkbox } from '@/components/ui/checkbox';
 import CrudDrawer from '@/components/CrudDrawer';
 import { DateTimeField, DurationField, TextField, durationRangeError } from '@/components/fields';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -360,7 +367,6 @@ function AdminGirasContent() {
   // Betas do Laboratório nesta tela (J2 v2).
   const betaRepetir = Boolean(beta?.('beta_repetir_gira'));
   const betaAvisarExclusao = Boolean(beta?.('beta_avisar_exclusao_gira'));
-  const [avisarExclusao, setAvisarExclusao] = useState(false);
   const { can: canGroup } = usePermissions();
   const canView = canGroup('giras', 'view');
   const canInsert = canGroup('giras', 'insert');
@@ -407,10 +413,11 @@ function AdminGirasContent() {
 
   // Exclusão
   const [deleteTarget, setDeleteTarget] = useState<Gira | null>(null);
-  // Beta "avisar quem tem senha": a caixa vem marcada a cada exclusão (decisão aprovada em 02/11/2026).
-  useEffect(() => {
-    if (deleteTarget) setAvisarExclusao(true);
-  }, [deleteTarget]);
+  // Beta "avisar quem tem senha" (decisão do Leonardo, 04/11/2026): nada vem marcado. Ao confirmar a
+  // exclusão de uma gira com senhas emitidas, um segundo diálogo pergunta se avisa por e-mail, com
+  // "Enviar aviso" e "Não enviar" no mesmo peso. O aviso sai na mesma chamada da exclusão (o servidor
+  // precisa das senhas antes de apagar a gira), por isso a pergunta vem antes do envio.
+  const [perguntarAviso, setPerguntarAviso] = useState(false);
 
   // Configuração de senhas
   const [senhaDrawerOpen, setSenhaDrawerOpen] = useState(false);
@@ -874,13 +881,22 @@ function AdminGirasContent() {
   };
 
   // ── Exclusão ─────────────────────────────────────────────────────────────────
-  const handleDelete = async () => {
+  const confirmarExclusao = () => {
     if (!deleteTarget || !canDelete) return;
+    if (betaAvisarExclusao && deleteIssued > 0) {
+      setPerguntarAviso(true);
+      return;
+    }
+    void handleDelete(false);
+  };
+
+  const handleDelete = async (avisarPorEmail: boolean) => {
+    if (!deleteTarget || !canDelete) return;
+    setPerguntarAviso(false);
     try {
-      const avisar = betaAvisarExclusao && avisarExclusao;
+      const avisar = betaAvisarExclusao && avisarPorEmail;
       await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.id}${avisar ? '?avisar=true' : ''}`);
       setDeleteTarget(null);
-      setAvisarExclusao(false);
       toast.success(avisar ? 'Gira excluída. Avisamos por e-mail quem tinha senha.' : 'Gira excluída.');
       loadGiras();
       refreshSubscription();
@@ -2048,13 +2064,6 @@ function AdminGirasContent() {
                 </Button>
               </div>
             )}
-            {deleteTarget && betaAvisarExclusao && deleteIssued > 0 && (
-              <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[0.9375rem]">
-                <Checkbox checked={avisarExclusao} onCheckedChange={(v) => setAvisarExclusao(v === true)} />
-                Avisar por e-mail {deleteIssued === 1 ? 'a pessoa que tem' : `as ${deleteIssued} pessoas que têm`} senha
-                <span className="text-xs font-medium text-muted-foreground">beta</span>
-              </label>
-            )}
           </div>
         }
         confirmText="Excluir a gira"
@@ -2062,12 +2071,36 @@ function AdminGirasContent() {
         size="default"
         className="data-[size=default]:sm:max-w-xl"
         destructive
-        onConfirm={handleDelete}
+        onConfirm={confirmarExclusao}
         onCancel={() => {
           setDeleteTarget(null);
-          setAvisarExclusao(false);
+          setPerguntarAviso(false);
         }}
       />
+
+      {/* Beta "avisar quem tem senha": a pergunta depois de confirmar a exclusão, com os dois botões
+          no mesmo peso (design ético: sem botão principal e sem texto que constranja). */}
+      <AlertDialog open={perguntarAviso} onOpenChange={(o) => !o && setPerguntarAviso(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Avisar por e-mail {deleteIssued === 1 ? 'a pessoa que tem' : `as ${deleteIssued} pessoas que têm`} senha?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Quem tem senha para {deleteTarget?.nome ?? 'esta gira'} recebe um e-mail dizendo que a gira foi cancelada, com o link
+              das próximas giras. A gira é excluída nos dois casos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-end">
+            <Button type="button" variant="outline" className="min-w-36" onClick={() => void handleDelete(false)}>
+              Não enviar
+            </Button>
+            <Button type="button" variant="outline" className="min-w-36" onClick={() => void handleDelete(true)}>
+              Enviar aviso
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ConfirmDialog
         open={!!releaseTarget}
