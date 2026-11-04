@@ -1,6 +1,6 @@
 /**
  * /admin/profile — dados da própria conta: foto, nome e telefone, senha, sessões e a
- * "Zona de risco" (desativar / excluir) num Accordion, com confirmação por senha em AlertDialog.
+ * "Zona de risco" (desativar / excluir) num cartão aberto (J10 v2 · 11), com confirmação por senha em AlertDialog.
  * Tela de conta, sem feature de grupo: exceção em scripts/audit-permission-guards.js.
  */
 'use client';
@@ -12,7 +12,6 @@ import AdminLayout from './admin_layout';
 import { PageHeader } from '@/components/admin';
 import { PasswordRules } from '@/components/auth';
 import { TextField, PasswordField, MaskedInput } from '@/components/fields';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -163,7 +162,7 @@ function DangerDialog({
 
 export default function AdminProfilePage() {
   return (
-    <AdminLayout title="Meu perfil" maxWidth="md">
+    <AdminLayout title="Meu perfil">
       <ProfileContent />
     </AdminLayout>
   );
@@ -434,7 +433,7 @@ function ProfileContent() {
 
   return (
     <div data-slot="page" className="flex flex-col gap-5">
-      <PageHeader title="Meu perfil" subtitle="Seus dados de acesso. O terreiro fica em Configurações." />
+      <PageHeader eyebrow={profile?.full_name || profile?.username || undefined} title="Meu perfil" subtitle="Seus dados de acesso. O terreiro fica em Configurações." />
 
       {error && (
         <Alert variant="destructive" role="alert">
@@ -448,10 +447,13 @@ function ProfileContent() {
         </Alert>
       )}
 
-      <div className="grid gap-5 md:grid-cols-[240px_1fr]">
-        <Card data-tour="profile-foto">
-          <CardContent className="flex flex-col items-center gap-4 p-5 text-center">
-            <Avatar className="size-28 text-3xl">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-5">
+        <Card data-tour="profile-dados">
+          <CardContent className="p-5">
+            <SectionTitle title="Dados pessoais" />
+            <div data-tour="profile-foto" className="mb-4 flex items-center gap-4">
+              <Avatar className="size-16 text-xl">
               {avatarPreview && !avatarFailed && <AvatarImage src={avatarPreview} alt="Sua foto" onError={() => setAvatarFailed(true)} />}
               <AvatarFallback>{avatarText}</AvatarFallback>
             </Avatar>
@@ -459,13 +461,8 @@ function ProfileContent() {
             <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}>
               <CloudUpload aria-hidden /> {uploadingPhoto ? 'Enviando…' : 'Trocar foto'}
             </Button>
-            <p className="text-xs text-muted-foreground">Aparece no topo do painel.</p>
-          </CardContent>
-        </Card>
-
-        <Card data-tour="profile-dados">
-          <CardContent className="p-5">
-            <SectionTitle title="Dados pessoais" />
+              <p className="text-xs text-muted-foreground">A foto aparece no topo do painel.</p>
+            </div>
             <div className="flex flex-col gap-4">
               <TextField label="Nome" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Como quer ser chamado" autoComplete="name" />
               <MaskedInput mask={maskPhone} label="Telefone" value={phone} onChange={setPhone} placeholder="(11) 99999-9999" autoComplete="tel" />
@@ -479,8 +476,6 @@ function ProfileContent() {
             </div>
           </CardContent>
         </Card>
-      </div>
-
       {impersonating && (
         <Alert role="status">
           <CircleAlert aria-hidden />
@@ -495,7 +490,7 @@ function ProfileContent() {
         <Card data-tour="profile-senha">
           <CardContent className="p-5">
             <SectionTitle icon={<Lock />} title="Alterar senha" description="Ao trocar a senha, você sai de todos os aparelhos e entra de novo." />
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <PasswordField
                 label="Senha atual"
                 value={currentPassword}
@@ -529,6 +524,8 @@ function ProfileContent() {
         </Card>
       )}
 
+        </div>
+        <div className="flex flex-col gap-5">
       {/* Impersonando: o backend recusa (403) — revogaria as sessões reais do
           usuário e apagaria os cookies do super-admin neste navegador. */}
       {!impersonating && (
@@ -547,18 +544,15 @@ function ProfileContent() {
       )}
 
       {!impersonating && (
-        <Accordion type="single" collapsible className="rounded-xl border border-destructive/40 bg-card px-5">
-          <AccordionItem value="risco" className="border-b-0">
-            <AccordionTrigger className="text-base font-bold text-destructive hover:no-underline">
-              <span className="flex items-center gap-2">
-                <TriangleAlert className="size-4" aria-hidden /> Zona de risco
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="flex flex-col gap-5 pb-5">
+        <Card data-tour="profile-risco">
+          <CardContent className="flex flex-col gap-5 p-5">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <TriangleAlert className="size-4 text-destructive" aria-hidden /> Zona de risco
+            </h2>
               {/* Desativar o terreiro é ação de administração (backend 403 para operador). */}
               {isTenantAdmin && (
-                <div className="rounded-lg border border-warning/50 p-4">
-                  <h3 className="flex items-center gap-2 text-sm font-bold text-warning">
+                <div className="border-b border-border pb-5">
+                  <h3 className="flex items-center gap-2 text-sm font-bold">
                     <PauseCircle className="size-4" aria-hidden /> Desativar conta e terreiro
                   </h3>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -566,13 +560,13 @@ function ProfileContent() {
                     médiuns e associados ficam guardados. Você reativa quando quiser, voltando no plano gratuito. Só funciona se você
                     for o único usuário ativo do terreiro.
                   </p>
-                  <Button type="button" variant="outline" className="mt-3 border-warning text-warning hover:text-warning" onClick={() => { setDeactivateError(null); setDeactivateOpen(true); }}>
+                  <Button type="button" variant="outline" className="mt-3" onClick={() => { setDeactivateError(null); setDeactivateOpen(true); }}>
                     <PauseCircle aria-hidden /> Desativar conta
                   </Button>
                 </div>
               )}
 
-              <div className="rounded-lg border border-destructive/50 p-4">
+              <div>
                 <h3 className="flex items-center gap-2 text-sm font-bold text-destructive">
                   <Trash2 className="size-4" aria-hidden /> Excluir minha conta
                 </h3>
@@ -587,14 +581,16 @@ function ProfileContent() {
                   </a>
                   .
                 </p>
-                <Button type="button" variant="outline" className="mt-3 text-destructive hover:text-destructive" onClick={() => { setDeleteError(null); setDeleteOpen(true); }}>
+                <Button type="button" variant="destructive" className="mt-3" onClick={() => { setDeleteError(null); setDeleteOpen(true); }}>
                   <Trash2 aria-hidden /> Excluir minha conta
                 </Button>
               </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+          </CardContent>
+        </Card>
       )}
+
+        </div>
+      </div>
 
       <DangerDialog
         open={deactivateOpen}

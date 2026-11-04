@@ -631,9 +631,7 @@ function AdminConfigContent() {
       {!canEdit && <ReadOnlyNotice />}
 
       <Tabs key={abaInicial} defaultValue={abaInicial} data-tour="config-tabs">
-        <TabsList className={cn('grid w-full', [
-          'max-w-lg grid-cols-3', 'max-w-2xl grid-cols-4', 'max-w-3xl grid-cols-5',
-        ][Number(showAreaMedium) + Number(showLab)])}>
+        <TabsList variant="line" className="w-full justify-start gap-5 overflow-x-auto border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_svg]:hidden">
           <TabsTrigger value="identidade">
             <Palette aria-hidden /> <span className="hidden sm:inline">Identidade</span>
             <span className="sm:hidden">Visual</span>
