@@ -27,8 +27,11 @@ function Tabs({
 // em ~70% da largura). `center-safe` alinha à esquerda quando transborda, sem cortar a 1ª aba.
 // `overflow-y-hidden`: só rola na horizontal. Com `overflow-x-auto` sozinho, o sublinhado das abas
 // "line" (que passava 5px da caixa) virava uma barra de rolagem vertical ao lado da última aba.
+// `[scrollbar-width:none]`: a barra de abas nunca desenha barra de rolagem (no Mac com "mostrar barras
+// sempre" ou no Windows aparecia um trilho ao lado da última aba). Continua rolando por toque, trackpad
+// e teclado — as setas levam o foco para a aba seguinte, que entra na tela.
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit max-w-full items-center justify-center-safe overflow-x-auto overflow-y-hidden rounded-lg p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none",
+  "group/tabs-list inline-flex w-fit max-w-full items-center justify-center-safe overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-lg p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none",
   {
     variants: {
       variant: {
