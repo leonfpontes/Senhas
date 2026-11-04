@@ -5,7 +5,8 @@
  * (`MediumLayout`), só para quem tem conta com o mesmo e-mail em outro terreiro
  * (`useMinhasContas`). Mesmo cartão do login (`AccountCardBody`: logo, nome, "Painel do
  * terreiro"/"Área do Médium"), com cores semânticas (claro/escuro no painel; na Área vai com
- * `className="medium-terra"`). O terreiro atual aparece primeiro, "Você está aqui", sem clique.
+ * `className="medium-terra"`). O terreiro atual aparece primeiro, "Você está aqui", sem clique (no site,
+ * com `atual.href`, ele vira um link para entrar — "Escolher onde entrar" do cabeçalho).
  *
  * Conta cuja senha conferiu no login desta sessão entra direto. Conta com outra senha
  * (`precisa_senha`) abre um campo "Esta conta tem outra senha"; senha errada mostra o erro no
@@ -32,8 +33,11 @@ export interface TrocarTerreiroDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contas: ReadonlyArray<MinhaConta>;
-  /** Terreiro atual (cartão "Você está aqui"). */
-  atual: { nome: string; logoUrl?: string | null; hint: string };
+  /**
+   * Terreiro atual (cartão "Você está aqui"). Com `href` (o site, que não está dentro de nenhum
+   * terreiro), o cartão vira um link para entrar nele, como os outros.
+   */
+  atual: { nome: string; logoUrl?: string | null; hint: string; href?: string };
   /** Classe extra do conteúdo (a Área passa `medium-terra`). */
   className?: string;
 }
@@ -111,12 +115,24 @@ export function TrocarTerreiroDialog({ open, onOpenChange, contas, atual, classN
 
         <ul className="flex flex-col gap-3" aria-label="Terreiros">
           <li>
-            <div className={cn(CARD, 'border-primary/40 bg-primary/5')} aria-current="true" data-testid="terreiro-atual">
-              <AccountCardBody nome={atual.nome} logoUrl={atual.logoUrl} hint={atual.hint} hintClassName="text-muted-foreground" />
-              <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-brand">
-                Você está aqui
-              </span>
-            </div>
+            {atual.href ? (
+              <a
+                href={atual.href}
+                aria-label={`${atual.nome} — ${atual.hint}`}
+                data-testid="terreiro-atual"
+                className={cn(CARD, 'outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50')}
+              >
+                <AccountCardBody nome={atual.nome} logoUrl={atual.logoUrl} hint={atual.hint} hintClassName="text-muted-foreground" />
+                <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              </a>
+            ) : (
+              <div className={cn(CARD, 'border-primary/40 bg-primary/5')} aria-current="true" data-testid="terreiro-atual">
+                <AccountCardBody nome={atual.nome} logoUrl={atual.logoUrl} hint={atual.hint} hintClassName="text-muted-foreground" />
+                <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-brand">
+                  Você está aqui
+                </span>
+              </div>
+            )}
           </li>
           {contas.map((conta) => {
             const hint = areasHint(areasDaConta(conta.area));

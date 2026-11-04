@@ -10,6 +10,7 @@ import { Menu, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { SessaoNoSite } from '@/components/landing/SessaoNoSite';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { WhatsAppFab } from '@/components/landing/WhatsAppFab';
 import { PHOTO_CREDITS } from '@/constants/landingPhotos';
@@ -68,13 +69,9 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
+          {/* Quem já está logado vê o caminho de volta e o "Sair" (SessaoNoSite). */}
           <div className="hidden items-center gap-2 md:flex">
-            <Button asChild variant="ghost" className="text-areia-100 hover:bg-white/10 hover:text-white">
-              <Link href="/login">Entrar</Link>
-            </Button>
-            <Button asChild className="bg-folha-600 font-bold text-white hover:bg-folha-700">
-              <Link href="/cadastro">Criar conta grátis</Link>
-            </Button>
+            <SessaoNoSite />
           </div>
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -105,12 +102,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
                 ))}
               </nav>
               <div className="mt-auto flex flex-col gap-2 p-4">
-                <Button asChild variant="outline" size="touch" className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">
-                  <Link href="/login">Entrar</Link>
-                </Button>
-                <Button asChild size="touch" className="bg-folha-600 font-bold text-white hover:bg-folha-700">
-                  <Link href="/cadastro">Criar conta grátis</Link>
-                </Button>
+                <SessaoNoSite celular aoNavegar={() => setMenuOpen(false)} />
               </div>
             </SheetContent>
           </Sheet>
