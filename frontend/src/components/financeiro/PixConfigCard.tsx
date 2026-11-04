@@ -380,7 +380,7 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
       <ConfirmDialog
         open={confirmOpen}
         title="Confirme com a sua senha"
-        confirmText="Salvar chave"
+        confirmText="Salvar a chave"
         loading={saving}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={salvar}

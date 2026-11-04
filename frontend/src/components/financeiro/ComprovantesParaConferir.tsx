@@ -377,10 +377,13 @@ export function ConferirComprovanteSheet({
         className="w-full gap-0 sm:max-w-[480px]"
         data-testid="sheet-conferir-comprovante"
       >
-        <SheetHeader className="border-b border-border">
-          <SheetTitle>{alvo ? alvo.mediun_nome : 'Comprovante'}</SheetTitle>
-          <SheetDescription>
-            {alvo ? <>Mensalidade de {monthLabelLong(alvo.mes)}</> : null}
+        {/* J7 v2 · 04: "Conferir o comprovante" em Fraunces; quem e o mês embaixo. */}
+        <SheetHeader className="px-6 pt-6 pb-2">
+          <SheetTitle className="font-display text-[2rem] leading-[1.1] font-normal tracking-[-0.02em]">
+            Conferir o comprovante
+          </SheetTitle>
+          <SheetDescription className="text-[0.9375rem]">
+            {alvo ? <>{alvo.mediun_nome} · mensalidade de {monthLabelLong(alvo.mes)}</> : null}
           </SheetDescription>
         </SheetHeader>
 
@@ -599,7 +602,7 @@ export function ConferirComprovanteSheet({
           )}
         </div>
 
-        <SheetFooter className="border-t border-border">
+        <SheetFooter className="flex-row gap-3 px-6 py-5">
           {!canEdit ? (
             <p className="text-sm text-muted-foreground">
               Só quem pode editar o financeiro confere ou recusa comprovantes.
@@ -628,6 +631,7 @@ export function ConferirComprovanteSheet({
             <>
               <Button
                 type="button"
+                className="h-12 flex-1 text-base font-semibold"
                 onClick={() => void conferir()}
                 disabled={salvando !== null || valor <= 0}
               >
@@ -638,9 +642,11 @@ export function ConferirComprovanteSheet({
                 )}
                 Conferir {formatBRL(valor)}
               </Button>
+              {/* Design ético: recusar e confirmar com o mesmo peso — mesmo tamanho, sem o vermelho de excluir. */}
               <Button
                 type="button"
-                variant="destructive"
+                variant="outline"
+                className="h-12 flex-1 text-base font-semibold"
                 onClick={() => setRecusando(true)}
                 disabled={salvando !== null}
               >
