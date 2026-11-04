@@ -1,7 +1,7 @@
 /** Cartões de plano das páginas de marketing (landing e /planos), gerados de constants/plans.ts. */
 import React from 'react';
 import Link from 'next/link';
-import { Check } from 'lucide-react';
+import { Check, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Reveal } from '@/components/landing/Reveal';
@@ -12,8 +12,7 @@ export function planSignupHref(plan: PlanDef): string {
 }
 
 function PlanCard({ plan, index }: { plan: PlanDef; index: number }) {
-  // Jornada 1 v2: nenhum plano ganha selo de "Mais escolhido"; os cartões têm o mesmo peso.
-  const highlight = false;
+  const highlight = plan.popular;
   return (
     <Reveal delay={index * 0.06} className="h-full">
       <div
@@ -24,6 +23,11 @@ function PlanCard({ plan, index }: { plan: PlanDef; index: number }) {
             : 'border-areia-200 bg-white text-tinta shadow-sm',
         )}
       >
+        {highlight && (
+          <span className="absolute -top-3.5 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-ouro-400 px-3 py-1 text-xs font-bold whitespace-nowrap text-cafe-950">
+            <Star className="size-3" aria-hidden /> Mais escolhido
+          </span>
+        )}
         <h3 className="font-display text-2xl font-bold">{plan.label}</h3>
         <p className={cn('mt-1 min-h-10 text-sm', highlight ? 'text-areia-200' : 'text-tinta-suave')}>{plan.tagline}</p>
         <p className="mt-5 flex items-baseline gap-1">
@@ -45,7 +49,7 @@ function PlanCard({ plan, index }: { plan: PlanDef; index: number }) {
           className={cn(
             'mt-7 w-full font-bold',
             highlight
-              ? 'bg-ouro-400 text-cafe-950 hover:bg-ouro-300'
+              ? 'bg-folha-600 text-white hover:bg-folha-700'
               : 'border-barro-600 bg-transparent text-barro-700 hover:bg-areia-100 hover:text-barro-700',
           )}
         >

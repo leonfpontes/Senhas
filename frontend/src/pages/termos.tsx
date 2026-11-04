@@ -30,7 +30,7 @@ O GiraHub é um sistema on-line para terreiros de Umbanda, Candomblé e demais c
 • Cadastro de médiuns e da corrente, associados, mensalidades, estoque e financeiro da casa.
 • Cursos presenciais com inscrição pela internet.
 • Site do terreiro, com endereço próprio em girahub.com.br.
-• Relatórios, trilha de auditoria e controle de acesso por perfis de acesso.
+• Relatórios, trilha de auditoria e controle de acesso por grupos de permissão.
 
 Cada terreiro tem um espaço isolado: os dados de uma casa nunca aparecem para outra.`,
   },
@@ -46,7 +46,7 @@ Consulentes que pegam senha, inscritos em cursos e visitantes do site do terreir
     title: '3. Conta, usuários e segurança',
     body: `• Informe dados verdadeiros no cadastro e mantenha-os atualizados.
 • Cada pessoa da casa deve ter o próprio usuário. Não compartilhe senhas.
-• O administrador cria usuários e define, pelos perfis de acesso, o que cada um pode ver, criar, editar ou excluir. O número de usuários é ilimitado em todos os planos.
+• O administrador cria usuários e define, pelos grupos de permissão, o que cada um pode ver, criar, editar ou excluir. O número de usuários é ilimitado em todos os planos.
 • Toda ação importante fica registrada na trilha de auditoria, com data, hora e usuário.
 • Use "Manter conectado" só em aparelhos pessoais. Ao suspeitar de acesso indevido, troque a senha e nos avise em ${PRIVACY_EMAIL}.
 

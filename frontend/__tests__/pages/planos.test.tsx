@@ -24,7 +24,7 @@ beforeAll(() => {
 describe('/planos', () => {
   it('mostra os 4 planos com preço e CTA para o cadastro', () => {
     render(<PlanosPage />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/pague pelo tamanho da casa, não por pessoa/i);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/comece grátis/i);
     for (const p of PLAN_LIST) expect(screen.getAllByText(p.label).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Assinar Pro' })).toHaveAttribute('href', '/cadastro?plan=pro');
     expect(screen.getAllByRole('link', { name: /começar grátis/i })[0]).toHaveAttribute('href', '/cadastro');
@@ -38,7 +38,7 @@ describe('/planos', () => {
 
   it('destaca o Gratuito e o teste de 30 dias sem cartão', () => {
     render(<PlanosPage />);
-    expect(screen.getByText(/30 dias do Premium, sem cartão/)).toBeInTheDocument();
-    expect(screen.queryByText(/Mais escolhido/)).not.toBeInTheDocument();
+    expect(screen.getByText('Plano Gratuito de verdade')).toBeInTheDocument();
+    expect(screen.getByText('30 dias de Premium')).toBeInTheDocument();
   });
 });

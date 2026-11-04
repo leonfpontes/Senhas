@@ -20,14 +20,14 @@ import { LEGAL_ENTITY } from '@/constants/legal';
 import { PARCEIROS_PATH, PARCEIROS_PUBLICADO } from '@/constants/parceiros';
 
 export const MARKETING_NAV = [
+  { label: 'Para quem é', href: '/#para-quem' },
   { label: 'Como funciona', href: '/#como-funciona' },
   { label: 'Planos', href: '/planos' },
   { label: 'Dúvidas', href: '/#duvidas' },
 ];
 
-// Jornada 1 v2: cabeçalho claro sobre o areia, com o tinta; o CTA é de contorno.
 const NAV_LINK =
-  'rounded-md text-[0.9375rem] font-medium text-tinta outline-none hover:text-barro-700 focus-visible:ring-[3px] focus-visible:ring-barro-600/40';
+  'rounded-md text-sm font-medium text-areia-200 outline-none hover:text-white focus-visible:ring-[3px] focus-visible:ring-ouro-300/60';
 
 export function MarketingShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,7 +49,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* cabecalho-marketing: fica parado nas passagens para os documentos (globals.css) */}
-      <header className="cabecalho-marketing sticky top-0 z-40 border-b border-areia-200 bg-areia-50/95 text-tinta backdrop-blur">
+      <header className="cabecalho-marketing sticky top-0 z-40 border-b border-white/10 bg-cafe-950/95 text-white backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link
             href="/"
@@ -57,7 +57,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             // marca-girahub: a marca "voa" para a tela de conta e volta (lib/passagem.ts)
             className="marca-girahub rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
           >
-            <GiraHubLogo className="text-tinta" />
+            <GiraHubLogo className="text-white" />
           </Link>
 
           <nav aria-label="Seções" className="hidden items-center gap-6 md:flex">
@@ -69,11 +69,11 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Button asChild variant="ghost" className="font-semibold text-tinta hover:bg-areia-100 hover:text-tinta">
+            <Button asChild variant="ghost" className="text-areia-100 hover:bg-white/10 hover:text-white">
               <Link href="/login">Entrar</Link>
             </Button>
-            <Button asChild variant="outline" className="h-[42px] rounded-[10px] border-[1.5px] border-tinta bg-transparent px-4 font-semibold text-tinta hover:bg-areia-100">
-              <Link href="/cadastro">Criar a conta da casa</Link>
+            <Button asChild className="bg-folha-600 font-bold text-white hover:bg-folha-700">
+              <Link href="/cadastro">Criar conta grátis</Link>
             </Button>
           </div>
 
@@ -82,7 +82,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-tinta hover:bg-areia-100 hover:text-tinta md:hidden"
+                className="text-white hover:bg-white/10 hover:text-white md:hidden"
                 aria-label="Abrir menu"
               >
                 <Menu />
@@ -108,7 +108,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
                 <Button asChild variant="outline" size="touch" className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">
                   <Link href="/login">Entrar</Link>
                 </Button>
-                <Button asChild size="touch" className="bg-ouro-400 font-bold text-cafe-950 hover:bg-ouro-300">
+                <Button asChild size="touch" className="bg-folha-600 font-bold text-white hover:bg-folha-700">
                   <Link href="/cadastro">Criar conta grátis</Link>
                 </Button>
               </div>
@@ -139,7 +139,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <nav aria-label="Plataforma">
-            <p className="mb-3 text-xs font-bold text-areia-100">Plataforma</p>
+            <p className="mb-3 text-xs font-bold tracking-widest text-areia-100 uppercase">Plataforma</p>
             <ul className="flex flex-col gap-2 text-sm">
               <li><Link href="/#como-funciona" className="hover:text-white">Como funciona</Link></li>
               <li><Link href="/planos" className="hover:text-white">Planos e preços</Link></li>
@@ -152,7 +152,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             </ul>
           </nav>
           <nav aria-label="Legal">
-            <p className="mb-3 text-xs font-bold text-areia-100">Legal</p>
+            <p className="mb-3 text-xs font-bold tracking-widest text-areia-100 uppercase">Legal</p>
             <ul className="flex flex-col gap-2 text-sm">
               <li><Link href="/privacidade" className="hover:text-white">Privacidade</Link></li>
               <li><Link href="/termos" className="hover:text-white">Termos de uso</Link></li>

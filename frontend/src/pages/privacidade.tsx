@@ -30,7 +30,7 @@ Há dois papéis diferentes:
 
 **Quem cria a conta do terreiro:** nome do terreiro, seu nome, e-mail, WhatsApp, CPF ou CNPJ, como conheceu o GiraHub e a principal necessidade da casa. A senha é guardada só em formato criptografado (hash), nunca em texto.
 
-**Usuários do painel:** nome, e-mail, telefone, foto de perfil (opcional), tipo de acesso e perfil de acesso, sessões abertas (aparelho e navegador) e as ações registradas na trilha de auditoria (com data, hora, endereço IP e navegador).
+**Usuários do painel:** nome, e-mail, telefone, foto de perfil (opcional), papel e grupo de permissão, sessões abertas (aparelho e navegador) e as ações registradas na trilha de auditoria (com data, hora, endereço IP e navegador).
 
 **Consulentes que pegam senha:** nome e e-mail (obrigatórios), telefone (opcional), categoria de prioridade quando informada (idoso, PcD/TEA, gestante/lactante/criança de colo, mobilidade reduzida), nomes de acompanhantes e o horário escolhido. Não pedimos CPF nem data de nascimento para emitir senha.
 
@@ -96,7 +96,7 @@ Também podemos compartilhar dados quando a lei, uma ordem judicial ou uma autor
     body: `• Conexão sempre criptografada (HTTPS/TLS).
 • Senhas de acesso guardadas com hash bcrypt; sessão em cookie que o JavaScript da página não consegue ler (HttpOnly), com tempo máximo de duração.
 • Isolamento por terreiro em todas as consultas ao banco, verificado automaticamente a cada mudança no código.
-• Controle de acesso por tipo de acesso e perfis de acesso, e trilha de auditoria das ações sensíveis.
+• Controle de acesso por papéis e grupos de permissão, e trilha de auditoria das ações sensíveis.
 • Cópias de segurança diárias criptografadas, com teste de restauração.
 • Monitoramento de erros e de disponibilidade.
 

@@ -7,11 +7,25 @@
  * → depoimentos (V-03, só com depoimento real) → planos (cartões + comparativo completo) → módulos
  * → dúvidas (V-04) → chamada do Programa de Parceiros (C-06, só com PARCEIROS_PUBLICADO) → chamada final.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
-import { AberturaV2, ComoFuncionaV2, DepoimentosV2, FechoV2, PerguntasV2 } from '@/components/landing/v2';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { MarketingShell } from '@/components/landing/MarketingShell';
+import { Hero } from '@/components/landing/Hero';
+import { AudienceSection } from '@/components/landing/AudienceSection';
+import { BeforeAfter } from '@/components/landing/BeforeAfter';
+import { HowItWorks } from '@/components/landing/HowItWorks';
+import { Testimonials } from '@/components/landing/Testimonials';
+import { StatsBand } from '@/components/landing/StatsBand';
+import { ScreensCarousel } from '@/components/landing/ScreensCarousel';
+import { PlanCards } from '@/components/landing/PlanCards';
+import { PlanComparisonTable } from '@/components/landing/PlanComparisonTable';
+import { ModulesSection } from '@/components/landing/ModulesSection';
+import { FaqSection } from '@/components/landing/FaqSection';
+import { FinalCta } from '@/components/landing/FinalCta';
 import { ParceirosChamada } from '@/components/landing/ParceirosChamada';
+import { SectionHeading } from '@/components/landing/SectionHeading';
 import { faqJsonLd } from '@/constants/landingFaq';
 import { PLAN_LIST } from '@/constants/plans';
 import { jsonLd } from '@/lib/jsonLd';
@@ -33,13 +47,45 @@ function softwareJsonLd(): string {
   }).replace(/</g, '\\u003c');
 }
 
+/**
+ * Comparativo completo logo abaixo dos cartões — o mesmo componente da página /planos
+ * (PlanComparisonTable → buildComparisonGroups, gerado de constants/plans.ts). No celular fica
+ * recolhido atrás de "Ver comparativo completo"; a partir de md aparece sempre.
+ */
+function ComparativoCompleto() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-16">
+      <h3 id="comparativo-title" className="text-center font-display text-2xl font-bold text-tinta sm:text-3xl">
+        Comparativo completo
+      </h3>
+      <p className="mt-2 text-center text-tinta-suave">Cada plano inclui tudo do anterior.</p>
+      <div className="mt-6 flex justify-center md:hidden">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="comparativo-completo"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-barro-600 px-5 py-2 font-semibold text-barro-700 hover:bg-areia-200"
+        >
+          {open ? 'Esconder comparativo' : 'Ver comparativo completo'}
+          <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} aria-hidden />
+        </button>
+      </div>
+      <div id="comparativo-completo" aria-labelledby="comparativo-title" className={cn('mt-8 md:block', open ? 'block' : 'hidden')}>
+        <PlanComparisonTable />
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <>
       <Head>
         <title>{TITLE}</title>
         <meta name="description" content={DESCRIPTION} />
-        <meta name="theme-color" content="#FAF6EF" />
+        <meta name="theme-color" content="#180e09" />
         <meta property="og:title" content={TITLE} />
         <meta property="og:description" content={DESCRIPTION} />
         <meta property="og:type" content="website" />
@@ -53,14 +99,30 @@ export default function HomePage() {
       </Head>
 
       <MarketingShell>
-        {/* Jornada 1 v2 (pen.dev 01 e 02): abertura, um sábado de gira, o resto da casa, depoimentos,
-            perguntas abertas e o fecho. Planos ficam em /planos. */}
-        <AberturaV2 />
-        <ComoFuncionaV2 />
-        <DepoimentosV2 />
-        <PerguntasV2 />
+        <Hero />
+        <AudienceSection />
+        <BeforeAfter />
+        <HowItWorks />
+        <ScreensCarousel />
+        <StatsBand />
+        <Testimonials />
+
+        <section id="planos" aria-labelledby="planos-title" className="scroll-mt-20 bg-areia-100 py-20 md:py-28">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SectionHeading id="planos-title" eyebrow="Planos" title="Comece grátis, cresça quando a casa pedir">
+              Sem contrato e sem multa. Todo terreiro novo testa o Premium por 30 dias, sem cartão.
+            </SectionHeading>
+            <div className="mt-12">
+              <PlanCards />
+            </div>
+            <ComparativoCompleto />
+          </div>
+        </section>
+
+        <ModulesSection />
+        <FaqSection />
         <ParceirosChamada />
-        <FechoV2 />
+        <FinalCta />
       </MarketingShell>
     </>
   );

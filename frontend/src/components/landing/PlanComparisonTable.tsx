@@ -88,7 +88,7 @@ export function PlanComparisonTable() {
                 <th
                   scope="colgroup"
                   colSpan={PLAN_ORDER.length + 1}
-                  className="border-t border-areia-200 bg-areia-50 px-6 pt-7 pb-2.5 text-left font-display text-[1.375rem] font-medium tracking-[-0.01em] text-tinta"
+                  className="border-t border-areia-200 bg-areia-50 px-6 pt-5 pb-2 text-xs font-bold tracking-widest text-barro-700 uppercase"
                 >
                   {g.group}
                 </th>
