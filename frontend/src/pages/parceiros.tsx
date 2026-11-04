@@ -11,12 +11,16 @@
 import React from 'react';
 import type { GetStaticProps } from 'next';
 import Head from 'next/head';
-import { BadgePercent, ChevronRight, HandCoins, Megaphone, QrCode, Store, Users, Video, Landmark, MessageSquareText, Link2 } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { MarketingShell } from '@/components/landing/MarketingShell';
 import { SectionHeading } from '@/components/landing/SectionHeading';
 import { Reveal } from '@/components/landing/Reveal';
+import { Picote } from '@/components/landing/v2';
+import { fraunces } from '@/components/landing/fonts';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 import { ParceiroForm } from '@/components/landing/ParceiroForm';
 import { PAID_PLANS } from '@/constants/plans';
 import {
@@ -26,21 +30,20 @@ import {
   DESCONTO_MESES,
   DESCONTO_PCT,
   MATERIAL,
+  PAGAMENTO_ATE_DIA,
   PAGAMENTO_MINIMO,
   PARCEIROS_PUBLICADO,
   QUEM_PODE,
   REGULAMENTO,
+  RESPOSTA_DIAS_UTEIS,
   comissaoMensal,
   comissaoTotal,
   formatBRL,
-  planoExemplo,
 } from '@/constants/parceiros';
 
 const TITLE = 'Programa de Parceiros GiraHub — indique e ganhe todo mês';
 const DESCRIPTION = `Lojas de artigos religiosos, dirigentes, criadores de conteúdo e federações: indique o GiraHub aos terreiros, dê ${DESCONTO_PCT}% de desconto com o seu cupom e receba ${COMISSAO_PCT}% de comissão por PIX todo mês.`;
 
-const QUEM_ICONS = [Store, Users, Video, Landmark];
-const MATERIAL_ICONS = [Link2, QrCode, MessageSquareText];
 
 export const getStaticProps: GetStaticProps = async () => {
   if (!PARCEIROS_PUBLICADO) return { notFound: true };
@@ -48,7 +51,6 @@ export const getStaticProps: GetStaticProps = async () => {
 };
 
 export default function ParceirosPage() {
-  const exemplo = planoExemplo();
 
   return (
     <>
@@ -64,144 +66,103 @@ export default function ParceirosPage() {
       </Head>
 
       <MarketingShell>
-        {/* Topo */}
-        <section aria-labelledby="parceiros-title" className="bg-cafe-950 pt-14 pb-16 text-white md:pt-20 md:pb-24">
-          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+        {/* J13 v2 · 01: o topo sobre o areia, alinhado à esquerda; os dois lados em filetes e a conta
+            inteira numa tabela. Todos os números saem de constants/parceiros.ts e dos planos. */}
+        <section aria-labelledby="parceiros-title" className={cn(fraunces.variable, 'bg-areia-50 pt-12 pb-16 text-tinta md:pt-16 md:pb-24')}>
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <Reveal>
-              <p className="mb-4 text-xs font-bold text-ouro-300">Programa de Parceiros GiraHub</p>
-              <h1 id="parceiros-title" className="font-display text-4xl leading-tight font-bold sm:text-5xl">
-                Indique o GiraHub aos terreiros e ganhe todo mês.
+              <p className="text-sm font-semibold text-barro-700">Programa de Parceiros GiraHub</p>
+              <h1 id="parceiros-title" className="mt-3 max-w-3xl font-display text-4xl leading-[1.05] font-normal tracking-[-0.02em] sm:text-6xl">
+                Indique o GiraHub aos terreiros e ganhe <em className="text-barro-600">todo mês.</em>
               </h1>
-              <p className="mt-5 text-lg text-areia-200">
-                O terreiro ganha {DESCONTO_PCT}% de desconto com o seu cupom. Você recebe {COMISSAO_PCT}% do que ele pagar,
-                por {COMISSAO_MESES} meses, direto no PIX.
+              <p className="mt-5 max-w-2xl text-lg text-tinta-suave">
+                Se a sua palavra chega nas casas de axé, o GiraHub quer caminhar junto.{' '}
+                {QUEM_PODE.map((q) => q.title.charAt(0) + q.title.slice(1).toLowerCase()).join(', ')}.
               </p>
-              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button asChild size="touch" className="bg-ouro-400 text-base font-bold text-cafe-950 hover:bg-ouro-300">
+              <div className="mt-7 flex flex-wrap items-center gap-4">
+                <Button asChild size="touch" className="bg-folha-600 font-semibold text-white hover:bg-folha-700">
                   <a href="#quero-ser-parceiro">
                     Quero ser parceiro <ChevronRight aria-hidden />
                   </a>
                 </Button>
-                <Button
-                  asChild
-                  size="touch"
-                  variant="outline"
-                  className="border-white/30 bg-transparent text-base text-white hover:bg-white/10 hover:text-white"
-                >
-                  <a href="#regulamento">Ler o regulamento</a>
-                </Button>
+                <a href="#regulamento" className="min-h-11 content-center text-sm font-semibold text-tinta underline underline-offset-4">
+                  Ler o regulamento
+                </a>
               </div>
             </Reveal>
-          </div>
-        </section>
 
-        {/* Quem pode */}
-        <section id="quem-pode" aria-labelledby="quem-pode-title" className="scroll-mt-20 py-16 md:py-24">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <SectionHeading id="quem-pode-title" eyebrow="Quem pode ser parceiro" title="Quem já fala com os terreiros">
-              Se a sua palavra chega nas casas de axé, o GiraHub quer caminhar junto.
-            </SectionHeading>
-            <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {QUEM_PODE.map((q, i) => {
-                const Icon = QUEM_ICONS[i] ?? Users;
-                return (
-                  <li key={q.title} className="rounded-3xl border border-areia-200 bg-white p-6 shadow-sm">
-                    <span className="flex size-11 items-center justify-center rounded-xl bg-barro-600 text-white">
-                      <Icon className="size-5" aria-hidden />
-                    </span>
-                    <h3 className="mt-4 text-lg font-bold text-tinta">{q.title}</h3>
-                    <p className="mt-1 text-sm text-tinta-suave">{q.desc}</p>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </section>
+            <Picote className="mt-12" />
 
-        {/* Vantagens dos dois lados */}
-        <section id="vantagens" aria-labelledby="vantagens-title" className="scroll-mt-20 bg-areia-100 py-16 md:py-24">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <SectionHeading id="vantagens-title" eyebrow="Bom para os dois lados" title="O terreiro economiza, você é recompensado" />
-            <div className="mt-12 grid gap-6 md:grid-cols-2">
-              <Reveal className="rounded-3xl border border-areia-200 bg-white p-6 shadow-sm sm:p-8">
-                <span className="flex size-11 items-center justify-center rounded-xl bg-folha-600 text-white">
-                  <BadgePercent className="size-5" aria-hidden />
-                </span>
-                <h3 className="mt-4 font-display text-2xl font-bold text-tinta">Para o terreiro indicado</h3>
-                <ul className="mt-4 grid gap-3 text-tinta-suave">
-                  <li>O teste grátis normal do GiraHub, sem cartão.</li>
-                  <li>
-                    <strong className="text-tinta">
-                      {DESCONTO_PCT}% de desconto nos {DESCONTO_MESES} primeiros meses
-                    </strong>{' '}
-                    de qualquer plano pago, com o cupom do parceiro.
+            <div id="vantagens" className="mt-10 grid scroll-mt-20 gap-10 md:grid-cols-2 md:gap-14">
+              <div>
+                <h2 className="font-display text-2xl font-normal">Para o terreiro indicado</h2>
+                <ul className="mt-4">
+                  <li className="border-b border-areia-200 py-3">
+                    <p className="font-semibold">{DESCONTO_PCT}% de desconto</p>
+                    <p className="text-sm text-tinta-suave">Nos {DESCONTO_MESES} primeiros meses de plano pago, com o cupom do parceiro.</p>
                   </li>
-                  <li>Sem fidelidade: muda de plano ou cancela quando quiser.</li>
-                </ul>
-              </Reveal>
-              <Reveal delay={0.08} className="rounded-3xl border border-areia-200 bg-white p-6 shadow-sm sm:p-8">
-                <span className="flex size-11 items-center justify-center rounded-xl bg-barro-600 text-white">
-                  <HandCoins className="size-5" aria-hidden />
-                </span>
-                <h3 className="mt-4 font-display text-2xl font-bold text-tinta">Para você, parceiro</h3>
-                <ul className="mt-4 grid gap-3 text-tinta-suave">
-                  <li>
-                    <strong className="text-tinta">
-                      {COMISSAO_PCT}% de comissão recorrente
-                    </strong>{' '}
-                    sobre o que cada terreiro indicado pagar, durante {COMISSAO_MESES} meses.
+                  <li className="border-b border-areia-200 py-3">
+                    <p className="font-semibold">O teste grátis normal</p>
+                    <p className="text-sm text-tinta-suave">O teste grátis do GiraHub, sem cartão.</p>
                   </li>
-                  <li>Pagamento por PIX todo mês, a partir de {formatBRL(PAGAMENTO_MINIMO)} acumulados.</li>
-                  <li>Quanto mais casas, mais comissão — não tem limite de indicações.</li>
+                  <li className="py-3">
+                    <p className="font-semibold">Sem fidelidade</p>
+                    <p className="text-sm text-tinta-suave">Muda de plano ou cancela quando quiser.</p>
+                  </li>
                 </ul>
-              </Reveal>
+              </div>
+              <div>
+                <h2 className="font-display text-2xl font-normal">Para você, parceiro</h2>
+                <ul className="mt-4">
+                  <li className="border-b border-areia-200 py-3">
+                    <p className="font-semibold">{COMISSAO_PCT}% de tudo o que a casa paga</p>
+                    <p className="text-sm text-tinta-suave">
+                      Por {COMISSAO_MESES} meses de pagamento. Quanto mais casas, mais comissão: não tem limite de indicações.
+                    </p>
+                  </li>
+                  <li className="border-b border-areia-200 py-3">
+                    <p className="font-semibold">PIX todo mês</p>
+                    <p className="text-sm text-tinta-suave">
+                      Até o dia {PAGAMENTO_ATE_DIA} do mês seguinte, a partir de {formatBRL(PAGAMENTO_MINIMO)} acumulados (abaixo disso, soma no mês seguinte).
+                    </p>
+                  </li>
+                  <li className="py-3">
+                    <p className="font-semibold">Material pronto</p>
+                    <p className="text-sm text-tinta-suave">
+                      {MATERIAL.map((m) => m.title).join(', ')}. Tudo pronto para usar no balcão, no grupo e nas redes.
+                    </p>
+                  </li>
+                </ul>
+              </div>
             </div>
 
-            <Reveal className="mt-6 rounded-3xl bg-cafe-950 p-6 text-white sm:p-8">
-              <p className="text-xs font-bold text-ouro-300">Na ponta do lápis</p>
-              <p data-testid="parceiros-exemplo" className="mt-3 font-display text-2xl leading-snug font-bold sm:text-3xl">
-                Um terreiro no plano {exemplo.label} rende {formatBRL(comissaoMensal(exemplo))} por mês para você —
-                cerca de {formatBRL(comissaoTotal(exemplo))} em {COMISSAO_MESES} meses.
-              </p>
-              <ul aria-label="Comissão por plano" className="mt-6 grid gap-3 sm:grid-cols-3">
-                {PAID_PLANS.map((p) => (
-                  <li key={p.key} className="rounded-2xl border border-white/15 px-4 py-3">
-                    <span className="block text-sm text-areia-200">Plano {p.label}</span>
-                    <span className="block text-lg font-bold">{formatBRL(comissaoMensal(p))}/mês por terreiro</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-4 text-xs text-areia-300">
-                Valores com o preço cheio do plano. Nos {DESCONTO_MESES} primeiros meses, com o desconto do terreiro, a comissão é
-                calculada sobre o valor com desconto. Dez terreiros no {exemplo.label} são {formatBRL(comissaoMensal(exemplo) * 10)} por
-                mês.
-              </p>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* Material */}
-        <section id="material" aria-labelledby="material-title" className="scroll-mt-20 py-16 md:py-24">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <SectionHeading id="material-title" eyebrow="Material de divulgação" title="Você indica, a gente prepara o material">
-              Tudo pronto para usar no balcão, no grupo e nas redes.
-            </SectionHeading>
-            <ul className="mt-12 grid gap-4 md:grid-cols-3">
-              {MATERIAL.map((m, i) => {
-                const Icon = MATERIAL_ICONS[i] ?? Megaphone;
-                return (
-                  <li key={m.title} className="flex gap-4 rounded-3xl border border-areia-200 bg-white p-6 shadow-sm">
-                    <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-ouro-400 text-cafe-950">
-                      <Icon className="size-5" aria-hidden />
-                    </span>
-                    <span>
-                      <h3 className="font-bold text-tinta">{m.title}</h3>
-                      <p className="mt-1 text-sm text-tinta-suave">{m.desc}</p>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <h2 className="mt-14 font-display text-2xl font-normal">Na ponta do lápis</h2>
+            <div className="mt-4 overflow-x-auto rounded-xl border border-areia-200 bg-white">
+              <Table aria-label="Comissão por plano" data-testid="parceiros-exemplo">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Plano</TableHead>
+                    <TableHead>A casa paga</TableHead>
+                    <TableHead>Você recebe por mês</TableHead>
+                    <TableHead>Em {COMISSAO_MESES} meses</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {PAID_PLANS.map((p) => (
+                    <TableRow key={p.key}>
+                      <TableCell className="font-semibold">{p.label}</TableCell>
+                      <TableCell className="tabular-nums text-tinta-suave">{formatBRL(p.price)}/mês</TableCell>
+                      <TableCell className="font-semibold tabular-nums">{formatBRL(comissaoMensal(p))}</TableCell>
+                      <TableCell className="font-semibold tabular-nums">{formatBRL(comissaoTotal(p))}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="mt-3 text-xs text-tinta-suave">
+              Os {COMISSAO_MESES} meses contam os {DESCONTO_MESES} primeiros com o desconto do terreiro (a comissão é de {COMISSAO_PCT}% sobre o
+              valor já com desconto). Respondemos o pedido em até {RESPOSTA_DIAS_UTEIS} dias úteis.
+            </p>
           </div>
         </section>
 

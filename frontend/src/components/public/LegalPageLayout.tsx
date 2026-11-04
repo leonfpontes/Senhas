@@ -262,7 +262,7 @@ export function LegalPageLayout({
 
       <MarketingShell>
         {/* Jornada 13 v2: o título sobre o areia, como o resto do site; sem bloco escuro nem brilhos. */}
-        <section aria-labelledby="documento-titulo" className="relative bg-areia-50 pt-10 pb-24 text-tinta md:pt-14 md:pb-28">
+        <section aria-labelledby="documento-titulo" className="relative bg-areia-50 pt-10 pb-10 text-tinta md:pt-14 md:pb-12">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <nav aria-label="Trilha" className="documento-surge text-sm text-tinta-suave">
               <ol className="flex items-center gap-1.5">
@@ -279,20 +279,35 @@ export function LegalPageLayout({
                 </li>
               </ol>
             </nav>
-            <p className="documento-surge mt-8 text-sm font-medium text-tinta-suave [--atraso:60ms]">
-              Documentos legais
-            </p>
             <h1
               id="documento-titulo"
-              className="documento-surge mt-3 max-w-3xl font-display text-4xl leading-[1.05] font-normal tracking-[-0.03em] [--atraso:120ms] sm:text-5xl md:text-6xl"
+              className="documento-surge mt-8 max-w-3xl font-display text-4xl leading-[1.05] font-normal tracking-[-0.03em] [--atraso:120ms] sm:text-5xl md:text-6xl"
             >
               {heading}
             </h1>
-            <div aria-hidden className="documento-fio mt-6 h-px w-40 border-t border-dashed border-areia-300" />
-            <p className="documento-surge mt-6 max-w-2xl text-lg leading-relaxed text-tinta-suave [--atraso:200ms]">{lead}</p>
+            <p className="documento-surge mt-4 max-w-2xl text-lg leading-relaxed text-tinta-suave [--atraso:200ms]">{lead}</p>
             <p className="documento-surge mt-4 text-sm text-tinta-suave [--atraso:240ms]">
               Vigente desde <time dateTime={updatedAtIso}>{updatedAt}</time> · Versão {version} · Leitura de {minutos} min
             </p>
+
+
+            {/* J13 v2 · 02-03: os quatro destaques em colunas, com um filete em cima. */}
+            {highlights && highlights.length > 0 && (
+              <section aria-labelledby="resumo-titulo" className="documento-surge mt-10 [--atraso:280ms]">
+                <h2 id="resumo-titulo" className="sr-only">
+                  Em poucas palavras
+                </h2>
+                <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {highlights.map((h) => (
+                    <li key={h.title} className="border-t border-tinta/15 pt-4">
+                      <p className="font-semibold text-tinta">{h.title}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-tinta-suave">{renderInline(h.text)}</p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-xs text-tinta-suave">O resumo ajuda a leitura, mas não substitui o texto completo abaixo.</p>
+              </section>
+            )}
 
             {/* Abas entre os documentos — a pílula da aba ativa escorrega na passagem. */}
             <nav aria-label="Documentos legais" className="documento-surge mt-10 [--atraso:300ms] print:hidden">
@@ -321,10 +336,10 @@ export function LegalPageLayout({
         </section>
 
         <div className="bg-areia-50 pb-20 md:pb-28">
-          <div className="mx-auto -mt-12 grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-14">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-16">
             {/* Índice: lateral fixo no desktop, recolhido no celular. */}
             <aside className="hidden lg:block print:hidden">
-              <div className="sticky top-24 pt-20">
+              <div className="sticky top-24">
                 <p className="mb-3 text-xs font-bold text-barro-700">Nesta página</p>
                 <Indice itens={itens} atual={atual} />
                 <button
@@ -338,7 +353,8 @@ export function LegalPageLayout({
             </aside>
 
             <article className="documento-surge min-w-0 [--atraso:360ms]">
-              <div className="rounded-3xl border border-areia-200 bg-white p-6 shadow-xl shadow-cafe-900/5 sm:p-10">
+              {/* J13 v2: o texto direto sobre o areia, sem cartão em volta. */}
+              <div>
                 <div className="mb-6 lg:hidden print:hidden">
                   <button
                     type="button"
@@ -357,24 +373,6 @@ export function LegalPageLayout({
 
                 <div className="text-[1.05rem] leading-[1.8] text-tinta-suave">{intro}</div>
 
-                {highlights && highlights.length > 0 && (
-                  <section aria-labelledby="resumo-titulo" className="mt-8 rounded-2xl bg-areia-100 p-5 sm:p-7">
-                    <h2 id="resumo-titulo" className="font-display text-xl font-bold text-tinta">
-                      Em poucas palavras
-                    </h2>
-                    <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {highlights.map((h) => (
-                        <li key={h.title} className="rounded-xl bg-white p-4">
-                          <p className="font-semibold text-tinta">{h.title}</p>
-                          <p className="mt-1 text-sm leading-relaxed text-tinta-suave">{renderInline(h.text)}</p>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-4 text-xs text-tinta-suave">
-                      O resumo ajuda a leitura, mas não substitui o texto completo abaixo.
-                    </p>
-                  </section>
-                )}
 
                 {sections.map((s, i) => (
                   <section key={itens[i].id} id={itens[i].id} aria-labelledby={`${itens[i].id}-titulo`} className="mt-12 scroll-mt-24">

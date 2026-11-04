@@ -15,7 +15,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ChevronDown, Cookie, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -35,8 +35,8 @@ import { useConsentimento } from '@/hooks/useConsentimento';
 /** Rotas sem banner: telas de exibição, sem ninguém para responder. */
 export const ROTAS_SEM_BANNER = ['/admin/porta/kiosk'];
 
-const BOTAO_CLARO = 'border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white';
-const BOTAO_OURO = 'bg-ouro-400 font-bold text-cafe-950 hover:bg-ouro-300';
+// Recusar e aceitar com o mesmo peso (design ético, ADR 0010).
+const BOTAO_IGUAL = 'border-tinta/30 bg-white font-semibold text-tinta hover:bg-areia-100 hover:text-tinta';
 
 function formatarData(iso: string): string {
   const d = new Date(iso);
@@ -147,49 +147,34 @@ export function CookieConsent() {
             exit={{ opacity: 0, y: reduzido ? 0 : 48, transition: { duration: 0.25, ease: 'easeIn' } }}
             className={cn(
               fraunces.variable,
-              'fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:px-6 sm:pb-6',
+              'fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:right-auto sm:px-6 sm:pb-6',
             )}
           >
-            <div className="relative mx-auto max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-cafe-950 text-areia-100 shadow-2xl shadow-cafe-950/40">
-              {/* O fio dourado da passagem, aqui como acabamento do aviso. */}
-              <div aria-hidden className="h-[2px] bg-gradient-to-r from-transparent via-ouro-400 to-transparent" />
-              <div className="flex flex-col gap-4 p-5 sm:p-6 lg:flex-row lg:items-center lg:gap-8">
-                <div className="flex gap-4">
-                  <span className="hidden size-11 shrink-0 items-center justify-center rounded-full bg-ouro-400/15 text-ouro-300 sm:flex">
-                    <Cookie className="size-5" aria-hidden />
-                  </span>
-                  <div>
-                    <p className="font-display text-lg leading-snug font-bold text-white sm:text-xl">
-                      Sua privacidade, do seu jeito
-                    </p>
-                    <p className="mt-1.5 text-sm leading-relaxed text-areia-200">
-                      Usamos cookies necessários para o GiraHub funcionar. Com a sua permissão, usamos também cookies de
-                      estatísticas (para melhorar o site) e de marketing (para medir nossos anúncios). Você escolhe — e
-                      pode mudar quando quiser.{' '}
-                      <Link
-                        href="/cookies"
-                        className="font-semibold text-ouro-300 underline underline-offset-2 hover:text-ouro-400"
-                      >
-                        Política de Cookies
-                      </Link>
-                    </p>
-                  </div>
-                </div>
-                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:flex-nowrap">
-                  <Button variant="outline" className={cn(BOTAO_CLARO, 'min-h-11')} onClick={() => decidir(recusarOpcionais)}>
-                    Recusar opcionais
-                  </Button>
-                  <Button className={cn(BOTAO_OURO, 'min-h-11')} onClick={() => decidir(aceitarTudo)}>
-                    Aceitar todos
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="col-span-2 min-h-11 text-areia-200 underline-offset-2 hover:bg-white/10 hover:text-white sm:col-span-1"
-                    onClick={abrirPainel}
-                  >
-                    Personalizar
-                  </Button>
-                </div>
+            {/* J13 v2 · 04: cartão claro no canto; recusar e aceitar com o mesmo tamanho e a mesma cor. */}
+            <div className="max-w-xl rounded-2xl border border-areia-200 bg-white p-5 text-tinta shadow-xl shadow-cafe-950/10 sm:p-6">
+              <p className="font-display text-lg leading-snug font-bold">Sua privacidade, do seu jeito</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-tinta-suave">
+                Usamos cookies necessários para o GiraHub funcionar. Com a sua permissão, usamos também cookies de
+                estatísticas (para melhorar o site) e de marketing (para medir nossos anúncios). Você escolhe — e pode
+                mudar quando quiser.{' '}
+                <Link href="/cookies" className="font-semibold text-tinta underline underline-offset-2">
+                  Política de Cookies
+                </Link>
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                <Button variant="outline" className={cn(BOTAO_IGUAL, 'min-h-11')} onClick={() => decidir(recusarOpcionais)}>
+                  Recusar opcionais
+                </Button>
+                <Button variant="outline" className={cn(BOTAO_IGUAL, 'min-h-11')} onClick={() => decidir(aceitarTudo)}>
+                  Aceitar todos
+                </Button>
+                <Button
+                  variant="link"
+                  className="col-span-2 min-h-11 px-2 font-semibold text-tinta underline underline-offset-4 sm:col-span-1"
+                  onClick={abrirPainel}
+                >
+                  Personalizar
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -201,15 +186,13 @@ export function CookieConsent() {
           className={cn(
             fraunces.variable,
             'auth-terra max-h-[calc(100dvh-2rem)] gap-0 overflow-hidden rounded-3xl border-areia-200 bg-areia-50 p-0 text-tinta sm:max-w-2xl',
-            // O "X" do Dialog fica sobre o cabeçalho café: branco, com foco dourado.
-            '[&>[data-slot=dialog-close]]:text-white [&>[data-slot=dialog-close]]:opacity-90 [&>[data-slot=dialog-close]]:focus:ring-ouro-300 [&>[data-slot=dialog-close]]:data-[state=open]:bg-transparent [&>[data-slot=dialog-close]]:data-[state=open]:text-white',
           )}
         >
           <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
-            <DialogHeader className="border-b border-areia-200 bg-cafe-950 px-6 pt-6 pb-5 text-left text-white">
-              <p className="text-xs font-bold text-ouro-300">Privacidade</p>
-              <DialogTitle className="font-display text-2xl font-bold text-white">Preferências de cookies</DialogTitle>
-              <DialogDescription className="text-sm text-areia-200">
+            <DialogHeader className="border-b border-areia-200 bg-white px-6 pt-6 pb-5 text-left">
+              <p className="text-xs font-bold text-barro-700">Privacidade</p>
+              <DialogTitle className="font-display text-2xl font-bold text-tinta">Preferências de cookies</DialogTitle>
+              <DialogDescription className="text-sm text-tinta-suave">
                 Ligue só o que fizer sentido para você. Os necessários não podem ser desligados porque o sistema não
                 funciona sem eles.
               </DialogDescription>
@@ -236,7 +219,7 @@ export function CookieConsent() {
               <Button variant="outline" className="min-h-11" onClick={() => decidir(() => salvarConsentimento(escolha))}>
                 Salvar escolhas
               </Button>
-              <Button className={cn(BOTAO_OURO, 'min-h-11')} onClick={() => decidir(aceitarTudo)}>
+              <Button variant="outline" className="min-h-11" onClick={() => decidir(aceitarTudo)}>
                 Aceitar todos
               </Button>
             </DialogFooter>

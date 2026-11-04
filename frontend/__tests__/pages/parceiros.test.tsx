@@ -10,7 +10,7 @@ import HomePage from '@/pages/index';
 import ParceirosPage, { getStaticProps } from '@/pages/parceiros';
 import { buildSitemap } from '@/pages/sitemap.xml';
 import { PAID_PLANS, PLANS } from '@/constants/plans';
-import { comissaoMensal, comissaoTotal, formatBRL, planoExemplo } from '@/constants/parceiros';
+import { comissaoMensal, comissaoTotal, formatBRL } from '@/constants/parceiros';
 
 let mockPublicado = false;
 jest.mock('@/constants/parceiros', () => {
@@ -94,18 +94,18 @@ describe('C-06 com a chave ligada', () => {
     expect(buildSitemap([])).toContain('<loc>https://girahub.com.br/parceiros</loc>');
   });
 
-  it('mostra as regras e o exemplo calculado dos preços de constants/plans.ts', () => {
+  it('mostra as regras e a conta inteira por plano, dos preços de constants/plans.ts (J13 v2 · 01)', () => {
     render(<ParceirosPage />);
     expect(screen.getByRole('heading', { level: 1, name: /indique o girahub/i })).toBeInTheDocument();
-    const ex = planoExemplo();
-    expect(ex).toBe(PAID_PLANS.find((p) => p.popular));
-    expect(screen.getByTestId('parceiros-exemplo')).toHaveTextContent(
-      `Um terreiro no plano ${ex.label} rende ${formatBRL(comissaoMensal(ex))} por mês para você`,
-    );
-    expect(screen.getByTestId('parceiros-exemplo')).toHaveTextContent(formatBRL(comissaoTotal(ex)));
-    const porPlano = screen.getByRole('list', { name: 'Comissão por plano' });
-    for (const p of PAID_PLANS) expect(porPlano).toHaveTextContent(`${formatBRL(comissaoMensal(p))}/mês`);
-    expect(screen.getByText(/20% de desconto nos 3 primeiros meses/i)).toBeInTheDocument();
+    const tabela = screen.getByRole('table', { name: 'Comissão por plano' });
+    for (const p of PAID_PLANS) {
+      const linha = within(tabela).getByRole('row', { name: new RegExp(`^${p.label}`) });
+      expect(linha).toHaveTextContent(`${formatBRL(p.price)}/mês`);
+      expect(linha).toHaveTextContent(formatBRL(comissaoMensal(p)));
+      expect(linha).toHaveTextContent(formatBRL(comissaoTotal(p)));
+    }
+    expect(screen.getByText('20% de desconto')).toBeInTheDocument();
+    expect(screen.getByText(/Nos 3 primeiros meses de plano pago/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /posso indicar o meu próprio terreiro/i })).toBeInTheDocument();
   });
 

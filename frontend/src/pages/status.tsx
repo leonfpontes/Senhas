@@ -10,12 +10,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { CircleAlert, CircleCheck, CircleHelp, Ticket, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleHelp, TriangleAlert } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
+import { fraunces } from '@/components/landing/fonts';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -95,26 +96,23 @@ function ComponentCard({ component }: { component: Component }) {
   const status = asStatus(component.status);
   const label = COMPONENT_LABEL[component.name] ?? { name: component.name, description: component.description };
   return (
-    <Card className="gap-3 py-4">
-      <CardContent className="flex flex-col gap-3 px-4 sm:px-5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold">
-              {label.name}: <span className="font-semibold">{STATUS_LABEL[status]}</span>
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {label.description}
-              {component.latency_ms != null && (
-                <>
-                  {' '}· responde em <strong>{component.latency_ms} ms</strong>
-                </>
-              )}
-            </p>
-          </div>
-          <StatusBadge status={status} />
-        </div>
-      </CardContent>
-    </Card>
+    // J13 v2 · 05: uma linha por serviço, com o filete embaixo e a situação à direita.
+    <li className="flex flex-wrap items-start justify-between gap-2 border-b border-areia-200 py-4">
+      <div className="min-w-0">
+        <h2 className="text-base font-bold" aria-label={`${label.name}: ${STATUS_LABEL[status]}`}>
+          {label.name}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {label.description}
+          {component.latency_ms != null && (
+            <>
+              {' '}· responde em <strong>{component.latency_ms} ms</strong>
+            </>
+          )}
+        </p>
+      </div>
+      <StatusBadge status={status} />
+    </li>
   );
 }
 
@@ -173,13 +171,12 @@ const StatusPage: React.FC = () => {
         <meta name="description" content="Status dos serviços do GiraHub" />
       </Head>
 
-      <div data-slot="status-page" className="min-h-screen bg-background text-base text-foreground">
+      <div data-slot="status-page" className={cn(fraunces.variable, 'min-h-screen bg-areia-50 text-base text-tinta')}>
         {/* Navbar mínima */}
-        <header className="border-b">
+        <header className="border-b border-areia-200">
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 font-bold text-foreground no-underline">
-              <Ticket aria-hidden className="size-6 text-brand" />
-              GiraHub
+            <Link href="/" aria-label="GiraHub — página inicial" className="no-underline">
+              <GiraHubLogo className="text-tinta" />
             </Link>
             <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
               ← Voltar ao site
@@ -188,7 +185,7 @@ const StatusPage: React.FC = () => {
         </header>
 
         <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
-          <h1 className="text-3xl font-extrabold tracking-tight">Status dos serviços</h1>
+          <h1 className="font-display text-4xl font-normal tracking-[-0.02em]">Status dos serviços</h1>
 
           {loading ? (
             <div role="status" aria-live="polite" className="flex flex-col gap-4">
@@ -226,11 +223,11 @@ const StatusPage: React.FC = () => {
               {!verifyFailed && (
                 <>
                   {/* Componentes */}
-                  <div className="flex flex-col gap-3">
+                  <ul className="flex flex-col">
                     {(data?.components ?? []).map((component) => (
                       <ComponentCard key={component.name} component={component} />
                     ))}
-                  </div>
+                  </ul>
                 </>
               )}
 
