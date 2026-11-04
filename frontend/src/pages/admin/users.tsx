@@ -327,9 +327,20 @@ function AdminUsersContent() {
         header: 'Pessoa',
         meta: { mobile: true },
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium">{row.original.username}</div>
-            <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
+          // J10 v2 · 01: as iniciais em círculo, o nome e o e-mail.
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-barro-600)] text-xs font-bold text-white">
+              {row.original.username
+                .split(/[\s@._-]+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((p) => p.charAt(0).toUpperCase())
+                .join('')}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{row.original.username}</div>
+              <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
+            </div>
           </div>
         ),
       },
@@ -338,7 +349,7 @@ function AdminUsersContent() {
         header: 'Tipo de acesso',
         meta: { mobile: true },
         cell: ({ row }) => (
-          <Badge variant={row.original.role === 'admin' ? 'default' : 'outline'}>{roleLabel(row.original.role)}</Badge>
+          <span className="font-semibold">{roleLabel(row.original.role)}</span>
         ),
       },
       {
@@ -347,15 +358,19 @@ function AdminUsersContent() {
         meta: { mobile: true },
         cell: ({ row }) =>
           row.original.is_active ? (
-            <Badge variant="outline" className="border-success/40 text-success">Ativo</Badge>
+            <Badge className="border-transparent bg-success/15 text-success-strong">Ativo</Badge>
           ) : (
-            <Badge variant="outline" className="text-muted-foreground">Inativo</Badge>
+            <Badge className="border-transparent bg-warning/20 text-warning-strong">Inativo</Badge>
           ),
       },
       {
         accessorKey: 'created_at',
         header: 'Desde',
-        cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString('pt-BR'),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {new Date(row.original.created_at).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })}
+          </span>
+        ),
       },
     ];
     if (canEdit || canDelete) {

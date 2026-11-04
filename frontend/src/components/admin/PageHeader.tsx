@@ -3,7 +3,9 @@
  * Empilha no celular; título e ações lado a lado a partir de `sm` (600px).
  */
 import React from 'react';
+import { RouterContext } from 'next/dist/shared/lib/router-context.shared-runtime';
 import { cn } from '@/lib/utils';
+import { ContaAbas, ehRotaDaConta } from './ContaAbas';
 
 export interface PageHeaderProps {
   title:     string;
@@ -16,7 +18,20 @@ export interface PageHeaderProps {
   className?: string;
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, eyebrow, acento, actions, className }) => (
+export const PageHeader: React.FC<PageHeaderProps> = (props) => {
+  // Nas telas da conta (J10 v2), as abas da conta vêm logo abaixo do cabeçalho.
+  // Sem o roteador montado (testes de componente), as abas não aparecem.
+  const router = React.useContext(RouterContext);
+  const daConta = ehRotaDaConta(router?.pathname ?? '');
+  return (
+    <>
+      <Cabecalho {...props} eyebrow={props.eyebrow ?? (daConta ? 'Conta e plano' : undefined)} />
+      {daConta && <ContaAbas />}
+    </>
+  );
+};
+
+const Cabecalho: React.FC<PageHeaderProps> = ({ title, subtitle, eyebrow, acento, actions, className }) => (
   <header
     data-slot="page-header"
     className={cn(

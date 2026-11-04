@@ -102,7 +102,7 @@ export function isNavLinkActive(item: NavLink, pathname: string): boolean {
   if (item.action) return false;
   // `pathname` pode vir com a query (asPath): link com query (ex.: a aba da Área do Médium em
   // Configurações) só fica ativo nela; os demais comparam só o caminho.
-  const [caminho, query = ''] = pathname.split('#')[0].split('?');
+  const [caminho, query = ''] = (pathname ?? '').split('#')[0].split('?');
   const [base, queryDoLink] = item.href.split('?');
   if (caminho === base) {
     if (!queryDoLink) return true;

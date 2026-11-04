@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
+import { ContaAbas } from '@/components/admin/ContaAbas';
 import {
   PaymentMethodPicker,
   PlanCard,
@@ -462,6 +463,7 @@ function BillingContent() {
   return (
     <div data-slot="page" className="flex flex-col gap-5">
       <h1 className="sr-only">Plano e assinatura</h1>
+      <ContaAbas className="mt-0" />
 
       {success && (
         <Alert variant="success" role="status">
