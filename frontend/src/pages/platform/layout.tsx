@@ -14,7 +14,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import * as Sentry from '@sentry/nextjs';
-import { Building2, Handshake, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun } from 'lucide-react';
+import { Building2, Handshake, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun, Telescope } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { APP_VERSION } from '@/lib/version';
 import { cn } from '@/lib/utils';
@@ -60,6 +60,8 @@ import { fraunces } from '@/components/landing/fonts';
 
 export const PLATFORM_NAV = [
   { label: 'Hoje', href: '/platform', icon: LayoutDashboard, exact: true },
+  // Observatório de volta como página própria (J14 v2 · 19, decisão do Leonardo, 04/11/2026).
+  { label: 'Observatório', href: '/platform/observatory', icon: Telescope, exact: false },
   { label: 'Terreiros', href: '/platform/tenants', icon: Building2, exact: false },
   { label: 'Suporte', href: '/platform/suporte', icon: LifeBuoy, exact: false },
   { label: 'Parceiros', href: '/platform/parceiros', icon: Handshake, exact: false },

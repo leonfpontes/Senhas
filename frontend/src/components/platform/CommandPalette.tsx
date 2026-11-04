@@ -9,7 +9,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Building2, Gift, Handshake, LayoutDashboard, LifeBuoy, LogIn, MessageSquare, ScrollText, Settings } from 'lucide-react';
+import { Building2, Gift, Handshake, LayoutDashboard, LifeBuoy, LogIn, MessageSquare, ScrollText, Settings, Telescope } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import {
@@ -37,6 +37,7 @@ export interface CommandTenant {
 
 export const PALETTE_NAV = [
   { label: 'Hoje', href: '/platform', icon: LayoutDashboard },
+  { label: 'Observatório', href: '/platform/observatory', icon: Telescope },
   { label: 'Terreiros', href: '/platform/tenants', icon: Building2 },
   { label: 'Suporte', href: '/platform/suporte', icon: LifeBuoy },
   { label: 'Parceiros', href: '/platform/parceiros', icon: Handshake },

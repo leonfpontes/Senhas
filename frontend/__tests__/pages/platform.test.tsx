@@ -1,6 +1,6 @@
 /**
  * Plataforma — layout (Sidebar, perfil real, versão, badge de suporte) e rotas que viraram
- * redirecionamento (observatory, billing, users_global, profile).
+ * redirecionamento (billing, users_global, profile).
  */
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -48,7 +48,8 @@ describe('PlatformLayout', () => {
     expect(screen.getByText(/GiraHub v\d+\.\d+\.\d+/)).toBeInTheDocument();
     expect(screen.getByLabelText('3 conversas não lidas')).toBeInTheDocument();
     expect(screen.getByText('Casa Alfa')).toBeInTheDocument();
-    expect(screen.queryByText('Observatório')).not.toBeInTheDocument();
+    // Observatório de volta como página própria, logo depois de Hoje (J14 v2 · 19, 04/11/2026).
+    expect(screen.getByRole('link', { name: 'Observatório' })).toHaveAttribute('href', '/platform/observatory');
     expect(screen.queryByText('Usuários Globais')).not.toBeInTheDocument();
   });
 
@@ -65,7 +66,6 @@ describe('Rotas que viraram redirecionamento', () => {
   beforeEach(() => mockRouter.replace.mockClear());
 
   it.each([
-    ['observatory', '/platform'],
     ['billing', '/platform/tenants?tab=assinaturas'],
     ['users_global', '/platform/settings?tab=admins'],
     ['profile', '/platform/settings?tab=conta'],
