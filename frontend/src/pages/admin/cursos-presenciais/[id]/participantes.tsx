@@ -940,7 +940,7 @@ function ParticipantesContent() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <KpiCard
           label="Vagas preenchidas"
-          value={`${ocupadas} / ${totalVagas ?? 'sem limite'}`}
+          value={totalVagas != null ? `${ocupadas} de ${totalVagas}` : `${ocupadas} · sem limite`}
           color={lotada ? 'var(--warning)' : undefined}
           subtitle={lotada ? 'Turma lotada' : undefined}
         />
@@ -1048,7 +1048,10 @@ function ParticipantesContent() {
           <ArrowLeft />
           Cursos
         </Button>
-        <h1 className="m-0 text-2xl font-bold tracking-tight text-foreground">{curso?.titulo ?? 'Curso'}</h1>
+        <p className="m-0 text-[0.9375rem] font-medium text-muted-foreground">Cursos · Participantes</p>
+        <h1 className="m-0 font-display text-[2.5rem] leading-tight font-normal tracking-[-0.02em] text-foreground">
+          {curso?.titulo ?? 'Curso'}
+        </h1>
         {curso?.ementa && <p className="m-0 text-sm text-muted-foreground">{curso.ementa}</p>}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {curso?.local && (
@@ -1073,7 +1076,7 @@ function ParticipantesContent() {
 
       {gerarMensalidade ? (
         <Tabs value={tab} onValueChange={setTab} className="gap-4">
-          <TabsList className="w-full sm:w-fit">
+          <TabsList variant="line" className="gap-5 border-b border-border [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem]">
             <TabsTrigger value="matriculas">Matrículas</TabsTrigger>
             <TabsTrigger value="mensalidades">Mensalidades</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
