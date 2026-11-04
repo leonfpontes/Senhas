@@ -234,7 +234,7 @@ const AuditConsolidatedPage: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList data-tour="audit-cons-tabs" className="mb-3 h-auto w-full flex-wrap justify-start">
+        <TabsList variant="line" data-tour="audit-cons-tabs" className="mb-3 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
           <TabsTrigger value="feed"><ScrollText /> Atividade recente</TabsTrigger>
           <TabsTrigger value="tenant"><Building2 /> Por terreiro</TabsTrigger>
           <TabsTrigger value="action"><Zap /> Por ação</TabsTrigger>

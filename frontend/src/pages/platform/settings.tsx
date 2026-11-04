@@ -423,7 +423,7 @@ const SettingsPage: React.FC = () => {
     <PlatformLayout title="Configurações">
       <PageHeader title="Configurações" subtitle="Sua conta, administradores da plataforma e planos." />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList data-tour="settings-tabs" className="mb-4 flex h-auto w-full flex-wrap justify-start">
+        <TabsList variant="line" data-tour="settings-tabs" className="mb-4 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
           <TabsTrigger value="conta"><UserCog /> Conta</TabsTrigger>
           <TabsTrigger value="admins"><Shield /> Admins da plataforma</TabsTrigger>
           <TabsTrigger value="planos"><Table2 /> Planos</TabsTrigger>

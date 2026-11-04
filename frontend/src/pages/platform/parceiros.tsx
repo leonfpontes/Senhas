@@ -328,7 +328,7 @@ function ParceirosPageContent() {
 
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs value={filtro} onValueChange={(v) => setFiltro(v as Filtro)}>
-          <TabsList className="h-auto flex-wrap">
+          <TabsList variant="line" className="w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
             {STATUS_ORDER.map((s) => (
               <TabsTrigger key={s} value={s}>
                 {STATUS_META[s].label}

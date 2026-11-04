@@ -474,13 +474,14 @@ export default function TenantDetailPage() {
   return (
     <PlatformLayout title={tenant?.name ?? 'Terreiro'} breadcrumbs={breadcrumbs}>
       {/* Cabeçalho */}
-      <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      {/* J14 v2 · 05: nome em Fraunces, as ações numa linha embaixo e o excluir à parte, à direita. */}
+      <header className="mb-6 flex flex-col gap-4">
         <div className="min-w-0">
           {loading || !tenant ? (
             <div className="space-y-2"><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-40" /></div>
           ) : (
             <>
-              <h1 className="truncate text-2xl font-bold tracking-tight">{tenant.name}</h1>
+              <h1 className="truncate font-display text-4xl font-normal tracking-[-0.02em]">{tenant.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-xs text-muted-foreground">{tenant.slug}</span>
                 {isDeleted ? (
@@ -507,7 +508,7 @@ export default function TenantDetailPage() {
             </>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {wa ? (
             <Button asChild variant="outline" size="sm">
               <a href={wa} target="_blank" rel="noopener noreferrer"><MessageCircle className="text-success" /> WhatsApp</a>
@@ -526,11 +527,11 @@ export default function TenantDetailPage() {
           <Button variant="outline" size="sm" onClick={enterAsAdmin} disabled={impersonating || loading || isDeleted}>
             <LogIn /> Entrar como admin
           </Button>
-          <Button size="sm" onClick={() => { setPresetBonus(false); setSubOpen(true); }} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => { setPresetBonus(false); setSubOpen(true); }} disabled={loading}>
             <CreditCard /> Assinatura
           </Button>
-          <Button variant="outline" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)} disabled={loading || !tenant}>
-            <Trash2 /> Excluir permanentemente
+          <Button variant="destructive" size="sm" className="sm:ml-auto" onClick={() => setDeleteOpen(true)} disabled={loading || !tenant}>
+            Excluir permanentemente <Trash2 />
           </Button>
         </div>
       </header>
@@ -554,7 +555,7 @@ export default function TenantDetailPage() {
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-4 flex h-auto w-full flex-wrap justify-start">
+        <TabsList variant="line" className="mb-4 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
           <TabsTrigger value="visao"><Building2 /> Visão geral</TabsTrigger>
           <TabsTrigger value="usuarios"><Users /> Usuários</TabsTrigger>
           <TabsTrigger value="giras"><Calendar /> Giras</TabsTrigger>
