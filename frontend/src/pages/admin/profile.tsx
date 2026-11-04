@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -144,7 +144,7 @@ function DangerDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            className={cn(destructive && buttonVariants({ variant: 'destructive' }))}
+            variant={destructive ? 'destructive' : 'default'}
             disabled={!password || !accepted || loading}
             onClick={(e) => {
               e.preventDefault();

@@ -877,15 +877,23 @@ const TenantsPage: React.FC = () => {
           error={touched.email_admin && !EMAIL_RE.test(createData.email_admin) ? 'E-mail inválido' : undefined}
         />
         <div className="grid gap-1.5">
-          <Label htmlFor="create-plan">Plano</Label>
-          <Select value={createData.plan} onValueChange={(v) => setCreateData({ ...createData, plan: v })}>
-            <SelectTrigger id="create-plan" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(['basic', 'pro', 'premium'] as const).map((k) => (
-                <SelectItem key={k} value={k}>{planLabel(k)} — {fmtMoney(PLAN_META[k].price)}/mês</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* J14 v2 · 04: o plano como opções lado a lado, com o preço de cada um. */}
+          <Label id="create-plan">Plano</Label>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            aria-labelledby="create-plan"
+            value={createData.plan}
+            onValueChange={(v) => v && setCreateData({ ...createData, plan: v })}
+            className="grid w-full grid-cols-3"
+          >
+            {(['basic', 'pro', 'premium'] as const).map((k) => (
+              <ToggleGroupItem key={k} value={k} className="h-auto flex-col gap-0 py-2">
+                <span>{planLabel(k)}</span>
+                <span className="text-xs font-normal opacity-80">{fmtMoney(PLAN_META[k].price)}/mês</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
       </CrudDrawer>
 

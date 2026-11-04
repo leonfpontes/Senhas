@@ -15,6 +15,7 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PLAN_META, PLAN_ORDER, type PlanKey } from './planMeta';
 import { PlanBadge, SubscriptionStatusBadge, ToneBadge } from './PlanBadge';
@@ -195,23 +196,35 @@ export function SubscriptionDrawer({ open, tenant, presetBonus = false, onClose,
         ) : null}
 
         <div className="grid gap-1.5">
-          <Label htmlFor="sub-access">Tipo de acesso</Label>
-          <Select
+          {/* J14 v2 · 06: o tipo de acesso como dois cartões de opção, com o que cada um significa. */}
+          <Label id="sub-access">Tipo de acesso</Label>
+          <RadioGroup
+            aria-labelledby="sub-access"
             value={isBonus ? 'bonus' : 'normal'}
             onValueChange={(v) => {
               const bonus = v === 'bonus';
               setIsBonus(bonus);
               if (bonus && (!plan || plan === 'free')) setPlan('pro');
             }}
+            className="gap-2"
           >
-            <SelectTrigger id="sub-access" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="normal">Normal (pago via Stripe)</SelectItem>
-              <SelectItem value="bonus">Bonificado (gratuito)</SelectItem>
-            </SelectContent>
-          </Select>
+            {[
+              { value: 'normal', titulo: 'Normal (pago via Stripe)', detalhe: 'Plano pago muda pelo Stripe; aqui só com bônus.' },
+              { value: 'bonus', titulo: 'Bonificado (gratuito)', detalhe: 'Para pilotos e testadores.' },
+            ].map((o) => (
+              <Label
+                key={o.value}
+                htmlFor={`sub-access-${o.value}`}
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 font-normal has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+              >
+                <RadioGroupItem id={`sub-access-${o.value}`} value={o.value} className="mt-0.5" />
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-semibold">{o.titulo}</span>
+                  <span className="text-xs text-muted-foreground">{o.detalhe}</span>
+                </span>
+              </Label>
+            ))}
+          </RadioGroup>
         </div>
 
         <div className="grid gap-1.5">

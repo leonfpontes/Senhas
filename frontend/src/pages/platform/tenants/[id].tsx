@@ -234,7 +234,10 @@ export default function TenantDetailPage() {
 
   // ── Ações do cabeçalho ──
   const [impersonating, setImpersonating] = useState(false);
+  // J14 v2 · 07: entrar como admin pede confirmação e diz o que acontece.
+  const [confirmarEntrada, setConfirmarEntrada] = useState(false);
   const enterAsAdmin = async () => {
+    setConfirmarEntrada(false);
     if (!admin) {
       toast.error('Este terreiro não tem admin ativo para entrar como.');
       return;
@@ -524,7 +527,7 @@ export default function TenantDetailPage() {
           <Button asChild variant="outline" size="sm">
             <Link href={`/platform/suporte?tenant=${id}`}><MessageSquare /> Mensagem</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={enterAsAdmin} disabled={impersonating || loading || isDeleted}>
+          <Button variant="outline" size="sm" onClick={() => setConfirmarEntrada(true)} disabled={impersonating || loading || isDeleted}>
             <LogIn /> Entrar como admin
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setPresetBonus(false); setSubOpen(true); }} disabled={loading}>
@@ -915,6 +918,22 @@ export default function TenantDetailPage() {
         />
         <p className="text-xs text-muted-foreground">As sessões ativas desse usuário são encerradas.</p>
       </CrudDrawer>
+
+      <ConfirmDialog
+        open={confirmarEntrada}
+        title="Entrar como admin"
+        message={
+          <>
+            Uma nova aba abre com a sessão de <strong>{admin?.username ?? 'admin'}</strong>, por 1 hora. Tudo que você fizer fica
+            registrado na auditoria como impersonação. Se o navegador bloquear a nova aba, libere as janelas deste site.
+          </>
+        }
+        confirmText="Entrar como este usuário"
+        size="default"
+        loading={impersonating}
+        onConfirm={() => void enterAsAdmin()}
+        onCancel={() => setConfirmarEntrada(false)}
+      />
 
       <ConfirmDialog
         open={impersonateTarget !== null}
