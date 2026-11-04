@@ -213,7 +213,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
       {/* ── Barra superior ── */}
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 sm:px-4">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1">
-          <h1 className="sr-only md:not-sr-only md:text-lg md:font-bold">Meu Site</h1>
+          <h1 className="sr-only md:not-sr-only md:font-display md:text-[1.75rem] md:leading-tight md:font-normal md:tracking-[-0.02em]">Meu Site</h1>
           {!editor.loading && statusBadge}
           {saveState}
         </div>
