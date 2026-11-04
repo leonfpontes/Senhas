@@ -100,13 +100,50 @@ export interface DataTableProps<T> {
 
   /** Modo cartão (< 640px). */
   renderCard?: (row: T, ctx: { selected: boolean; toggleSelected: () => void }) => React.ReactNode;
+  /**
+   * Clique na linha (ou no cartão, no celular) — o padrão "clique para editar" (decisão do Leonardo,
+   * 04/11/2026): a linha que abre a gaveta de edição não tem lápis. A linha recebe foco (Tab), abre com
+   * Enter ou Espaço, tem fundo suave no hover e cursor de mão. Clique em botão, link, caixa ou menu dentro
+   * da linha não dispara (as outras ações continuam como botões). Sem permissão de editar, não passe a prop.
+   */
   onRowClick?: (row: T) => void;
+  /** Nome acessível da linha clicável, ex.: (aviso) => `Editar ${aviso.titulo}`. */
+  rowLabel?: (row: T) => string;
   dense?: boolean;
   className?: string;
   'data-testid'?: string;
 }
 
 /** Texto "1–20 de 50" do rodapé. */
+/** O clique veio de um controle dentro da linha (botão, link, caixa, menu)? Então não é "abrir a linha". */
+export function cliqueEmControle(e: React.SyntheticEvent): boolean {
+  const alvo = e.target as HTMLElement | null;
+  const linha = e.currentTarget as HTMLElement;
+  const controle = alvo?.closest?.('button, a, input, select, textarea, label, [role="menuitem"], [role="checkbox"], [data-no-row-click]');
+  return Boolean(controle && controle !== linha && linha.contains(controle));
+}
+
+/** Props da linha/cartão clicável (foco, Enter/Espaço, nome e o filtro de controles), para listas fora do DataTable. */
+export function propsDaLinhaClicavel<T>(row: T, onRowClick?: (row: T) => void, rowLabel?: (row: T) => string, role?: 'button') {
+  if (!onRowClick) return {};
+  return {
+    ...(role ? { role } : {}),
+    tabIndex: 0,
+    'aria-label': rowLabel?.(row),
+    'data-clicavel': '',
+    onClick: (e: React.MouseEvent) => {
+      if (!cliqueEmControle(e)) onRowClick(row);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.target !== e.currentTarget) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onRowClick(row);
+      }
+    },
+  };
+}
+
 export function pageRangeLabel(pageIndex: number, pageSize: number, total: number): string {
   if (total <= 0) return '0 de 0';
   const from = pageIndex * pageSize + 1;
@@ -140,6 +177,7 @@ export function DataTable<T>({
   onRowSelectionChange,
   renderCard,
   onRowClick,
+  rowLabel,
   dense = false,
   className,
   'data-testid': testId,
@@ -244,9 +282,10 @@ export function DataTable<T>({
                 data-state={row.getIsSelected() ? 'selected' : undefined}
                 className={cn(
                   'rounded-xl border bg-card p-4 text-card-foreground shadow-sm data-[state=selected]:border-2 data-[state=selected]:border-primary data-[state=selected]:bg-primary/8',
-                  onRowClick && 'cursor-pointer active:bg-accent',
+                  onRowClick &&
+                    'cursor-pointer outline-none transition-[border-color,box-shadow] active:bg-accent hover:border-primary/60 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50',
                 )}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                {...propsDaLinhaClicavel(row.original, onRowClick, rowLabel)}
               >
                 {renderCard ? (
                   renderCard(row.original, {
@@ -343,8 +382,8 @@ export function DataTable<T>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() ? 'selected' : undefined}
-                className={cn(onRowClick && 'cursor-pointer')}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                className={cn(onRowClick && 'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50')}
+                {...propsDaLinhaClicavel(row.original, onRowClick, rowLabel)}
               >
                 {row.getVisibleCells().map((cell) => {
                   const meta = cell.column.columnDef.meta;

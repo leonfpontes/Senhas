@@ -123,7 +123,7 @@ describe('Grupos da corrente — gates', () => {
     mockGroupCan.mockImplementation((_f: string, a: string) => a !== 'delete');
     setup();
     await screen.findAllByTestId('grupo-item');
-    expect(screen.getByRole('button', { name: 'Editar G1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar grupo G1' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Arquivar G1' })).not.toBeInTheDocument();
   });
 });
@@ -172,7 +172,7 @@ describe('Grupos da corrente — cadastro', () => {
 
   it('editar vem preenchido e manda o PUT com os membros', async () => {
     setup();
-    fireEvent.click(await screen.findByRole('button', { name: 'Editar G1' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar grupo G1' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('G1')).toBeInTheDocument();
     expect(within(dialog).getByRole('radio', { name: 'Âmbar' })).toHaveAttribute('aria-checked', 'true');

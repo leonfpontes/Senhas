@@ -13,7 +13,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, ArrowLeft, Pencil, Plus, Users } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, Plus, Users } from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -27,7 +27,7 @@ import { PermissionDenied } from '@/components/gates';
 import { MultiCombobox, TextField } from '@/components/fields';
 import { GrupoChip } from '@/components/grupos/GrupoChip';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -328,8 +328,11 @@ function GruposContent() {
         <ul className="grid gap-3 md:grid-cols-2" aria-label="Grupos da corrente">
           {grupos.map((g) => (
             <li key={g.id}>
-              <Card
-                className={cn('h-full flex-row items-start gap-3 p-4', g.arquivado_em && 'opacity-75')}
+              {/* Clique para editar (04/11/2026): o cartão inteiro abre a edição; arquivar segue como botão. */}
+              <CartaoClicavel
+                aoAbrir={!g.arquivado_em && canEdit ? () => abrirEdicao(g) : undefined}
+                rotulo={`Editar grupo ${g.nome}`}
+                className={cn('flex h-full flex-row items-start gap-3 p-4 shadow-sm', g.arquivado_em && 'opacity-75')}
                 data-testid="grupo-item"
               >
                 <span
@@ -348,19 +351,8 @@ function GruposContent() {
                   {g.descricao && <p className="text-sm">{g.descricao}</p>}
                   <p className="text-sm text-muted-foreground">{resumoMembros(g.membros)}</p>
                 </div>
-                {(canEdit || canDelete) && (
+                {((!g.arquivado_em && canDelete) || (g.arquivado_em && canEdit)) && (
                   <div className="flex shrink-0 gap-1">
-                    {!g.arquivado_em && canEdit && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => abrirEdicao(g)}
-                        title="Editar"
-                        aria-label={`Editar ${g.nome}`}
-                      >
-                        <Pencil />
-                      </Button>
-                    )}
                     {!g.arquivado_em && canDelete && (
                       <Button
                         variant="ghost"
@@ -385,7 +377,7 @@ function GruposContent() {
                     )}
                   </div>
                 )}
-              </Card>
+              </CartaoClicavel>
             </li>
           ))}
         </ul>

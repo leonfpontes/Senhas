@@ -29,7 +29,6 @@ import {
   Eye,
   Megaphone,
   MessageCircle,
-  Pencil,
   Plus,
   Trash2,
   Users,
@@ -51,6 +50,7 @@ import { fraunces } from '@/components/landing/fonts';
 import { AvisoLeitura, AvisoTexto, FixadoBadge, dataCurtaBr, dataHoraBr } from '@/components/avisos/AvisoLeitura';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { propsDaLinhaClicavel } from '@/components/admin/DataTable';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -473,7 +473,8 @@ function AdminComunicadosContent() {
           }
         />
       ) : (
-        // J5 v2 · 08: uma tabela leve — o aviso à esquerda e a leitura à direita; a linha abre "Quem leu".
+        // J5 v2 · 08: uma tabela leve — o aviso à esquerda e a leitura à direita; a linha abre a edição e a
+        // leitura abre "Quem leu".
         <div className="overflow-hidden rounded-[14px] border border-border bg-card">
           <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_13rem_5.5rem] gap-4 border-b border-border px-4 py-2.5 text-[0.8125rem] font-medium text-muted-foreground sm:grid">
             <span>Aviso</span>
@@ -482,17 +483,18 @@ function AdminComunicadosContent() {
           </div>
           <ul className="m-0 list-none p-0" aria-label="Avisos publicados">
             {lista.map((c) => (
+              // Clique para editar (04/11/2026): a linha abre a edição do aviso (só com permissão); "Quem leu"
+              // fica no botão da coluna Leitura e excluir segue como botão.
               <li
                 key={c.id}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 first:border-t-0 hover:bg-accent sm:grid-cols-[minmax(0,1fr)_13rem_5.5rem]"
+                {...propsDaLinhaClicavel(c, canEdit ? abrirEdicao : undefined, (x) => `Editar ${x.titulo}`, 'button')}
+                className={cn(
+                  'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 first:border-t-0 sm:grid-cols-[minmax(0,1fr)_13rem_5.5rem]',
+                  canEdit && 'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50',
+                )}
                 data-testid="comunicado-item"
               >
-                <button
-                  type="button"
-                  onClick={() => setDetalhe(c)}
-                  className="col-start-1 flex min-w-0 flex-col gap-0.5 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  aria-label={`Ver quem leu: ${c.titulo}`}
-                >
+                <div className="col-start-1 flex min-w-0 flex-col gap-0.5 text-left">
                   <span className="flex flex-wrap items-center gap-2">
                     <strong className="text-[0.9375rem] leading-snug font-semibold">{c.titulo}</strong>
                     {c.fixado && <FixadoBadge />}
@@ -508,22 +510,25 @@ function AdminComunicadosContent() {
                       ))}
                     </span>
                   )}
-                </button>
+                </div>
                 <div className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                   {c.situacao === 'agendado' ? (
                     <span className="flex items-center gap-1.5 text-sm font-semibold">
                       <CalendarClock aria-hidden className="size-4" /> Agendado para {dataCurtaBr(c.publicar_em)}
                     </span>
                   ) : (
-                    <LidoPor lidos={c.leituras.lidos} total={c.leituras.total} />
+                    <button
+                      type="button"
+                      onClick={() => setDetalhe(c)}
+                      aria-label={`Ver quem leu: ${c.titulo}`}
+                      className="group/leu flex w-full flex-col gap-1 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                      <LidoPor lidos={c.leituras.lidos} total={c.leituras.total} />
+                      <span className="text-xs font-semibold text-primary-text underline-offset-4 group-hover/leu:underline">Ver quem leu</span>
+                    </button>
                   )}
                 </div>
                 <div className="col-start-2 row-start-1 flex justify-end gap-1 sm:col-start-3">
-                  {canEdit && (
-                    <Button variant="ghost" size="icon-sm" onClick={() => abrirEdicao(c)} title="Editar" aria-label={`Editar ${c.titulo}`}>
-                      <Pencil />
-                    </Button>
-                  )}
                   {canDelete && (
                     <Button
                       variant="ghost"
@@ -927,8 +932,7 @@ function DetalheAviso({
                 </Collapsible>
 
                 {onEdit && (
-                  <Button type="button" variant="ghost" className="self-start" onClick={() => onEdit(aviso)}>
-                    <Pencil aria-hidden />
+                  <Button type="button" variant="outline" className="self-start" onClick={() => onEdit(aviso)}>
                     Editar aviso
                   </Button>
                 )}
