@@ -78,10 +78,10 @@ describe('GirasCalendar', () => {
     const mobile = screen.getByTestId('giras-mobile');
     expect(within(mobile).getByText('Gira de Caboclos')).toBeInTheDocument();
     expect(within(mobile).getByText('Próxima gira')).toBeInTheDocument();
-    expect(within(mobile).getByRole('link', { name: /Retire sua senha/ })).toHaveAttribute('href', '/public/gira/g1');
+    expect(within(mobile).getByRole('link', { name: /Ver a gira/ })).toHaveAttribute('href', '/public/gira/g1');
     expect(within(mobile).getByRole('link', { name: /Senha de associado/ })).toHaveAttribute('href', '/public/gira/g1?tipo=associado');
     // gira sem senhas não ganha botão
-    expect(within(mobile).getAllByRole('link', { name: /Retire sua senha/ })).toHaveLength(1);
+    expect(within(mobile).getAllByRole('link', { name: /Ver a gira/ })).toHaveLength(1);
   });
 
   it('mostra o calendário com navegação de mês no computador', () => {

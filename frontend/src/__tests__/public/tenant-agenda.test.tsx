@@ -55,7 +55,7 @@ describe('Agenda pública do terreiro', () => {
   it('sem site publicado mostra as próximas giras com link de senha', () => {
     render(<TenantPublicSitePage site={null} agenda={AGENDA} />);
     expect(screen.getAllByText('Gira de Pretos Velhos').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: /Retire sua senha/i })[0]).toHaveAttribute('href', '/public/gira/g1');
+    expect(screen.getAllByRole('link', { name: /Ver a gira/i })[0]).toHaveAttribute('href', '/public/gira/g1');
     expect(screen.queryByText(/Site em preparação/)).not.toBeInTheDocument();
   });
 
