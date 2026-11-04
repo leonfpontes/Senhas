@@ -157,6 +157,10 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        # O heap padrão do Node (~2 GB) estourou no `next build` em 2026-11-03 (run 41646904988,
+        # "JavaScript heap out of memory"); o runner tem 16 GB, então 4 GB dá folga sem risco.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npm run build
 
       - name: Audit — sintaxe do build no Safari do iOS 15
