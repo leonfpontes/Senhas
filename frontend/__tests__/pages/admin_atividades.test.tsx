@@ -141,7 +141,7 @@ describe('Atividades e escalas — gates', () => {
   it('sem atividades_corrente no plano: PlanLocked com o plano mínimo do catálogo', async () => {
     mockPlanCan.mockImplementation((f: string) => f !== 'atividades_corrente');
     setup();
-    expect(await screen.findByText('Recurso indisponível')).toBeInTheDocument();
+    expect(await screen.findByText(/não está incluso no plano/)).toBeInTheDocument();
     expect(screen.getByText('Atividades da casa')).toBeInTheDocument();
     expect(screen.getByText('Basic')).toBeInTheDocument();
     expect(mockGet).not.toHaveBeenCalled();

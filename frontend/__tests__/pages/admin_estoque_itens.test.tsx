@@ -106,7 +106,7 @@ describe('Estoque — Itens', () => {
   it('sem permissão de visualização: estado padrão', async () => {
     mockPerms = {};
     render(<AdminEstoqueItensPage />);
-    expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
+    expect(await screen.findByText(/não tem permissão/i)).toBeInTheDocument();
   });
 
   it('/admin/estoque/relatorio redireciona para itens, repassando ?criticos=1', async () => {

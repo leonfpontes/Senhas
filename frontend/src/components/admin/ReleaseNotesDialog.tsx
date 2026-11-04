@@ -11,7 +11,6 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTour } from '@reactour/tour';
-import { Newspaper } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -125,9 +124,7 @@ export function ReleaseNotesDialog({ open, onOpenChange, userId }: ReleaseNotesD
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 p-0 sm:max-w-xl" data-testid="release-notes">
         <DialogHeader className="border-b px-6 pt-6 pb-4 text-left">
-          <DialogTitle className="flex items-center gap-2">
-            <Newspaper className="size-5 text-brand" aria-hidden /> Novidades do GiraHub
-          </DialogTitle>
+          <DialogTitle className="font-display text-2xl font-normal">Novidades do GiraHub</DialogTitle>
           <DialogDescription>O que mudou na versão atual e o histórico das anteriores.</DialogDescription>
         </DialogHeader>
 
@@ -139,7 +136,7 @@ export function ReleaseNotesDialog({ open, onOpenChange, userId }: ReleaseNotesD
                   <span className="flex min-w-0 flex-col gap-0.5 text-left">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold">Versão {note.version}</span>
-                      {i === 0 && <Badge className="border-transparent">Atual</Badge>}
+                      {i === 0 && <Badge className="border-transparent bg-warning/20 text-warning-strong">Atual</Badge>}
                     </span>
                     <span className="text-xs font-normal text-muted-foreground">
                       {note.title} · {formatReleaseDate(note.date)}

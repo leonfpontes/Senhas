@@ -116,10 +116,10 @@ describe('Admin Estoque — Grupos', () => {
     mockCanFeature = false;
     const { apiClient } = require('@/services/api_client');
     render(<AdminEstoqueGruposPage />);
-    expect(screen.getByText('Recurso indisponível')).toBeInTheDocument();
+    expect(screen.getByText(/não está incluso no plano/)).toBeInTheDocument();
     // o efeito de carga ainda roda (canView=true); espera resolver para não vazar act()
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText('Recurso indisponível')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/não está incluso no plano/)).toBeInTheDocument());
   });
 
   it('oculta botões de ação (não só desabilita) sem insert/edit/delete', async () => {

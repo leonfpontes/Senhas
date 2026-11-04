@@ -144,7 +144,7 @@ describe('Modo TV da Porta', () => {
     mockCan.mockImplementation(() => false);
     await renderKiosk();
 
-    expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
+    expect(await screen.findByText(/não tem permissão/i)).toBeInTheDocument();
     expect(api.get).not.toHaveBeenCalled();
   });
 });

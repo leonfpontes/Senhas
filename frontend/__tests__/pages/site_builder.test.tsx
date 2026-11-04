@@ -136,7 +136,7 @@ describe('MeuSitePage — Admin Site Builder', () => {
     });
     const MeuSite = require('@/pages/admin/meu-site').default;
     render(<MeuSite />);
-    expect(screen.getByText('Recurso indisponível')).toBeInTheDocument();
+    expect(screen.getByText(/não está incluso no plano/)).toBeInTheDocument();
     expect(screen.queryByTestId('site-editor')).not.toBeInTheDocument();
   });
 

@@ -90,30 +90,10 @@ export function CommandPalette({
       title="Buscar ações e páginas"
       description="Digite para encontrar uma página ou uma ação rápida."
           >
-      <CommandInput placeholder="Buscar tela ou ação" />
+      <CommandInput placeholder="O que você quer fazer?" />
       <CommandList>
         <CommandEmpty>Nada encontrado.</CommandEmpty>
-        <CommandGroup heading="Telas">
-          {pages.map((page) => {
-            const Icon = page.icon;
-            return (
-              <CommandItem
-                key={page.href}
-                value={[page.label, ...(page.keywords ?? [])].join(' ')}
-                onSelect={() => run(() => router.push(page.href))}
-              >
-                <Icon aria-hidden /> {page.label}
-                {typeof page.badge === 'number' && page.badge > 0 ? (
-                  <CommandShortcut>{page.badge}</CommandShortcut>
-                ) : ondeMora.get(page.href) ? (
-                  <span className="ml-auto text-xs text-muted-foreground">{ondeMora.get(page.href)}</span>
-                ) : null}
-              </CommandItem>
-            );
-          })}
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Ações">
+        <CommandGroup heading="Ações rápidas">
           {canCreateGira && (
             <CommandItem value="criar gira nova gira" onSelect={() => run(() => router.push('/admin/giras?nova=1'))}>
               <Plus aria-hidden /> Criar gira
@@ -134,6 +114,26 @@ export function CommandPalette({
               <Share2 aria-hidden /> Compartilhar link
             </CommandItem>
           )}
+        </CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading="Páginas">
+          {pages.map((page) => {
+            const Icon = page.icon;
+            return (
+              <CommandItem
+                key={page.href}
+                value={[page.label, ...(page.keywords ?? [])].join(' ')}
+                onSelect={() => run(() => router.push(page.href))}
+              >
+                <Icon aria-hidden /> {page.label}
+                {typeof page.badge === 'number' && page.badge > 0 ? (
+                  <CommandShortcut>{page.badge}</CommandShortcut>
+                ) : ondeMora.get(page.href) ? (
+                  <span className="ml-auto text-xs text-muted-foreground">{ondeMora.get(page.href)}</span>
+                ) : null}
+              </CommandItem>
+            );
+          })}
         </CommandGroup>
       </CommandList>
       <p className="border-t px-3 py-2 text-xs text-muted-foreground">↑↓ para escolher · Enter para abrir · Esc fecha</p>
