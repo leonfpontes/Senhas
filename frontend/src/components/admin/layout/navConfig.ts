@@ -38,7 +38,6 @@ import {
   ScrollText,
   Settings,
   Shield,
-  Smartphone,
   Tags,
   Ticket,
   TrendingUp,
@@ -186,14 +185,8 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
-    // Área do Médium (AM-02): a configuração mora em Configurações › Área do Médium; o atalho abre a aba.
-    if (can('area_medium') && view('configuracoes')) {
-      corrente.push(
-        link('/admin/config?aba=area-medium', 'Área do Médium', Smartphone, {
-          keywords: ['área do médium', 'app da corrente', 'convite', 'médium'],
-        }),
-      );
-    }
+    // Área do Médium (AM-02): sem atalho no menu (decisão do Leonardo, 04/11/2026); a configuração mora só
+    // em Configurações › Área do Médium, e a busca acha por lá (palavras-chave de Configurações).
     // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
     if (can('area_medium') && view('comunicados')) {
       corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
@@ -280,7 +273,7 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     }
     // A tela de Configurações é gateada pelo grupo `configuracoes` (não só admin).
     if (view('configuracoes')) {
-      conta.push(link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades'] }));
+      conta.push(link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades', 'área do médium', 'app da corrente', 'convite'] }));
     }
     if (can('auditoria') && view('auditoria')) {
       conta.push(link('/admin/audit-trail', 'Auditoria', ScrollText, { keywords: ['histórico', 'log', 'quem alterou'] }));

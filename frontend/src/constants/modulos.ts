@@ -1,8 +1,8 @@
 /**
- * Os 12 módulos da casa (Jornada 1 v2 · 10/11 — barra lateral enxuta, aprovada em 01/11/2026).
+ * Os módulos da casa (Jornada 1 v2 · 10/11 — barra lateral enxuta, aprovada em 01/11/2026).
  *
  * A barra mostra fixo o dia de gira (Início, Giras, Porta, Senhas); o resto da casa fica em "Da casa"
- * e na página `/admin/modulos` ("Ver os 12 módulos"). Cada módulo diz quais rotas do menu completo
+ * e na página `/admin/modulos` ("Ver os N módulos"). Cada módulo diz quais rotas do menu completo
  * (`useAdminNav`) são dele — o gate de plano e de permissão continua lá, num lugar só. Nada fica
  * inacessível: a busca (Ctrl K) e as rotas de sempre usam o menu completo.
  *
@@ -53,16 +53,6 @@ export const MODULOS: readonly Modulo[] = [
     grupo: 'Corrente',
     plano: 'mediuns',
     rotas: ['/admin/mediuns', '/admin/mediuns/grupos'],
-  },
-  {
-    key: 'area-medium',
-    nome: 'Área do Médium',
-    oque: 'O app da corrente, na cor da casa, sem loja',
-    grupo: 'Corrente',
-    plano: 'area_medium',
-    piloto: true,
-    // A Área se configura em Configurações, na aba própria (o atalho abre direto nela).
-    rotas: ['/admin/config?aba=area-medium'],
   },
   {
     key: 'avisos',
@@ -145,7 +135,7 @@ export const ROTAS_FIXAS = ['/admin/dashboard', '/admin/giras', '/admin/porta', 
 
 /** Módulo dono da rota (por prefixo), ou undefined. */
 export function moduloDaRota(pathname: string): Modulo | undefined {
-  return MODULOS.find((m) => !m.fixo && m.key !== 'area-medium' && m.rotas.some((r) => pathname === r || pathname.startsWith(`${r}/`)));
+  return MODULOS.find((m) => !m.fixo && m.rotas.some((r) => pathname === r || pathname.startsWith(`${r}/`)));
 }
 
 // ─── Beta "Menu que se ajusta ao uso" (beta_menu_ajustavel) ────────────────

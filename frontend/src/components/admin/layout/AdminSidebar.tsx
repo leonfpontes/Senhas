@@ -29,7 +29,7 @@ import { adminLogout, MENU_DA_PESSOA_EVENT, type AcaoDoMenuDaPessoa } from './Ad
 import { useMinhasContas } from '@/hooks/useMinhasContas';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { switchArea } from '@/lib/areas';
-import { estaNoMenu, lerPreferencia, gravarPreferencia, marcarUso, moduloDaRota, type PreferenciaDoMenu } from '@/constants/modulos';
+import { MODULOS, estaNoMenu, lerPreferencia, gravarPreferencia, marcarUso, moduloDaRota, type PreferenciaDoMenu } from '@/constants/modulos';
 
 /**
  * Largura da sidebar expandida em px (= `--sidebar-width` 16rem do bloco shadcn).
@@ -124,7 +124,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
         )}
       </SidebarHeader>
       <SidebarContent>
-        {/* Jornada 1 v2: o dia de gira fixo; o resto da casa em "Da casa" e em "Ver os 12 módulos". */}
+        {/* Jornada 1 v2: o dia de gira fixo; o resto da casa em "Da casa" e em "Ver os N módulos". */}
         <NavGroup label="Dia de gira" items={fixos} activeHref={router.asPath} onAction={onAction} />
         {daCasa.length > 0 ? (
           <NavGroup label="Da casa" items={daCasa} activeHref={router.asPath} onAction={onAction} />
@@ -143,7 +143,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
               modulosAtivo && 'bg-sidebar-accent',
             )}
           >
-            Ver os 12 módulos <ArrowRight className="size-3.5" aria-hidden />
+            Ver os {MODULOS.length} módulos <ArrowRight className="size-3.5" aria-hidden />
           </Link>
         </div>
       </SidebarContent>

@@ -1,7 +1,7 @@
 /**
- * /admin/modulos — os 12 módulos da casa (Jornada 1 v2 · 10, barra lateral enxuta).
+ * /admin/modulos — os módulos da casa (Jornada 1 v2 · 10, barra lateral enxuta).
  *
- * "Ver os 12 módulos", na barra, abre esta página: cada módulo em uma linha com filete, o que faz,
+ * "Ver os N módulos", na barra, abre esta página: cada módulo em uma linha com filete, o que faz,
  * o plano mínimo (`FEATURE_MIN_PLAN`, a matriz do backend) e o estado:
  *   - Sempre no menu: Giras, senhas e Porta;
  *   - No menu: o plano e o perfil liberam (com a beta "Menu que se ajusta ao uso", "Tirar" e
@@ -14,7 +14,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
-import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -55,7 +54,6 @@ export default function ModulosPage() {
 function ModulosContent() {
   const { can, beta, planLabel: planoDaCasa, subscription } = useSubscription();
   const comDado = subscription?.modulos_com_dado ?? [];
-  const { can: canGroup } = usePermissions();
   const { profile } = useProfile();
   const isOperator = profile?.role === 'operator';
   const tenantId = profile?.tenant_id;
@@ -72,12 +70,6 @@ function ModulosContent() {
 
   const linhas = MODULOS.flatMap((m): { m: Modulo; estado: Estado; entrada: string | null }[] => {
     if (m.fixo) return [{ m, estado: 'fixo', entrada: m.rotas[0] }];
-    if (m.key === 'area-medium') {
-      // A Área do Médium se configura em Configurações (aba Área do Médium); só no piloto.
-      if (!can('area_medium')) return [];
-      if (isOperator && !canGroup('configuracoes', 'view')) return [];
-      return [{ m, estado: !ajustavel || estaNoMenu(pref, m.key, comDado) ? 'menu' : 'livre', entrada: '/admin/config?aba=area-medium' }];
-    }
     const entrada = m.rotas.find((r) => rotasLiberadas.has(r)) ?? null;
     if (entrada) {
       const noMenu = !ajustavel || estaNoMenu(pref, m.key, comDado);

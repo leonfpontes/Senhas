@@ -28,8 +28,9 @@ export function ContaAbas({ className }: { className?: string }) {
   );
   if (links.length < 2) return null;
   return (
-    <nav aria-label="Conta" className={cn('-mt-2 mb-5 overflow-x-auto border-b border-border', className)}>
-      <ul className="m-0 flex list-none gap-5 p-0">
+    // Só rola na horizontal; o filete fica na lista, dentro da caixa que rola (sem barra vertical).
+    <nav aria-label="Conta" className={cn('-mt-2 mb-5 overflow-x-auto overflow-y-hidden', className)}>
+      <ul className="m-0 flex min-w-max list-none gap-5 border-b border-border p-0">
         {links.map((l) => {
           const ativo = isNavLinkActive(l, router?.pathname ?? '');
           return (

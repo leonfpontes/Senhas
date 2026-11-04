@@ -61,7 +61,7 @@ describe('AdminSidebar', () => {
     mockPlanCan.mockImplementation(() => true);
   });
 
-  it('barra enxuta (J1 v2): dia de gira fixo, "Da casa", "Ver os 12 módulos"; Conta sai da barra', () => {
+  it('barra enxuta (J1 v2): dia de gira fixo, "Da casa", "Ver os N módulos"; Conta sai da barra', () => {
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
     withSidebar(<AdminSidebar isOperator={false} />);
     const nav = screen.getByTestId('admin-sidebar');
@@ -76,7 +76,8 @@ describe('AdminSidebar', () => {
     ]) {
       expect(within(nav).getByRole('link', { name: new RegExp(`^${nome}`) })).toHaveAttribute('href', href);
     }
-    expect(within(nav).getByRole('link', { name: /Ver os 12 módulos/ })).toHaveAttribute('href', '/admin/modulos');
+    const { MODULOS } = require('@/constants/modulos');
+    expect(within(nav).getByRole('link', { name: new RegExp(`Ver os ${MODULOS.length} módulos`) })).toHaveAttribute('href', '/admin/modulos');
     // Sem a beta do menu ajustável, "Da casa" tem tudo o que o plano e o perfil liberam.
     expect(within(nav).getByRole('link', { name: /Analytics/ })).toHaveAttribute('href', '/admin/analytics');
     expect(within(nav).getByRole('link', { name: /Médiuns/ })).toHaveAttribute('href', '/admin/mediuns');
@@ -87,11 +88,13 @@ describe('AdminSidebar', () => {
     expect(screen.getByText('Pro · mês grátis')).toBeInTheDocument();
   });
 
-  it('Área do Médium aparece em "Da casa" e abre a aba dela em Configurações', () => {
+  it('Área do Médium não tem item na barra: a configuração fica só em Configurações (Leonardo, 04/11/2026)', () => {
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
     withSidebar(<AdminSidebar isOperator={false} />);
     const nav = screen.getByTestId('admin-sidebar');
-    expect(within(nav).getByRole('link', { name: /Área do Médium/ })).toHaveAttribute('href', '/admin/config?aba=area-medium');
+    expect(within(nav).queryByRole('link', { name: /Área do Médium/ })).not.toBeInTheDocument();
+    const { MODULOS } = require('@/constants/modulos');
+    expect(MODULOS.some((m: { nome: string }) => m.nome === 'Área do Médium')).toBe(false);
   });
 
   it('montarSidebarNav: a conta inteira vai para o avatar, sem perder item', () => {
