@@ -121,6 +121,22 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
     router.push('/admin/dashboard?passos=1');
   };
 
+  // J12 v2 · 08: no celular, o fim do menu repete este menu da pessoa e pede daqui o que abre
+  // um diálogo (suporte, novidades, trocar de terreiro) ou os primeiros passos.
+  const onboardingRef = React.useRef(handleShowOnboarding);
+  onboardingRef.current = handleShowOnboarding;
+  React.useEffect(() => {
+    const abrir = (e: Event) => {
+      const acao = (e as CustomEvent<AcaoDoMenuDaPessoa>).detail;
+      if (acao === 'suporte') setSupportOpen(true);
+      else if (acao === 'novidades') setNotesOpen(true);
+      else if (acao === 'trocar-terreiro') setTrocaOpen(true);
+      else if (acao === 'primeiros-passos') onboardingRef.current();
+    };
+    window.addEventListener(MENU_DA_PESSOA_EVENT, abrir);
+    return () => window.removeEventListener(MENU_DA_PESSOA_EVENT, abrir);
+  }, [setNotesOpen]);
+
   const selectableGiras = [...giras].sort(
     (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime(),
   );
@@ -350,6 +366,10 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
 export async function adminLogout(push: (url: string) => unknown, profileId?: string): Promise<void> {
   await logout(push, () => clearReleaseNotesSession(profileId));
 }
+
+/** Evento do menu do celular (AdminSidebar) para as ações que moram aqui. */
+export const MENU_DA_PESSOA_EVENT = 'girahub:menu-da-pessoa';
+export type AcaoDoMenuDaPessoa = 'suporte' | 'novidades' | 'trocar-terreiro' | 'primeiros-passos';
 
 function safeSessionItem(key: string): string | null {
   try {

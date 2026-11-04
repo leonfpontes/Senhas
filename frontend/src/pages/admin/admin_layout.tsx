@@ -192,7 +192,7 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
         <title>{pageTitle}</title>
       </Head>
 
-      <AdminSidebar isOperator={isOperator} onAction={handleNavAction} />
+      <AdminSidebar isOperator={isOperator} onAction={handleNavAction} onOpenCommand={() => setCommandOpen(true)} />
 
       <SidebarInset className="min-w-0">
         {isImpersonating && (

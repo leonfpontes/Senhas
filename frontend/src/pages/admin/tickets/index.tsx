@@ -20,11 +20,17 @@ import {
   Check,
   ChevronDown,
   Download,
+  Ellipsis,
   Hourglass,
+  Mail,
+  NotebookPen,
   Search,
   SlidersHorizontal,
   Star,
+  Ticket as TicketIcon,
   Trash2,
+  UserRoundCog,
+  X,
   Zap,
 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
@@ -43,6 +49,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -208,6 +217,10 @@ function AdminTicketsContent() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE });
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  // J12 v2 · 06: no celular, o "…" abre o menu da senha numa gaveta de baixo.
+  const [menuSenha, setMenuSenha] = useState<Ticket | null>(null);
+  const isMobile = useIsMobile();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [giraId, setGiraIdState] = useState<string>('');
   const [giras, setGiras] = useState<GiraOption[]>([]);
@@ -616,8 +629,24 @@ function AdminTicketsContent() {
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
           <StatusBadge status={t.status} chegou={Boolean(t.checkin_em)} />
           <TicketTags t={t} />
+          <span className="ml-auto text-xs text-muted-foreground">emitida {emitidaCurta(t.created_at)}</span>
         </div>
       </div>
+      {/* J12 v2 · 04: o "…" abre o menu da senha (o mesmo do toque no cartão). */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="-mt-1 -mr-1 size-9 shrink-0 text-muted-foreground"
+        aria-label={`Ações da senha ${numeroDaSenha(t)}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isMobile) setMenuSenha(t);
+          else setDetail(t);
+        }}
+      >
+        <Ellipsis aria-hidden />
+      </Button>
     </div>
   );
 
@@ -678,50 +707,119 @@ function AdminTicketsContent() {
           startAdornment={<Search aria-hidden />}
           className="flex-1"
         />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="outline" data-tour="tickets-filtros" aria-label="Filtros">
+        {(() => {
+          const gatilho = (
+            <Button type="button" variant="outline" data-tour="tickets-filtros" aria-label="Filtros" className="h-11 font-semibold">
+              <span>Filtros</span>
               <SlidersHorizontal aria-hidden />
-              <span className="hidden sm:inline">Filtros</span>
               {activeFilterCount > 0 && (
                 <Badge className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1">{activeFilterCount}</Badge>
               )}
             </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="filtro-status">Status</Label>
-              <Select
-                value={statusFilter || 'all'}
-                onValueChange={(v) => {
-                  setStatusFilter(v === 'all' ? '' : v);
+          );
+          // J12 v2 · 05: as situações viram opções de toque (uma de cada vez, como a API filtra hoje)
+          // e as datas ficam lado a lado.
+          const conteudo = (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label id="filtro-status">Status</Label>
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  aria-labelledby="filtro-status"
+                  value={statusFilter || 'all'}
+                  onValueChange={(v) => {
+                    setStatusFilter(!v || v === 'all' ? '' : v);
+                    setPagination((p) => ({ ...p, pageIndex: 0 }));
+                  }}
+                  className="flex w-full flex-wrap justify-start gap-1.5 [&>*]:flex-none [&>*]:rounded-md [&>*]:border"
+                >
+                  <ToggleGroupItem value="all">Todos</ToggleGroupItem>
+                  {STATUS_FILTERS.map((st) => (
+                    <ToggleGroupItem key={st.value} value={st.value}>
+                      {st.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <DateField label="Giras a partir de" value={dateFrom} onChange={(v) => setDateFrom(v ?? '')} />
+                <DateField label="Giras até" value={dateTo} onChange={(v) => setDateTo(v ?? '')} />
+              </div>
+            </>
+          );
+          if (isMobile) {
+            return (
+              <Sheet open={filtrosAbertos} onOpenChange={setFiltrosAbertos}>
+                <SheetTrigger asChild>{gatilho}</SheetTrigger>
+                <SheetContent side="bottom" className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                  <span aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
+                  <SheetHeader className="pb-2">
+                    <SheetTitle>Senhas da gira</SheetTitle>
+                    <SheetDescription>{selectedGira ? giraLabel(selectedGira) : 'Filtre as senhas.'}</SheetDescription>
+                  </SheetHeader>
+                  <div className="flex flex-col gap-4 px-4">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-sm font-semibold">
+                        <SlidersHorizontal className="size-4" aria-hidden /> Filtros
+                        {activeFilterCount > 0 && <Badge className="h-5 min-w-5 justify-center rounded-full px-1">{activeFilterCount}</Badge>}
+                      </span>
+                      {activeFilterCount > 0 && (
+                        <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
+                    {conteudo}
+                    <Button type="button" size="touch" className="self-end font-semibold" onClick={() => setFiltrosAbertos(false)}>
+                      {loading ? 'Ver as senhas' : `Ver ${total} ${total === 1 ? 'senha' : 'senhas'}`}
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            );
+          }
+          return (
+            <Popover>
+              <PopoverTrigger asChild>{gatilho}</PopoverTrigger>
+              <PopoverContent align="end" className="flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3">
+                {conteudo}
+                {activeFilterCount > 0 && (
+                  <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                    Limpar filtros
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          );
+        })()}
+      </div>
+
+
+      {/* J12 v2 · 04: o filtro ativo à vista, com o total do servidor. */}
+      {giraId && (statusFilter || total > 0) && (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          {statusFilter ? (
+            <Badge variant="outline" className="h-7 gap-1 border-transparent bg-success/15 pr-1 text-success-strong">
+              Status: {STATUS_FILTERS.find((st) => st.value === statusFilter)?.label ?? statusFilter}
+              <button
+                type="button"
+                aria-label="Tirar o filtro de status"
+                className="rounded-full p-0.5 hover:bg-success/20"
+                onClick={() => {
+                  setStatusFilter('');
                   setPagination((p) => ({ ...p, pageIndex: 0 }));
                 }}
               >
-                <SelectTrigger id="filtro-status" className="w-full">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {STATUS_FILTERS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DateField label="Giras a partir de" value={dateFrom} onChange={(v) => setDateFrom(v ?? '')} />
-            <DateField label="Giras até" value={dateTo} onChange={(v) => setDateTo(v ?? '')} />
-            {activeFilterCount > 0 && (
-              <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
-                Limpar filtros
-              </Button>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
-
+                <X className="size-3.5" aria-hidden />
+              </button>
+            </Badge>
+          ) : (
+            <span />
+          )}
+          {!loading && <span className="text-sm text-muted-foreground tabular-nums">{total} {total === 1 ? 'senha' : 'senhas'}</span>}
+        </div>
+      )}
 
       {/* ── Fila de espera ── */}
       {can('fila_espera') && giraId && (
@@ -839,6 +937,63 @@ function AdminTicketsContent() {
           onClearSelection={() => setRowSelection({})}
         />
       )}
+
+      <Sheet open={!!menuSenha} onOpenChange={(open) => !open && setMenuSenha(null)}>
+        <SheetContent side="bottom" className="gap-0 rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <span aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
+          {menuSenha && (() => {
+            const m = menuSenha;
+            const fechar = (fn: () => void) => () => {
+              setMenuSenha(null);
+              fn();
+            };
+            const podeExcluir = canDelete && giraId && (m.status === 'emitted' || m.status === 'called');
+            const item = 'flex min-h-12 w-full items-center gap-3 rounded-md px-2 text-left text-[0.9375rem] outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:size-5 [&_svg]:shrink-0';
+            return (
+              <>
+                <SheetHeader className="pb-1">
+                  <SheetTitle>
+                    Senha {numeroDaSenha(m)}
+                    {m.consulente_nome ? ` · ${m.consulente_nome}` : ''}
+                  </SheetTitle>
+                  <SheetDescription>
+                    {selectedGira ? `${selectedGira.nome} · ` : ''}emitida {emitidaCurta(m.created_at)}
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="flex flex-col px-2">
+                  {canEdit && (
+                    <>
+                      <button type="button" className={item} onClick={fechar(() => openAttendEdit(m))}>
+                        <UserRoundCog aria-hidden /> Médium e cambone
+                      </button>
+                      <button type="button" className={item} onClick={fechar(() => openAttendEdit(m))}>
+                        <NotebookPen aria-hidden /> Observações do atendimento
+                      </button>
+                    </>
+                  )}
+                  <button type="button" className={item} onClick={fechar(() => setDetail(m))}>
+                    {showEmailFor(m) ? (
+                      <>
+                        <Mail aria-hidden /> E-mail da senha
+                      </>
+                    ) : (
+                      <>
+                        <TicketIcon aria-hidden /> Ver a senha
+                      </>
+                    )}
+                  </button>
+                  {podeExcluir && (
+                    <button type="button" className={cn(item, 'text-destructive')} onClick={fechar(() => setDeleteTarget({ ticket: m, giraId }))}>
+                      <Trash2 aria-hidden /> Excluir a senha
+                    </button>
+                  )}
+                </div>
+                {podeExcluir && <p className="px-4 pt-2 text-xs text-muted-foreground">Excluir devolve a vaga para a gira e pede confirmação.</p>}
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
 
       <TicketDetailSheet
         ticket={detail}

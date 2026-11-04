@@ -243,7 +243,7 @@ export function DataTable<T>({
                 data-slot="data-table-card"
                 data-state={row.getIsSelected() ? 'selected' : undefined}
                 className={cn(
-                  'rounded-xl border bg-card p-4 text-card-foreground shadow-sm data-[state=selected]:border-primary/50',
+                  'rounded-xl border bg-card p-4 text-card-foreground shadow-sm data-[state=selected]:border-2 data-[state=selected]:border-primary data-[state=selected]:bg-primary/8',
                   onRowClick && 'cursor-pointer active:bg-accent',
                 )}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
