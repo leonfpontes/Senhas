@@ -128,6 +128,41 @@ export const MODULOS: readonly Modulo[] = [
   },
 ];
 
+/**
+ * Como o módulo aparece para esta pessoa, nesta casa — a mesma regra da página /admin/modulos e do
+ * "Ver os N módulos" da barra (o número conta só o que a página mostra: contador com dado real).
+ * - `fixo`: o dia de gira, sempre;
+ * - `liberado`: o plano e o perfil liberam (`entrada` é a rota do menu completo que abre o módulo);
+ * - `plano`: fora do plano — aparece apagado, com o plano que precisa;
+ * - `null`: não aparece (sem permissão, ou piloto sem a chave).
+ */
+export type SituacaoDoModulo =
+  | { tipo: 'fixo'; entrada: string }
+  | { tipo: 'liberado'; entrada: string }
+  | { tipo: 'plano'; entrada: null }
+  | null;
+
+export function situacaoDoModulo(
+  m: Modulo,
+  rotasLiberadas: ReadonlySet<string>,
+  temRecurso: (recurso: PlanFeatureKey) => boolean,
+): SituacaoDoModulo {
+  if (m.fixo) return { tipo: 'fixo', entrada: m.rotas[0] };
+  const entrada = m.rotas.find((r) => rotasLiberadas.has(r));
+  if (entrada) return { tipo: 'liberado', entrada };
+  if (m.piloto) return null;
+  if (m.plano && !temRecurso(m.plano)) return { tipo: 'plano', entrada: null };
+  return null;
+}
+
+/** Quantos módulos a página /admin/modulos mostra para esta pessoa. */
+export function contarModulosVisiveis(
+  rotasLiberadas: ReadonlySet<string>,
+  temRecurso: (recurso: PlanFeatureKey) => boolean,
+): number {
+  return MODULOS.filter((m) => situacaoDoModulo(m, rotasLiberadas, temRecurso) !== null).length;
+}
+
 export const GRUPOS_DE_MODULO: readonly GrupoDeModulo[] = ['Dia de gira', 'Corrente', 'Casa'];
 
 /** Rotas que ficam fixas na barra (o dia de gira), além do Início. */

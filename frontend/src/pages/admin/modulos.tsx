@@ -25,6 +25,7 @@ import {
   gravarPreferencia,
   lerPreferencia,
   porNoMenu,
+  situacaoDoModulo,
   tirarDoMenu,
   type Modulo,
   type PreferenciaDoMenu,
@@ -68,17 +69,14 @@ function ModulosContent() {
     gravarPreferencia(tenantId, p);
   };
 
+  // A regra de quem aparece é a mesma do "Ver os N módulos" da barra (situacaoDoModulo).
   const linhas = MODULOS.flatMap((m): { m: Modulo; estado: Estado; entrada: string | null }[] => {
-    if (m.fixo) return [{ m, estado: 'fixo', entrada: m.rotas[0] }];
-    const entrada = m.rotas.find((r) => rotasLiberadas.has(r)) ?? null;
-    if (entrada) {
-      const noMenu = !ajustavel || estaNoMenu(pref, m.key, comDado);
-      return [{ m, estado: noMenu ? 'menu' : 'livre', entrada }];
-    }
-    // Fora do plano: aparece com o plano que precisa (piloto não é oferecido).
-    if (m.piloto) return [];
-    if (m.plano && !can(m.plano)) return [{ m, estado: 'plano', entrada: null }];
-    return []; // sem permissão: não aparece
+    const sit = situacaoDoModulo(m, rotasLiberadas, can);
+    if (!sit) return []; // sem permissão, ou piloto sem a chave: não aparece
+    if (sit.tipo === 'fixo') return [{ m, estado: 'fixo', entrada: sit.entrada }];
+    if (sit.tipo === 'plano') return [{ m, estado: 'plano', entrada: null }];
+    const noMenu = !ajustavel || estaNoMenu(pref, m.key, comDado);
+    return [{ m, estado: noMenu ? 'menu' : 'livre', entrada: sit.entrada }];
   });
 
   return (

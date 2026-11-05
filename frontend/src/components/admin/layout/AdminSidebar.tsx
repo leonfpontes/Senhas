@@ -23,13 +23,13 @@ import {
 } from '@/components/ui/sidebar';
 import { BrandHeader } from './BrandHeader';
 import { NavGroup } from './NavGroup';
-import { montarSidebarNav, useAdminNav, type NavAction } from './navConfig';
+import { flattenNav, montarSidebarNav, pathOf, useAdminNav, type NavAction } from './navConfig';
 import { ArrowLeftRight, ArrowRight, BookOpen, Building2, LogOut, MessageCircle, Moon, Newspaper, Search, Sun, User } from 'lucide-react';
 import { adminLogout, MENU_DA_PESSOA_EVENT, type AcaoDoMenuDaPessoa } from './AdminTopbar';
 import { useMinhasContas } from '@/hooks/useMinhasContas';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { switchArea } from '@/lib/areas';
-import { MODULOS, estaNoMenu, lerPreferencia, gravarPreferencia, marcarUso, moduloDaRota, type PreferenciaDoMenu } from '@/constants/modulos';
+import { contarModulosVisiveis, estaNoMenu, lerPreferencia, gravarPreferencia, marcarUso, moduloDaRota, type PreferenciaDoMenu } from '@/constants/modulos';
 
 /**
  * Largura da sidebar expandida em px (= `--sidebar-width` 16rem do bloco shadcn).
@@ -69,7 +69,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
   const { profile } = useProfile();
   const { planLabel, subscription, loading: subscriptionLoading } = useSubscription();
   const groups = useAdminNav({ isOperator, tenantId: profile?.tenant_id });
-  const { beta, subscription: assinatura } = useSubscription();
+  const { beta, can, subscription: assinatura } = useSubscription();
   const comDado = assinatura?.modulos_com_dado ?? [];
   const ajustavel = Boolean(beta?.('beta_menu_ajustavel'));
   const tenantId = profile?.tenant_id;
@@ -90,6 +90,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
     if (novo !== atual) gravarPreferencia(tenantId, novo);
   }, [ajustavel, pathname, tenantId]);
   const { fixos, daCasa } = montarSidebarNav(groups, { ajustavel, noMenu: (k) => estaNoMenu(pref, k, comDado) });
+  // "Ver os N módulos": N é o que a página /admin/modulos mostra para esta pessoa (contador com dado real).
+  const totalDeModulos = contarModulosVisiveis(new Set(flattenNav(groups).map((l) => pathOf(l.href))), can);
   const modulosAtivo = pathname === '/admin/modulos';
   const impersonating = typeof window !== 'undefined' && Boolean(window.sessionStorage?.getItem('impersonating'));
   const outrasContas = useMinhasContas(profile?.id, isMobile && Boolean(profile?.tenant_id) && !impersonating);
@@ -143,7 +145,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
               modulosAtivo && 'bg-sidebar-accent',
             )}
           >
-            Ver os {MODULOS.length} módulos <ArrowRight className="size-3.5" aria-hidden />
+            {totalDeModulos === 1 ? 'Ver o módulo' : `Ver os ${totalDeModulos} módulos`} <ArrowRight className="size-3.5" aria-hidden />
           </Link>
         </div>
       </SidebarContent>

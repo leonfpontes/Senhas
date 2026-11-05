@@ -127,6 +127,25 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByText('Corrente')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Casa')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Plano e assinatura')).not.toBeInTheDocument();
+    // O contador da barra conta só o que a página dos módulos mostra para ele (dado real, não os 11 do catálogo).
+    expect(within(nav).getByRole('link', { name: /^Ver o módulo/ })).toHaveAttribute('href', '/admin/modulos');
+    expect(within(nav).queryByRole('link', { name: /Ver os \d+ módulos/ })).not.toBeInTheDocument();
+  });
+
+  it('situacaoDoModulo: fixo, liberado, fora do plano e escondido (piloto ou sem permissão)', () => {
+    const { MODULOS, situacaoDoModulo, contarModulosVisiveis } = require('@/constants/modulos');
+    const por = (k: string) => MODULOS.find((m: { key: string }) => m.key === k);
+    const nada = new Set<string>();
+    const tudo = () => true;
+    expect(situacaoDoModulo(por('giras'), nada, tudo)).toEqual({ tipo: 'fixo', entrada: por('giras').rotas[0] });
+    const fin = por('financeiro');
+    expect(situacaoDoModulo(fin, new Set([fin.rotas[0]]), tudo)).toEqual({ tipo: 'liberado', entrada: fin.rotas[0] });
+    expect(situacaoDoModulo(fin, nada, () => false)).toEqual({ tipo: 'plano', entrada: null });
+    expect(situacaoDoModulo(fin, nada, tudo)).toBeNull(); // no plano, mas sem permissão
+    const piloto = MODULOS.find((m: { piloto?: boolean }) => m.piloto);
+    expect(situacaoDoModulo(piloto, nada, () => false)).toBeNull(); // piloto sem a chave some
+    expect(contarModulosVisiveis(nada, tudo)).toBe(1);
+    expect(contarModulosVisiveis(new Set(MODULOS.flatMap((m: { rotas: string[] }) => m.rotas)), tudo)).toBe(MODULOS.length);
   });
 
   it('Analytics e Auditoria seguem plano e grupo', () => {
