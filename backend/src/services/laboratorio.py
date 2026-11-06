@@ -47,6 +47,10 @@ CATALOGO: tuple[Beta, ...] = (
     Beta("beta_avisar_exclusao_gira", "Avisar quem tem senha quando a gira é excluída",
          "Ao excluir, a casa pode mandar um e-mail para quem já pegou senha.", "Para a gira",
          "docs/betas/beta_avisar_exclusao_gira.md"),
+    Beta("beta_retorno_consulente", "Retorno do consulente na porta",
+         "Quem chama a senha anota que a pessoa precisa voltar com um médium ou uma entidade; nas giras "
+         "seguintes, a Porta mostra o recado na senha dela até alguém marcar como resolvido.", "Para a porta",
+         "docs/betas/beta_retorno_consulente.md"),
     Beta("beta_menu_ajustavel", "Menu que se ajusta ao uso",
          "O que a casa já usa sobe para o menu, em \"Da casa\"; cada pessoa põe ou tira módulos na página Módulos.",
          "Para o painel", "docs/betas/beta_menu_ajustavel.md"),
