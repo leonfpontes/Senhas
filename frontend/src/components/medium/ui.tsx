@@ -59,7 +59,7 @@ export function MediumPageHeader({
   return (
     <header className={cn('flex items-start justify-between gap-3', className)}>
       <div className="min-w-0">
-        <h1 className="text-2xl leading-tight font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-[1.625rem] leading-tight font-bold tracking-tight">{title}</h1>
         {description && <p className="mt-1 text-base text-muted-foreground">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}

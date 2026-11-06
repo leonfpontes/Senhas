@@ -15,8 +15,9 @@
 import React from 'react';
 import Head from 'next/head';
 import { cn } from '@/lib/utils';
-import { WCAG_AA_CONTRAST, contrastRatio, parseColor, pickForeground } from '@/lib/brand';
+import { WCAG_AA_CONTRAST, contrastRatio, corDaCasa, parseColor, pickForeground } from '@/lib/brand';
 import PoweredByGiraHubFooter from '@/components/shared/PoweredByGiraHubFooter';
+import { fraunces } from '@/components/landing/fonts';
 
 export interface PublicBrand {
   primary?: string | null;
@@ -47,7 +48,8 @@ export interface PublicShellProps {
   children: React.ReactNode;
 }
 
-export const DEFAULT_PUBLIC_PRIMARY = '#4f46e5';
+/** Casa sem cor escolhida: verde folha do GiraHub (ADR 0011 do design system, jornadas v2). */
+export const DEFAULT_PUBLIC_PRIMARY = '#2E6A4E';
 
 /**
  * Cor da marca para TEXTO sobre o fundo claro da casca (links, número do bilhete).
@@ -69,7 +71,7 @@ export function brandTextColor(primary: string): string {
 
 /** Variáveis CSS da marca para o wrapper. Exportado para testes e para quem precisar só das cores. */
 export function brandStyle(brand?: PublicBrand): React.CSSProperties {
-  const primary = brand?.primary?.trim() || DEFAULT_PUBLIC_PRIMARY;
+  const primary = corDaCasa(brand?.primary) || DEFAULT_PUBLIC_PRIMARY;
   const secondary = brand?.secondary?.trim() || primary;
   return {
     '--primary': primary,
@@ -100,6 +102,29 @@ export function PublicShell({
   const column = wide ? 'max-w-2xl' : 'max-w-md';
   const showLogo = Boolean(logoUrl) && !logoFailed;
   const initial = (tenantName || '').trim().charAt(0).toUpperCase();
+  // "Terreiro Filhos de Fé" → "FF": as iniciais das palavras principais (sem "de", "do", "da"…).
+  const iniciais =
+    (tenantName || '')
+      .split(/\s+/)
+      .filter((w) => w && !/^(de|da|do|das|dos|e|terreiro|tenda|casa|centro)$/i.test(w))
+      .slice(0, 2)
+      .map((w) => w.charAt(0).toUpperCase())
+      .join('') || initial;
+
+  // A barra fixa de baixo muda de altura (botão, prazo, aviso de dados, quebra de linha no celular):
+  // o fim do conteúdo reserva a altura REAL dela, para o "Powered by GiraHub" não ficar por baixo.
+  const footerRef = React.useRef<HTMLDivElement | null>(null);
+  const [footerHeight, setFooterHeight] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const el = footerRef.current;
+    if (!footer || !el) return;
+    const medir = () => setFooterHeight(el.getBoundingClientRect().height);
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [footer]);
 
   return (
     <>
@@ -110,16 +135,23 @@ export function PublicShell({
       </Head>
       <div
         data-slot="public-shell"
-        style={brandStyle(brand)}
+        style={{
+          ...brandStyle(brand),
+          // A altura medida já inclui o env(safe-area-inset-bottom) da barra; mais 1rem de respiro.
+          ...(footer && footerHeight !== null ? { paddingBottom: `calc(${footerHeight}px + 1rem)` } : {}),
+        }}
         className={cn(
-          'flex min-h-screen flex-col bg-background text-base text-foreground antialiased',
-          footer && 'pb-[calc(6rem+env(safe-area-inset-bottom))]',
+          // Jornada 3 v2: superfície "terra" (areia + tinta, títulos em Fraunces); a cor da casa continua no --primary.
+          fraunces.variable,
+          'public-terra flex min-h-screen flex-col bg-background text-base text-foreground antialiased',
+          footer && footerHeight === null && 'pb-[calc(11rem+env(safe-area-inset-bottom))]',
           className,
         )}
       >
         {!hideHeader && (tenantName || logoUrl) && (
-          <header className="border-b bg-card">
-            <div className={cn('mx-auto flex w-full items-center gap-3 px-4 py-3', column)}>
+          // Jornada 3 v2: a faixa na cor da casa, com a inicial num círculo claro e o endereço da casa.
+          <header className="bg-primary text-primary-foreground">
+            <div className={cn('mx-auto flex w-full items-center gap-3 px-4 py-3.5', column)}>
               {showLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- logo de terreiro vem de host não allow-listado; onError cai na inicial
                 <img
@@ -127,20 +159,20 @@ export function PublicShell({
                   alt=""
                   width={40}
                   height={40}
-                  className="size-10 shrink-0 rounded-lg border bg-muted object-cover"
+                  className="size-10 shrink-0 rounded-full bg-white object-cover"
                   onError={() => setLogoFailed(true)}
                 />
               ) : (
                 <span
                   aria-hidden
-                  className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[color:var(--brand-text,#2E6A4E)]"
                 >
-                  {initial || '•'}
+                  {iniciais || '•'}
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold leading-tight">{tenantName}</p>
-                {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
+                <p className="truncate text-[1.0625rem] font-semibold leading-tight">{tenantName}</p>
+                {subtitle && <p className="truncate text-sm opacity-90">{subtitle}</p>}
               </div>
               {headerExtra}
             </div>
@@ -154,6 +186,7 @@ export function PublicShell({
 
         {footer && (
           <div
+            ref={footerRef}
             data-slot="public-shell-footer"
             className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}

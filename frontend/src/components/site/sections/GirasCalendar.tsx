@@ -8,6 +8,7 @@
  * - Detalhe do dia: Popover no computador, Sheet no celular.
  */
 import React, { useMemo, useState } from 'react';
+import { fraunces } from '@/components/landing/fonts';
 import { CalendarDays, ChevronLeft, ChevronRight, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { pickForeground } from '@/lib/brand';
@@ -77,6 +78,20 @@ function GiraActions({ gira, config, isPreview, brand, compact }: Omit<GiraCardP
   );
 }
 
+/** "13" em Fraunces e "sex · nov" embaixo, no fuso de São Paulo. */
+function DiaDaGira({ iso }: { iso: string }) {
+  const d = new Date(iso);
+  const fmt = (o: Intl.DateTimeFormatOptions) => d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', ...o }).replace('.', '');
+  return (
+    <span aria-hidden className="flex shrink-0 flex-col items-center">
+      <span className={cn(fraunces.className, 'text-[2.25rem] leading-none')}>{fmt({ day: 'numeric' })}</span>
+      <span className="mt-0.5 text-xs whitespace-nowrap opacity-70">
+        {fmt({ weekday: 'short' })} · {fmt({ month: 'short' })}
+      </span>
+    </span>
+  );
+}
+
 function GiraCard(props: GiraCardProps) {
   const { gira, config, highlight, cardBg } = props;
   const release = releaseWindowLabel(gira);
@@ -90,19 +105,25 @@ function GiraCard(props: GiraCardProps) {
       aria-label={gira.nome}
     >
       {highlight && (
-        <p className="mb-1 text-xs font-semibold tracking-wide uppercase opacity-70">Próxima gira</p>
+        <p className="mb-1 text-xs font-semibold opacity-70">Próxima gira</p>
       )}
-      <h3 className="leading-snug" style={{ fontSize: Number(config.title_font_size || 20), fontWeight: Number(config.title_font_weight || 700) }}>
-        {gira.nome}
-        {gira._sample && <span className="ml-2 align-middle text-xs font-normal opacity-60">(exemplo)</span>}
-      </h3>
-      {gira.data_hora && (
-        <time dateTime={gira.data_hora} className="mt-1 block opacity-70 first-letter:uppercase" style={{ fontSize: Number(config.body_font_size || 14) }}>
-          {formatGiraDateLong(gira.data_hora)}
-        </time>
-      )}
+      {/* J9 v2 · 06: o dia em bloco à esquerda (Fraunces), o nome e a hora ao lado. */}
+      <div className="flex items-start gap-4">
+        {gira.data_hora && <DiaDaGira iso={gira.data_hora} />}
+        <div className="min-w-0 flex-1">
+          <h3 className="leading-snug" style={{ fontSize: Number(config.title_font_size || 20), fontWeight: Number(config.title_font_weight || 700) }}>
+            {gira.nome}
+            {gira._sample && <span className="ml-2 align-middle text-xs font-normal opacity-60">(exemplo)</span>}
+          </h3>
+          {gira.data_hora && (
+            <time dateTime={gira.data_hora} className="mt-1 block opacity-70 first-letter:uppercase" style={{ fontSize: Number(config.body_font_size || 14) }}>
+              {formatGiraDateLong(gira.data_hora)}
+            </time>
+          )}
+        </div>
+      </div>
       {gira.descricao && (
-        <SectionBody config={config} defaultSize={14} className="mt-2 opacity-85">
+        <SectionBody config={config} defaultSize={14} className="mt-2 line-clamp-3 opacity-85">
           {gira.descricao}
         </SectionBody>
       )}
@@ -273,7 +294,7 @@ export function GirasCalendar({ config, ctx }: { config: SectionConfig; ctx: Sec
   const next = nextGira(giras);
   const displayMode = String(config.display_mode || 'calendar');
   const title = String(config.title || 'Próximas giras');
-  const brand = String(config.calendar_highlight_color || ctx.brandColor || '#4f46e5');
+  const brand = String(config.calendar_highlight_color || ctx.brandColor || '#2E6A4E');
   const cardBg = hexToRgba(String(config.card_bg_color || '#ffffff'), 100);
 
   const cardList = (className: string, itemClassName?: string) => (

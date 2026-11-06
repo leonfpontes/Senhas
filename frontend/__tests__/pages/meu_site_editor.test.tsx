@@ -229,6 +229,6 @@ describe('Meu Site — editor', () => {
   it('sem feature no plano mostra o PlanLocked', () => {
     mockCanFeature = false;
     render(<MeuSitePage />);
-    expect(screen.getByText('Recurso indisponível')).toBeInTheDocument();
+    expect(screen.getByText(/não está incluso no plano/)).toBeInTheDocument();
   });
 });

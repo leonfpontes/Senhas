@@ -14,7 +14,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ArrowDown, ArrowUp, Library, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Library, Plus, Trash2 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -416,11 +416,6 @@ function AdminMateriaisContent() {
   function renderAcoes(m: Material) {
     return (
       <div className="flex justify-end gap-1">
-        {canEdit && (
-          <Button variant="ghost" size="icon-sm" onClick={() => abrirEdicao(m)} title="Editar" aria-label={`Editar ${m.titulo}`}>
-            <Pencil />
-          </Button>
-        )}
         {canDelete && (
           <Button
             variant="ghost"
@@ -510,7 +505,8 @@ function AdminMateriaisContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Estudos e documentos"
-        subtitle="Apostilas, pontos cantados, rezas e vídeos para a corrente, na Área do Médium."
+        subtitle="Apostilas, pontos cantados, rezas e vídeos para a corrente, na Área do Médium. Aparecem agrupados por categoria."
+        eyebrow="Corrente"
         className="mb-0"
         actions={
           canInsert ? (
@@ -535,6 +531,9 @@ function AdminMateriaisContent() {
         />
       ) : (
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? abrirEdicao : undefined}
+          rowLabel={(m) => `Editar ${m.titulo}`}
           columns={columns}
           data={lista}
           getRowId={(m) => m.id}

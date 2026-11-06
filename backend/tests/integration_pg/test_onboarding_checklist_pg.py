@@ -127,4 +127,12 @@ async def test_sem_dor_mantem_o_checklist_da_primeira_gira(client, db):
     resp = await client.get(URL, headers=admin.headers)
     onboarding = resp.json()["onboarding"]
     assert onboarding["trilha"] == "gira"
-    assert _passos(resp) == {"gira": True, "share": False, "tickets": False, "porta": False}
+    # J1 v2 · 07: a trilha padrão tem 5 passos; a gira da factory tem max_tickets=10, então
+    # "senhas" já conta como feito.
+    assert _passos(resp) == {
+        "gira": True,
+        "senhas": True,
+        "share": False,
+        "tickets": False,
+        "porta": False,
+    }

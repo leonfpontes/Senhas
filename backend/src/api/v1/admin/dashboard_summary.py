@@ -110,7 +110,7 @@ TRILHA_POR_DOR: dict[str, str] = {
 }
 TRILHA_PADRAO = "gira"
 TRILHA_PASSOS: dict[str, tuple[str, ...]] = {
-    "gira": ("gira", "share", "tickets", "porta"),
+    "gira": ("gira", "senhas", "share", "tickets", "porta"),  # J1 v2 · 07: 5 passos
     "senhas": ("gira", "senhas", "share", "tickets"),
     "mediuns": ("medium", "mensalidade", "gira"),
     "financeiro": ("mensalidade", "pagamento", "lancamento", "gira"),
@@ -263,7 +263,9 @@ async def _get_onboarding_status(db: AsyncSession, tenant_id: UUID) -> Onboardin
     trilha = trilha_da_dor(principal_dor)
     feito = {
         "gira": bool(sinal.get("has_gira")),
-        "senhas": bool(sinal.get("senhas_configuradas")),
+        # Senha emitida pelo link só existe com as senhas configuradas: casa que já recebeu senha
+        # tem o passo feito, e a trilha concluída antes do 5º passo (J1 v2 · 07) não reaparece.
+        "senhas": bool(sinal.get("senhas_configuradas")) or public_count > 0,
         # O frontend também conta o "já compartilhei" guardado no navegador.
         "share": public_count > 0,
         "tickets": public_count > 0,

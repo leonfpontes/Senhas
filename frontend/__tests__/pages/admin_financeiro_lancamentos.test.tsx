@@ -123,7 +123,7 @@ describe('Lançamentos', () => {
   it('sem permissão de visualização mostra o estado padrão e não chama a API', async () => {
     mockPerms = {};
     render(<LancamentosPage />);
-    expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
+    expect(await screen.findByText(/não tem permissão/i)).toBeInTheDocument();
     expect(mockGet).not.toHaveBeenCalled();
   });
 
@@ -172,7 +172,7 @@ describe('Lançamentos', () => {
   it('redirecionamento sem permissão não redireciona', () => {
     mockPerms = {};
     render(<ContasPagarRedirectPage />);
-    expect(screen.getByText('Sem permissão')).toBeInTheDocument();
+    expect(screen.getByText(/não tem permissão/i)).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 });

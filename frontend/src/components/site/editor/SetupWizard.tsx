@@ -5,7 +5,7 @@
  * pré-preenchido com um clique. Também permite escolher o template ou começar do zero.
  */
 import React, { useEffect, useState } from 'react';
-import { Building2, CalendarDays, Check, ImageIcon, Loader2, Mail, MapPin, Sparkles } from 'lucide-react';
+import { Building2, CalendarDays, Check, Globe, ImageIcon, Loader2, Mail, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { pickForeground } from '@/lib/brand';
 import { apiClient } from '@/services/api_client';
@@ -47,8 +47,9 @@ async function loadTenantFacts(): Promise<TenantFacts> {
   return {
     nome: typeof b.tenant_nome === 'string' && b.tenant_nome ? b.tenant_nome : typeof c.tenant_nome === 'string' ? c.tenant_nome : null,
     logoUrl: typeof b.logo_url === 'string' && b.logo_url ? b.logo_url : typeof c.logo_url === 'string' && c.logo_url ? c.logo_url : null,
-    primary: typeof b.primary_color === 'string' && b.primary_color ? b.primary_color : '#4f46e5',
-    secondary: typeof b.secondary_color === 'string' && b.secondary_color ? b.secondary_color : '#ec4899',
+    primary: typeof b.primary_color === 'string' && b.primary_color && b.primary_color.toLowerCase() !== '#4f46e5' ? b.primary_color : '#2E6A4E',
+    // Padrão do GiraHub (jornadas v2): verde e dourado. O lilás #818cf8 era o secundário padrão da casa; não é escolha dela.
+    secondary: typeof b.secondary_color === 'string' && b.secondary_color && b.secondary_color.toLowerCase() !== '#818cf8' ? b.secondary_color : '#E9B04A',
     fontColor: typeof b.font_color === 'string' ? b.font_color : null,
     endereco: typeof c.endereco === 'string' && c.endereco ? c.endereco : null,
     email: typeof c.reply_to_email === 'string' && c.reply_to_email ? c.reply_to_email : null,
@@ -120,7 +121,7 @@ export function SetupWizard({ template: initialTemplate, canEdit, onCreate, onSk
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="size-5 text-brand" aria-hidden />
+            <Globe className="size-5 text-brand" aria-hidden />
             Vamos montar seu site em um minuto
           </CardTitle>
           <CardDescription>
@@ -186,7 +187,7 @@ export function SetupWizard({ template: initialTemplate, canEdit, onCreate, onSk
                 disabled={facts === null}
                 onClick={() => facts && onCreate(buildStarterSections(facts, template), template)}
               >
-                <Sparkles aria-hidden />
+                <Globe aria-hidden />
                 Criar meu site
               </Button>
             )}

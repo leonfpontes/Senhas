@@ -14,7 +14,7 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.core.tz import APP_TZ
 from src.models import User, Ticket, TicketStatus, Consulente, PermissionFeature
-from src.models.tickets import PriorityCategory
+from src.models.tickets import PriorityCategory, email_de_aviso
 from src.models.giras import Gira
 from src.models.tenants import Tenant
 from src.models.tenant_config import TenantConfig
@@ -515,7 +515,7 @@ async def _send_waitlist_promotion_email(
         tenant_address=tenant_address,
     )
     message = EmailMessage(
-        to_email=ticket.consulente.email,
+        to_email=email_de_aviso(ticket),
         subject=f"Uma vaga abriu para você! - {gira_obj.nome} - {tenant_name}",
         html_body=html_body,
         text_body=text_body,

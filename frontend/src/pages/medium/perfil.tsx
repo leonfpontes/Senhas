@@ -117,9 +117,10 @@ function Item({
 
 function Linha({ rotulo, valor, testId }: { rotulo: string; valor: string; testId?: string }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-border px-4 py-3 last:border-b-0">
-      <dt className="text-sm text-muted-foreground">{rotulo}</dt>
-      <dd className="text-base break-words" data-testid={testId}>
+    // J6 v2 · 12 (ListaDeDetalhes): o rótulo à esquerda e o valor à direita, numa linha.
+    <div className="flex items-baseline justify-between gap-4 border-b border-border px-4 py-3 last:border-b-0">
+      <dt className="shrink-0 text-[0.9375rem] text-muted-foreground">{rotulo}</dt>
+      <dd className="m-0 min-w-0 text-right text-[0.9375rem] font-semibold break-words" data-testid={testId}>
         {valor}
       </dd>
     </div>

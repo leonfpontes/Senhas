@@ -65,6 +65,10 @@ export interface SubscriptionInfo {
   /** Cartão recusado e plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
   payment_pending_since?: string | null;
   features: PlanFeatures;
+  /** Laboratório (jornadas v2): betas ligadas na casa beta tester. */
+  betas?: string[];
+  /** Beta "Menu que se ajusta ao uso": módulos com dado na casa (sobem sozinhos para "Da casa"). */
+  modulos_com_dado?: string[];
 }
 
 interface SubscriptionContextValue {
@@ -80,6 +84,8 @@ interface SubscriptionContextValue {
   refresh: () => void;
   /** Friendly plan display name */
   planLabel: string;
+  /** Beta do Laboratório ligada nesta casa (só casa beta tester). */
+  beta: (chave: string) => boolean;
 }
 
 const DEFAULT_FEATURES: PlanFeatures = {
@@ -117,6 +123,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   canCreateMedium: () => false,
   refresh: () => {},
   planLabel: planDisplayLabel('free'),
+  beta: () => false,
 });
 
 const hasAuthToken = (): boolean => {
@@ -194,12 +201,14 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     [subscription],
   );
 
+  const beta = useCallback((chave: string) => Boolean(subscription?.betas?.includes(chave)), [subscription]);
+
   // Rótulo único dos planos (constants/plans.ts) — "Gratuito", não "Free".
   const planLabel = planDisplayLabel(subscription?.plan ?? 'free');
 
   return (
     <SubscriptionContext.Provider
-      value={{ subscription, loading, can, canCreateGira, canCreateMedium, refresh: fetchSubscription, planLabel }}
+      value={{ subscription, loading, can, canCreateGira, canCreateMedium, refresh: fetchSubscription, planLabel, beta }}
     >
       {children}
     </SubscriptionContext.Provider>

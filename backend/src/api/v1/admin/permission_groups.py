@@ -221,7 +221,7 @@ async def get_group(
     repo = PermissionGroupRepository(db)
     group = await repo.get_by_id(group_id, current_user.tenant_id)
     if not group:
-        raise NotFoundError("Grupo de permissão")
+        raise NotFoundError("Perfil de acesso")
 
     members_count = await repo.get_members_count(group_id, current_user.tenant_id)
     
@@ -266,7 +266,7 @@ async def update_group(
     repo = PermissionGroupRepository(db)
     group = await repo.get_by_id(group_id, current_user.tenant_id)
     if not group:
-        raise NotFoundError("Grupo de permissão")
+        raise NotFoundError("Perfil de acesso")
 
     previous_state = {"name": group.name, "description": group.description}
     update_data = request.model_dump(exclude_unset=True)
@@ -343,7 +343,7 @@ async def delete_group(
     repo = PermissionGroupRepository(db)
     group = await repo.get_by_id(group_id, current_user.tenant_id)
     if not group:
-        raise NotFoundError("Grupo de permissão")
+        raise NotFoundError("Perfil de acesso")
 
     if group.is_default:
         # Q-05: o grupo padrão recebe os operadores novos; sem ele, operador
@@ -398,7 +398,7 @@ async def get_group_permissions(
     repo = PermissionGroupRepository(db)
     group = await repo.get_with_permissions(group_id, current_user.tenant_id)
     if not group:
-        raise NotFoundError("Grupo de permissão")
+        raise NotFoundError("Perfil de acesso")
 
     return [GroupPermissionResponse.model_validate(p) for p in group.permissions]
 
@@ -419,7 +419,7 @@ async def set_group_permissions(
     # Load original state for auditing
     original_group = await repo.get_with_permissions(group_id, current_user.tenant_id)
     if not original_group:
-        raise NotFoundError("Grupo de permissão")
+        raise NotFoundError("Perfil de acesso")
         
     prev_perms = [
         {"feature": p.feature.value, "view": p.can_view, "insert": p.can_insert, "edit": p.can_edit, "delete": p.can_delete}
@@ -492,7 +492,7 @@ async def list_group_members(
     # Check group exists
     group = await repo.get_by_id(group_id, current_user.tenant_id)
     if not group:
-        raise NotFoundError("Grupo de permissão")
+        raise NotFoundError("Perfil de acesso")
 
     members = await repo.list_members(group_id, current_user.tenant_id)
     return [GroupMemberResponse.model_validate(m) for m in members]

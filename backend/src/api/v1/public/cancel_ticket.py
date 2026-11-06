@@ -34,7 +34,7 @@ from src.models.giras import Gira
 from src.models.senha_controls import SenhaControl
 from src.models.tenant_config import TenantConfig
 from src.models.tenants import Tenant
-from src.models.tickets import Ticket, TicketStatus
+from src.models.tickets import Ticket, TicketStatus, email_de_aviso
 from src.repositories.gira_time_slot_repo import GiraTimeSlotRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
 from src.services import waitlist_service
@@ -106,6 +106,8 @@ class PublicTicketResponse(BaseModel):
     secondary_color: str | None = None
     consulente_name: str
     acompanhantes: list[AcompanhanteCancelInfo] = []
+    # Jornada 3 v2: o selo "Preferencial" do bilhete (categoria do produto, ou None).
+    priority_category: str | None = None
 
 
 _STATUS_LABELS = {
@@ -303,6 +305,7 @@ async def get_public_ticket(
             )
             for acomp in acompanhantes
         ],
+        priority_category=ticket.priority_category or None,
     )
 
 
@@ -456,7 +459,7 @@ async def cancel_ticket(
             tenant_name=tenant.name,
         )
         message = EmailMessage(
-            to_email=ticket.consulente.email,
+            to_email=email_de_aviso(ticket),
             subject=f"Senha #{ticket_number_formatted} cancelada - {tenant.name}",
             html_body=html_body,
             text_body=text_body,

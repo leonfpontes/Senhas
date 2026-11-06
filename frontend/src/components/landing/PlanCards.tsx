@@ -49,7 +49,7 @@ function PlanCard({ plan, index }: { plan: PlanDef; index: number }) {
           className={cn(
             'mt-7 w-full font-bold',
             highlight
-              ? 'bg-ouro-400 text-cafe-950 hover:bg-ouro-300'
+              ? 'bg-folha-600 text-white hover:bg-folha-700'
               : 'border-barro-600 bg-transparent text-barro-700 hover:bg-areia-100 hover:text-barro-700',
           )}
         >

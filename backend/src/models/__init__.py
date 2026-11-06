@@ -41,6 +41,7 @@ from .atividades import (
     ParticipacaoTroca,
 )
 from .gira_duplas import GiraDupla
+from .consulente_retornos import ConsulenteRetorno
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 from .parceiro_interesse import ParceiroInteresse
 from .platform_recibo import PlatformRecibo
@@ -97,6 +98,7 @@ __all__ = [
     "CorrenteGrupo",
     "CorrenteGrupoMembro",
     "GiraDupla",
+    "ConsulenteRetorno",
     "Atividade",
     "AtividadeParticipacao",
     "AtividadeTipo",

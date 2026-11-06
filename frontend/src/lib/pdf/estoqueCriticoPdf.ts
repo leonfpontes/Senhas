@@ -99,7 +99,7 @@ export async function gerarEstoqueCriticoPdf(
   const [{ jsPDF, autoTable }, logo] = await Promise.all([loadPdfLibs(), loadRoundLogo(brand.logoUrl)]);
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
-  const title = `Estoque — itens para repor${opts.grupo ? ` · ${opts.grupo}` : ''}`;
+  const title = `Para repor${opts.grupo ? ` · ${opts.grupo}` : ''}`;
   const subtitle = lista.length ? resumoReposicao(lista) : 'Nenhum item zerado ou abaixo do mínimo';
   const custo = custoReposicao(lista);
 

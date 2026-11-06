@@ -51,9 +51,9 @@ describe('Bilhete', () => {
     expect(screen.getByTestId('ticket-number')).toHaveTextContent(/^0042$/);
     expect(screen.queryByText(/#0042/)).not.toBeInTheDocument();
     expect(screen.getByText('Quinta-feira, 8 de outubro às 19h')).toBeInTheDocument();
-    expect(screen.getByText('Seu horário de atendimento: 20:30')).toBeInTheDocument();
+    expect(screen.getByText(/Seu horário de atendimento: 20:30/)).toBeInTheDocument();
     expect(screen.queryByText('Confirmada')).not.toBeInTheDocument();
-    expect(screen.getByText('Recados do terreiro')).toBeInTheDocument();
+    expect(screen.getByText('Recados da casa')).toBeInTheDocument();
   });
 
   it('WhatsApp abre wa.me com o texto do bilhete e o link', () => {
@@ -102,7 +102,7 @@ describe('Bilhete', () => {
 
   it('lista acompanhantes', () => {
     render(<Bilhete ticket={makeTicket({ acompanhantes: [{ ticket_number: '0043', name: 'João' }] })} />);
-    expect(screen.getByRole('heading', { name: /acompanhantes/i })).toBeInTheDocument();
+    expect(screen.getAllByText('Acompanhante').length).toBeGreaterThan(0);
     expect(screen.getByText('0043 · João')).toBeInTheDocument();
   });
 });
@@ -112,7 +112,8 @@ describe('PublicShell', () => {
     const style = brandStyle({ primary: '#ffeb3b' }) as Record<string, string>;
     expect(style['--primary']).toBe('#ffeb3b');
     expect(style['--primary-foreground']).toBe('#000000');
-    expect((brandStyle() as Record<string, string>)['--primary']).toBe('#4f46e5');
+    // Casa sem cor escolhida: verde folha (jornadas v2, ADR 0011 do design system).
+    expect((brandStyle() as Record<string, string>)['--primary']).toBe('#2E6A4E');
     // Texto da marca sobre branco: primária clara escurece até AA; escura fica igual.
     expect(style['--brand-text']).not.toBe('#ffeb3b');
     expect(contrastRatio(style['--brand-text'], '#ffffff')).toBeGreaterThanOrEqual(4.5);
@@ -143,5 +144,10 @@ describe('utilitários do bilhete', () => {
     expect(text).not.toContain('Horário escolhido');
     expect(text).toContain('Salão principal · Rua das Flores, 123');
     expect(whatsappShareUrl('a b')).toBe('https://wa.me/?text=a%20b');
+  });
+
+  it('preferencial: selo "Preferencial · 60+" com a categoria da senha', () => {
+    render(<Bilhete ticket={makeTicket({ priority_category: 'ELDERLY' })} />);
+    expect(screen.getByText('Preferencial · 60+')).toBeInTheDocument();
   });
 });

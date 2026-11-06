@@ -94,6 +94,7 @@ interface TenantInfo {
   self_deactivated_at?: string | null;
   /** Lançamento em piloto da Área do Médium: a plataforma libera por terreiro. */
   area_medium_liberada?: boolean;
+  beta_tester?: boolean;
   /** Cartão recusado, plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
   payment_pending_since?: string | null;
 }
@@ -233,7 +234,10 @@ export default function TenantDetailPage() {
 
   // ── Ações do cabeçalho ──
   const [impersonating, setImpersonating] = useState(false);
+  // J14 v2 · 07: entrar como admin pede confirmação e diz o que acontece.
+  const [confirmarEntrada, setConfirmarEntrada] = useState(false);
   const enterAsAdmin = async () => {
+    setConfirmarEntrada(false);
     if (!admin) {
       toast.error('Este terreiro não tem admin ativo para entrar como.');
       return;
@@ -306,6 +310,22 @@ export default function TenantDetailPage() {
     }
   };
 
+  // ── Laboratório (jornadas v2): o terreiro testa as betas; a casa liga cada uma nas Configurações ──
+  const [betaSaving, setBetaSaving] = useState(false);
+  const toggleBetaTester = async (ligar: boolean) => {
+    if (!tenant) return;
+    setBetaSaving(true);
+    try {
+      await apiClient.put(`/api/v1/platform/tenants/${tenant.id}`, { beta_tester: ligar });
+      toast.success(ligar ? 'Terreiro marcado como beta tester.' : 'Terreiro deixou de ser beta tester.');
+      load();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Não foi possível mudar o beta tester.'));
+    } finally {
+      setBetaSaving(false);
+    }
+  };
+
   // ── Usuários: redefinir senha / impersonar ──
   const [resetUser, setResetUser] = useState<TenantUser | null>(null);
   const [resetPassword, setResetPassword] = useState('');
@@ -351,7 +371,7 @@ export default function TenantDetailPage() {
     () => [
       { id: 'email', accessorKey: 'email', header: 'E-mail', meta: { mobile: true }, cell: ({ row }) => <span className="font-medium">{row.original.email}</span> },
       { id: 'username', accessorKey: 'username', header: 'Usuário', meta: { mobile: true } },
-      { id: 'role', accessorKey: 'role', header: 'Papel', meta: { mobile: true }, cell: ({ row }) => <ToneBadge tone={row.original.role.toUpperCase() === 'ADMIN' ? 'primary' : 'muted'}>{roleLabel(row.original.role)}</ToneBadge> },
+      { id: 'role', accessorKey: 'role', header: 'Tipo de acesso', meta: { mobile: true }, cell: ({ row }) => <ToneBadge tone={row.original.role.toUpperCase() === 'ADMIN' ? 'primary' : 'muted'}>{roleLabel(row.original.role)}</ToneBadge> },
       { id: 'is_active', accessorKey: 'is_active', header: 'Status', meta: { mobile: true }, cell: ({ row }) => <TenantActiveBadge active={row.original.is_active} /> },
       { id: 'created_at', accessorKey: 'created_at', header: 'Criado em', meta: { cellClassName: 'whitespace-nowrap text-muted-foreground' }, cell: ({ row }) => fmtDate(row.original.created_at) },
       {
@@ -457,13 +477,14 @@ export default function TenantDetailPage() {
   return (
     <PlatformLayout title={tenant?.name ?? 'Terreiro'} breadcrumbs={breadcrumbs}>
       {/* Cabeçalho */}
-      <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      {/* J14 v2 · 05: nome em Fraunces, as ações numa linha embaixo e o excluir à parte, à direita. */}
+      <header className="mb-6 flex flex-col gap-4">
         <div className="min-w-0">
           {loading || !tenant ? (
             <div className="space-y-2"><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-40" /></div>
           ) : (
             <>
-              <h1 className="truncate text-2xl font-bold tracking-tight">{tenant.name}</h1>
+              <h1 className="truncate font-display text-4xl font-normal tracking-[-0.02em]">{tenant.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-xs text-muted-foreground">{tenant.slug}</span>
                 {isDeleted ? (
@@ -490,7 +511,7 @@ export default function TenantDetailPage() {
             </>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {wa ? (
             <Button asChild variant="outline" size="sm">
               <a href={wa} target="_blank" rel="noopener noreferrer"><MessageCircle className="text-success" /> WhatsApp</a>
@@ -506,14 +527,14 @@ export default function TenantDetailPage() {
           <Button asChild variant="outline" size="sm">
             <Link href={`/platform/suporte?tenant=${id}`}><MessageSquare /> Mensagem</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={enterAsAdmin} disabled={impersonating || loading || isDeleted}>
+          <Button variant="outline" size="sm" onClick={() => setConfirmarEntrada(true)} disabled={impersonating || loading || isDeleted}>
             <LogIn /> Entrar como admin
           </Button>
-          <Button size="sm" onClick={() => { setPresetBonus(false); setSubOpen(true); }} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => { setPresetBonus(false); setSubOpen(true); }} disabled={loading}>
             <CreditCard /> Assinatura
           </Button>
-          <Button variant="outline" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)} disabled={loading || !tenant}>
-            <Trash2 /> Excluir permanentemente
+          <Button variant="destructive" size="sm" className="sm:ml-auto" onClick={() => setDeleteOpen(true)} disabled={loading || !tenant}>
+            Excluir permanentemente <Trash2 />
           </Button>
         </div>
       </header>
@@ -537,7 +558,7 @@ export default function TenantDetailPage() {
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-4 flex h-auto w-full flex-wrap justify-start">
+        <TabsList variant="line" className="mb-4 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
           <TabsTrigger value="visao"><Building2 /> Visão geral</TabsTrigger>
           <TabsTrigger value="usuarios"><Users /> Usuários</TabsTrigger>
           <TabsTrigger value="giras"><Calendar /> Giras</TabsTrigger>
@@ -592,6 +613,32 @@ export default function TenantDetailPage() {
                     checked={!!tenant.area_medium_liberada}
                     onCheckedChange={toggleAreaMedium}
                     disabled={areaSaving || isDeleted}
+                  />
+                </div>
+              ) : (
+                <Skeleton className="h-8 w-full" />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-3 py-4">
+            <CardHeader className="px-4">
+              <CardTitle className="text-base">Beta tester (Laboratório)</CardTitle>
+              <CardDescription>
+                Libera as funcionalidades em teste. A casa liga ou desliga cada uma em Configurações › Laboratório.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4">
+              {tenant ? (
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="beta-tester" className="font-normal">
+                    {tenant.beta_tester ? 'Beta tester' : 'Desligado'}
+                  </Label>
+                  <Switch
+                    id="beta-tester"
+                    checked={!!tenant.beta_tester}
+                    onCheckedChange={toggleBetaTester}
+                    disabled={betaSaving || isDeleted}
                   />
                 </div>
               ) : (
@@ -871,6 +918,22 @@ export default function TenantDetailPage() {
         />
         <p className="text-xs text-muted-foreground">As sessões ativas desse usuário são encerradas.</p>
       </CrudDrawer>
+
+      <ConfirmDialog
+        open={confirmarEntrada}
+        title="Entrar como admin"
+        message={
+          <>
+            Uma nova aba abre com a sessão de <strong>{admin?.username ?? 'admin'}</strong>, por 1 hora. Tudo que você fizer fica
+            registrado na auditoria como impersonação. Se o navegador bloquear a nova aba, libere as janelas deste site.
+          </>
+        }
+        confirmText="Entrar como este usuário"
+        size="default"
+        loading={impersonating}
+        onConfirm={() => void enterAsAdmin()}
+        onCancel={() => setConfirmarEntrada(false)}
+      />
 
       <ConfirmDialog
         open={impersonateTarget !== null}

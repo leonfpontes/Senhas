@@ -41,14 +41,14 @@ describe('paleta de marketing', () => {
   });
 
   // Telas de conta (AuthShell): cartão branco sobre areia, links e passos em barro-700.
-  it.each(['tinta', 'tinta-suave', 'barro-700'])('%s sobre o cartão branco das telas de conta passa de 4,5:1', (fg) => {
+  it.each(['tinta', 'tinta-suave', 'barro-700', 'folha-700'])('%s sobre o cartão branco das telas de conta passa de 4,5:1', (fg) => {
     expect(contrastRatio(color(fg), WHITE)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('a classe auth-terra usa só tokens da paleta para marca, texto de marca e texto de apoio', () => {
     const scope = css.split('.auth-terra {')[1]?.split('}')[0] ?? '';
-    expect(scope).toMatch(/--primary:\s*var\(--color-barro-600\)/);
-    expect(scope).toMatch(/--primary-text:\s*var\(--color-barro-700\)/);
+    expect(scope).toMatch(/--primary:\s*var\(--color-folha-700\)/);
+    expect(scope).toMatch(/--primary-text:\s*var\(--color-folha-700\)/);
     expect(scope).toMatch(/--muted-foreground:\s*var\(--color-tinta-suave\)/);
   });
 });

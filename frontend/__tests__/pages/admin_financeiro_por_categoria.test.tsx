@@ -125,7 +125,7 @@ describe('Financeiro por categoria', () => {
   it('sem permissão de visualização mostra o estado padrão e não chama a API', async () => {
     mockPerms = {};
     render(<PorCategoriaPage />);
-    expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
+    expect(await screen.findByText(/não tem permissão/i)).toBeInTheDocument();
     expect(mockGet).not.toHaveBeenCalled();
   });
 

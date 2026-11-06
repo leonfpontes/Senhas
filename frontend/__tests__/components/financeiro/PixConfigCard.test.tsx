@@ -99,7 +99,7 @@ describe('PixConfigCard', () => {
     const dialog = await screen.findByRole('alertdialog');
     fireEvent.change(within(dialog).getByLabelText('Sua senha'), { target: { value: 'senha-errada' } });
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar chave' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar a chave' }));
     });
     expect(await within(dialog).findByText('Senha incorreta. Confira e tente de novo.')).toBeInTheDocument();
     expect(mockPut).toHaveBeenCalledWith(
@@ -118,7 +118,7 @@ describe('PixConfigCard', () => {
 
     fireEvent.change(within(dialog).getByLabelText('Sua senha'), { target: { value: 'senha-certa' } });
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar chave' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar a chave' }));
     });
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(mockPut).toHaveBeenLastCalledWith(

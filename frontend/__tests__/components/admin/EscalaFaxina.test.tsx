@@ -102,7 +102,7 @@ const dia = (n: number) => screen.getByRole('button', { name: new RegExp(`^Dia $
 it('sem o plano escalas: PlanLocked com o plano mínimo do catálogo e sem chamar a API', () => {
   mockPlanCan.mockImplementation((f: string) => f !== 'escalas');
   setup({});
-  expect(screen.getByText('Recurso indisponível')).toBeInTheDocument();
+  expect(screen.getByText(/não está incluso no plano/)).toBeInTheDocument();
   expect(screen.getByText('Escala de faxina')).toBeInTheDocument();
   expect(screen.getByText('Pro')).toBeInTheDocument();
   expect(mockGet).not.toHaveBeenCalled();

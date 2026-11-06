@@ -89,7 +89,7 @@ def generate_waitlist_entry_html(
       mas você entrou na <strong>fila de espera</strong>.
     </p>
     <div style="background:linear-gradient(135deg,#607d8b 0%,#455a64 100%);padding:24px 20px;border-radius:8px;text-align:center;margin:20px 0;">
-      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:2px;font-weight:700;">Sua posição na fila</p>
+      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);font-weight:700;">Sua posição na fila</p>
       <p style="margin:0;font-size:44px;font-weight:900;color:#ffffff;">{position}º</p>
     </div>
     <p style="margin:0 0 6px 0;font-size:14px;color:#555;">
@@ -161,7 +161,7 @@ def generate_waitlist_promotion_html(
       Uma vaga abriu em <strong>{g_name}</strong> ({_esc(gira_date)}) e é a sua vez na fila de espera!
     </p>
     <div style="background:linear-gradient(135deg,#2E7D32 0%,#1B5E20 100%);padding:24px 20px;border-radius:8px;text-align:center;margin:20px 0;">
-      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:2px;font-weight:700;">Sua senha</p>
+      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);font-weight:700;">Sua senha</p>
       <p style="margin:0;font-size:44px;font-weight:900;color:#ffffff;letter-spacing:6px;">{_esc(ticket_number)}</p>
     </div>
     {maps_block}

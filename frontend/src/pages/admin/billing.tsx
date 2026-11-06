@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
+import { ContaAbas } from '@/components/admin/ContaAbas';
 import {
   PaymentMethodPicker,
   PlanCard,
@@ -145,7 +146,8 @@ export default function AdminBilling() {
 
 function BillingContent() {
   const router = useRouter();
-  const { subscription, refresh: refreshSubscription } = useSubscription();
+  const { subscription, refresh: refreshSubscription, beta } = useSubscription();
+  const betaIndicacao = Boolean(beta?.('beta_indicacao_plano'));
 
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [summary, setSummary] = useState<DashboardSummaryLite | null>(null);
@@ -460,7 +462,8 @@ function BillingContent() {
 
   return (
     <div data-slot="page" className="flex flex-col gap-5">
-      <PageHeader title="Plano e assinatura" subtitle="Seu plano, o uso do mês e a cobrança, num lugar só." />
+      <h1 className="sr-only">Plano e assinatura</h1>
+      <ContaAbas className="mt-0" />
 
       {success && (
         <Alert variant="success" role="status">
@@ -565,110 +568,66 @@ function BillingContent() {
       )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'assinatura' | 'planos')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="assinatura">Assinatura</TabsTrigger>
-          <TabsTrigger value="planos" disabled={billing?.is_bonus}>
+        <TabsList className="grid h-12 w-full max-w-md grid-cols-2 rounded-[10px] border border-border bg-card p-1">
+          <TabsTrigger value="assinatura" className="h-full rounded-[8px] text-[0.9375rem] font-semibold data-[state=active]:bg-foreground data-[state=active]:text-background">
+            Assinatura
+          </TabsTrigger>
+          <TabsTrigger
+            value="planos"
+            disabled={billing?.is_bonus}
+            className="h-full rounded-[8px] text-[0.9375rem] font-semibold data-[state=active]:bg-foreground data-[state=active]:text-background"
+          >
             Comparar planos
           </TabsTrigger>
         </TabsList>
 
         {/* ══ Assinatura ══ */}
         <TabsContent value="assinatura" className="mt-4 flex flex-col gap-5">
+          {/* Beta "Indicação do plano pelo uso" (J1 v2 · 09): o uso real do mês, com a regra do recommendPlan. */}
+          {betaIndicacao && subscription && (
+            <p className="text-[1.0625rem] text-muted-foreground" data-testid="indicacao-pelo-uso">
+              Neste mês a casa fez {usage.girasPerMonth} {usage.girasPerMonth === 1 ? 'gira' : 'giras'} e cadastrou {usage.mediuns}{' '}
+              {usage.mediuns === 1 ? 'médium' : 'médiuns'}. Pelo uso, o {recommended.label} dá conta.
+              <span className="ml-2 text-xs font-medium">beta</span>
+            </p>
+          )}
           {billing && (
-            <Card data-tour="billing-status">
-              <CardContent className="flex flex-col gap-5 p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand">
-                      <CreditCard className="size-6" aria-hidden />
-                    </span>
-                    <div>
-                      <p className="text-base font-bold">Plano {currentPlan.label}</p>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        <Badge variant="outline" className={statusToneClass(billing.status)}>
-                          {subscriptionStatusLabel(billing.status)}
-                        </Badge>
-                        {inLocalTrial && <Badge variant="outline">{trialEndShort ? `Teste grátis até ${trialEndShort}` : 'Teste grátis'}</Badge>}
-                        {billing.is_bonus && <Badge variant="outline">Cortesia</Badge>}
-                        {paysByPix && <Badge variant="outline">PIX mensal</Badge>}
-                        {paymentPendingSince && (
-                          <Badge variant="outline" className="border-warning/50 text-warning-strong">
-                            Pagamento pendente
-                          </Badge>
-                        )}
-                        {billing.cancel_at_period_end && <Badge variant="destructive">Cancelamento agendado</Badge>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {!billing.is_bonus && billing.stripe_subscription_id && (
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      {paysByCard && !paymentPendingSince && !suspendedByCard && (
-                        <UpdateCardButton variant="outline" />
-                      )}
-                      {!billing.cancel_at_period_end ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:text-destructive"
-                          disabled={actionLoading === 'cancel'}
-                          onClick={() => setCancelDialog(true)}
-                        >
-                          <XCircle aria-hidden /> {actionLoading === 'cancel' ? 'Cancelando…' : 'Cancelar assinatura'}
-                        </Button>
-                      ) : (
-                        <Button size="sm" disabled={actionLoading === 'reactivate'} onClick={() => setReactivateDialog(true)}>
-                          <RefreshCw aria-hidden /> {actionLoading === 'reactivate' ? 'Reativando…' : 'Reativar assinatura'}
-                        </Button>
-                      )}
-                    </div>
-                  )}
+            // J1 v2 · 13: "Plano X" com a situação, e o uso e a cobrança lado a lado, separados por filete.
+            <section data-tour="billing-status" aria-labelledby="plano-titulo" className="flex flex-col gap-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Conta e configurações · Plano</p>
+                  <h2 id="plano-titulo" className="mt-1 font-display text-[2.25rem] leading-tight font-normal tracking-[-0.02em]">
+                    Plano {currentPlan.label}
+                  </h2>
                 </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline" className={statusToneClass(billing.status)}>
+                    {subscriptionStatusLabel(billing.status)}
+                  </Badge>
+                  {inLocalTrial && <Badge variant="outline">{trialEndShort ? `Teste grátis até ${trialEndShort}` : 'Teste grátis'}</Badge>}
+                  {billing.is_bonus && <Badge variant="outline">Cortesia</Badge>}
+                  {paysByPix && <Badge variant="outline">{pixPaidUntil ? `PIX pago até ${formatShort(pixPaidUntil)}` : 'PIX mensal'}</Badge>}
+                  {paymentPendingSince && (
+                    <Badge variant="outline" className="border-warning/50 text-warning-strong">
+                      Pagamento pendente
+                    </Badge>
+                  )}
+                  {billing.cancel_at_period_end && <Badge variant="destructive">Cancelamento agendado</Badge>}
+                </div>
+              </div>
 
-                {billing.stripe_subscription_id && (
-                  <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
-                    <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Valor mensal</p>
-                      <p className="mt-0.5 text-sm font-bold">{billing.monthly_price === 0 ? 'Grátis' : `R$ ${billing.monthly_price.toFixed(2)}`}</p>
-                    </div>
-                    <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                        {billing.cancel_at_period_end ? 'Acesso até' : 'Próxima cobrança'}
-                      </p>
-                      <p className="mt-0.5 text-sm font-bold">{formatDate(billing.current_period_end)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Forma de pagamento</p>
-                      <p className="mt-0.5 text-sm font-bold">
-                        {paysByInvoice ? `${invoiceLabel} (fatura por e-mail)` : 'Cartão de crédito'}
-                      </p>
-                    </div>
-                    {billing.cancel_at_period_end && (
-                      <Alert variant="warning" className="sm:col-span-3">
-                        <Info aria-hidden />
-                        <AlertDescription className="block">
-                          Seu acesso ao plano {currentPlan.label} termina em <strong>{formatDate(billing.current_period_end)}</strong>.
-                          Reative para continuar.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                )}
-
-                {paysByPix && pixPaidUntil && (
-                  <div className="grid gap-4 border-t pt-4 sm:grid-cols-3" data-tour="billing-pix-mensal">
-                    <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Valor mensal</p>
-                      <p className="mt-0.5 text-sm font-bold">R$ {billing.monthly_price.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Pago até</p>
-                      <p className="mt-0.5 text-sm font-bold">{formatDate(pixPaidUntil)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Forma de pagamento</p>
-                      <p className="mt-0.5 text-sm font-bold">PIX mês a mês (sem renovação automática)</p>
-                    </div>
+              {billing.stripe_subscription_id && billing.cancel_at_period_end && (
+                <Alert variant="warning">
+                  <Info aria-hidden />
+                  <AlertDescription className="block">
+                    Seu acesso ao plano {currentPlan.label} termina em <strong>{formatDate(billing.current_period_end)}</strong>.
+                    Reative para continuar.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {paysByPix && pixPaidUntil && (
+                <div data-tour="billing-pix-mensal">
                     <Alert
                       variant={pixActive && pixDaysLeft !== null && pixDaysLeft > PIX_AVISO_DIAS ? 'info' : 'warning'}
                       className="sm:col-span-3"
@@ -701,33 +660,75 @@ function BillingContent() {
                         </span>
                       </AlertDescription>
                     </Alert>
-                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-8 md:grid-cols-2">
+                {subscription && (
+                  <section aria-labelledby="uso-do-plano" className="flex flex-col gap-3">
+                    <h3 id="uso-do-plano" className="text-base font-semibold">Uso do plano</h3>
+                    <UsageBar label="Giras este mês" current={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+                    <UsageBar label="Médiuns cadastrados" current={subscription.current_mediuns} max={subscription.max_mediuns} />
+                    <UsageBar label="Usuários no painel" current={subscription.current_users} max={subscription.max_users} />
+                  </section>
                 )}
 
-                {pixPayments.length > 0 && (
-                  <div className="border-t pt-4" data-tour="billing-pix-historico">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                      Pagamentos por PIX
-                    </p>
-                    <ul className="mt-2 flex flex-col gap-1 text-sm">
-                      {pixPayments.map((p) => (
-                        <li key={p.paid_at}>
+                <section aria-labelledby="cobranca" className="flex flex-col gap-3">
+                  <h3 id="cobranca" className="text-base font-semibold">Cobrança</h3>
+                  <dl className="m-0 border-b border-border">
+                    {(billing.stripe_subscription_id
+                      ? [
+                          ['Valor mensal', billing.monthly_price === 0 ? 'Grátis' : `R$ ${billing.monthly_price.toFixed(2)}`],
+                          [billing.cancel_at_period_end ? 'Acesso até' : 'Próxima cobrança', formatDate(billing.current_period_end)],
+                          ['Forma de pagamento', paysByInvoice ? `${invoiceLabel} (fatura por e-mail)` : 'Cartão de crédito'],
+                        ]
+                      : paysByPix && pixPaidUntil
+                        ? [
+                            ['Valor mensal', `R$ ${billing.monthly_price.toFixed(2)}`],
+                            ['Pago até', formatDate(pixPaidUntil)],
+                            ['Forma de pagamento', 'PIX mês a mês (sem renovação automática)'],
+                          ]
+                        : [['Plano', currentPlan.label]]
+                    ).map(([k, v]) => (
+                      <div key={k} className="flex items-baseline justify-between gap-4 border-t border-border py-2.5">
+                        <dt className="text-[0.9375rem] text-muted-foreground">{k}</dt>
+                        <dd className="m-0 text-right text-[0.9375rem] font-semibold">{v}</dd>
+                      </div>
+                    ))}
+                    {pixPayments.map((p) => (
+                      <div key={p.paid_at} className="flex items-baseline justify-between gap-4 border-t border-border py-2.5" data-tour="billing-pix-historico">
+                        <dt className="text-[0.9375rem] text-muted-foreground">PIX</dt>
+                        <dd className="m-0 text-right text-[0.9375rem] font-semibold">
                           {p.applied && p.period_end
                             ? `PIX — mês pago até ${formatShort(p.period_end)} (plano ${planLabel(p.plan)}, pago em ${formatShort(p.paid_at)})`
                             : `PIX recebido em ${formatShort(p.paid_at)} — não aplicado ao plano; fale com o suporte`}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {subscription && (
-                  <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
-                    <UsageBar label="Usuários no painel" current={subscription.current_users} max={subscription.max_users} />
-                    <UsageBar label="Giras este mês" current={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
-                    <UsageBar label="Médiuns cadastrados" current={subscription.current_mediuns} max={subscription.max_mediuns} />
-                  </div>
-                )}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {!billing.is_bonus && billing.stripe_subscription_id && (
+                    // Design ético: cancelar custa o mesmo que assinar — botão visível, do mesmo tamanho, sem o
+                    // vermelho de excluir, com uma confirmação (como a contratação).
+                    <div className="flex flex-wrap gap-2">
+                      {paysByCard && !paymentPendingSince && !suspendedByCard && <UpdateCardButton variant="outline" />}
+                      {!billing.cancel_at_period_end ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actionLoading === 'cancel'}
+                          onClick={() => setCancelDialog(true)}
+                        >
+                          <XCircle aria-hidden /> {actionLoading === 'cancel' ? 'Cancelando…' : 'Cancelar assinatura'}
+                        </Button>
+                      ) : (
+                        <Button size="sm" disabled={actionLoading === 'reactivate'} onClick={() => setReactivateDialog(true)}>
+                          <RefreshCw aria-hidden /> {actionLoading === 'reactivate' ? 'Reativando…' : 'Reativar assinatura'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </section>
+              </div>
 
                 {currentPlanKey === 'free' && !billing.is_bonus && !inLocalTrial && (
                   <Alert variant="info">
@@ -741,8 +742,7 @@ function BillingContent() {
                     </AlertDescription>
                   </Alert>
                 )}
-              </CardContent>
-            </Card>
+            </section>
           )}
 
           {showPaymentPicker && (inLocalTrial || currentPlanKey === 'free') && (

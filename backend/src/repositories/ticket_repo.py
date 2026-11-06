@@ -182,7 +182,10 @@ class TicketRepository(BaseRepository[Ticket]):
 
         conditions = [
             Ticket.tenant_id == tenant_id,
-            Consulente.email_normalized == email.lower().strip(),
+            or_(
+                Consulente.email_normalized == email.lower().strip(),
+                Ticket.email_de_quem_pediu == email.lower().strip(),
+            ),
         ]
         if statuses:
             conditions.append(Ticket.status.in_(list(statuses)))
@@ -208,6 +211,21 @@ class TicketRepository(BaseRepository[Ticket]):
         )
         result = await session.execute(query)
         return result.scalars().all()
+
+    async def has_active_ticket_for_requester(
+        self, session: AsyncSession, tenant_id, gira_id: UUID, email: str
+    ) -> bool:
+        """Beta "Senha para outra pessoa": este e-mail já pediu uma senha ativa nesta gira."""
+        query = select(Ticket.id).where(
+            and_(
+                Ticket.tenant_id == tenant_id,
+                Ticket.gira_id == gira_id,
+                Ticket.email_de_quem_pediu == email,
+                Ticket.status != TicketStatus.CANCELLED,
+                Ticket.deleted_at.is_(None),
+            )
+        ).limit(1)
+        return (await session.execute(query)).first() is not None
 
     ACTIVE_TICKET_UNIQUE_INDEX = "uq_tickets_gira_consulente_ativo"
 

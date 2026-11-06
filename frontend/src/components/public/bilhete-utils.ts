@@ -13,6 +13,8 @@ export interface Acompanhante {
 }
 
 export interface PublicTicket {
+  /** Categoria de atendimento preferencial (ELDERLY, …), ou nula. */
+  priority_category?: string | null;
   ticket_number: string;
   status: string;
   status_label: string;

@@ -51,6 +51,7 @@ import { useTenantSupportUnread } from '@/components/support/useTenantSupportUnr
 import type { PermissionFeature } from '@/constants/permissionFeatures';
 import { useGiraContext } from '@/components/admin/GiraContext';
 import { useOnboardingPending } from '@/components/admin/FirstGiraChecklist';
+import { MODULOS, ROTAS_FIXAS } from '@/constants/modulos';
 
 export type NavAction = 'share-link';
 
@@ -98,9 +99,16 @@ export function pathOf(href: string): string {
 
 export function isNavLinkActive(item: NavLink, pathname: string): boolean {
   if (item.action) return false;
-  const base = pathOf(item.href);
-  if (pathname === base) return true;
-  return (item.match ?? []).some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  // `pathname` pode vir com a query (asPath): link com query (ex.: a aba da Área do Médium em
+  // Configurações) só fica ativo nela; os demais comparam só o caminho.
+  const [caminho, query = ''] = (pathname ?? '').split('#')[0].split('?');
+  const [base, queryDoLink] = item.href.split('?');
+  if (caminho === base) {
+    if (!queryDoLink) return true;
+    const atual = new URLSearchParams(query);
+    return [...new URLSearchParams(queryDoLink)].every(([k, v]) => atual.get(k) === v);
+  }
+  return (item.match ?? []).some((prefix) => caminho === prefix || caminho.startsWith(`${prefix}/`));
 }
 
 export function isSectionActive(section: NavSection, pathname: string): boolean {
@@ -177,6 +185,8 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
+    // Área do Médium (AM-02): sem atalho no menu (decisão do Leonardo, 04/11/2026); a configuração mora só
+    // em Configurações › Área do Médium, e a busca acha por lá (palavras-chave de Configurações).
     // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
     if (can('area_medium') && view('comunicados')) {
       corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
@@ -263,7 +273,7 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     }
     // A tela de Configurações é gateada pelo grupo `configuracoes` (não só admin).
     if (view('configuracoes')) {
-      conta.push(link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades'] }));
+      conta.push(link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades', 'área do médium', 'app da corrente', 'convite'] }));
     }
     if (can('auditoria') && view('auditoria')) {
       conta.push(link('/admin/audit-trail', 'Auditoria', ScrollText, { keywords: ['histórico', 'log', 'quem alterou'] }));
@@ -271,6 +281,9 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     if (!isOperator) {
       conta.push(link('/admin/suporte', 'Ajuda', Headset, { badge: unreadSupport, keywords: ['suporte', 'chat', 'dúvida'] }));
     }
+
+    // Página dos 12 módulos (J1 v2 · 10): "Ver os 12 módulos" na barra; aqui para a busca (⌘K).
+    conta.push(link('/admin/modulos', 'Módulos da casa', Layers, { keywords: ['módulos', 'menu', '12 módulos', 'pôr no menu'] }));
 
     const groups: NavGroupDef[] = [
       { key: 'hoje', label: 'Hoje', items: hoje },
@@ -281,4 +294,54 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     ];
     return groups.filter((g) => g.items.length > 0);
   }, [isOperator, can, canGroup, birthdayCount, unreadSupport, todayGira, onboardingPending]);
+}
+
+// ─── Barra lateral enxuta (Jornada 1 v2 · 10/11, aprovada em 01/11/2026) ─────────
+// O menu completo acima continua sendo a fonte de plano e permissão (e da busca ⌘K). A barra
+// mostra fixo o dia de gira e, em "Da casa", os módulos de `constants/modulos.ts` que o plano e o
+// perfil liberam — com a beta "Menu que se ajusta ao uso", só os que a casa usa ou a pessoa pôs.
+// "Conta" vai para o menu do avatar. Nada some: o resto está em /admin/modulos e na busca.
+
+export interface SidebarNav {
+  fixos: NavEntry[];
+  daCasa: NavEntry[];
+  /** Links do grupo Conta, para o menu do avatar. */
+  conta: NavLink[];
+}
+
+/** Caminhos de uma entrada: o href inteiro (para atalhos com ?aba=) e o caminho sem query. */
+function caminhoDe(entry: NavEntry): string[] {
+  const links = entry.kind === 'link' ? [entry] : entry.items;
+  return links.flatMap((i) => (i.href.includes('?aba=') ? [i.href] : [pathOf(i.href)]));
+}
+
+export function montarSidebarNav(
+  groups: NavGroupDef[],
+  opts: { ajustavel: boolean; noMenu: (key: string) => boolean },
+): SidebarNav {
+  const todos = groups.flatMap((g) => g.items);
+  const fixos: NavEntry[] = [];
+  for (const rota of ROTAS_FIXAS) {
+    // O endereço exato primeiro: num dia de gira, "Gira de hoje" (/admin/tickets?gira=…) tem o mesmo
+    // caminho de Senhas e, achada antes, tirava "Senhas" do menu. Ela entra logo abaixo, como atalho do dia.
+    const ehLink = (x: NavEntry) => x.kind === 'link' && !x.action;
+    const e = todos.find((x) => ehLink(x) && x.kind === 'link' && x.href === rota) ?? todos.find((x) => ehLink(x) && x.kind === 'link' && pathOf(x.href) === rota);
+    if (e) fixos.push(e);
+  }
+  // Atalhos do dia que já ficavam em "Hoje" (Gira de hoje, Primeiros passos).
+  for (const e of groups.find((g) => g.key === 'hoje')?.items ?? []) {
+    if (!fixos.includes(e) && e.kind === 'link' && pathOf(e.href) !== '/admin/dashboard') fixos.push(e);
+  }
+
+  const daCasa: NavEntry[] = [];
+  for (const m of MODULOS) {
+    if (m.fixo) continue;
+    const entradas = todos.filter((e) => !daCasa.includes(e) && caminhoDe(e).some((c) => m.rotas.includes(c)));
+    if (entradas.length === 0) continue;
+    if (opts.ajustavel && !opts.noMenu(m.key)) continue;
+    daCasa.push(...entradas);
+  }
+
+  const conta = (groups.find((g) => g.key === 'conta')?.items ?? []).filter((e): e is NavLink => e.kind === 'link');
+  return { fixos, daCasa, conta };
 }

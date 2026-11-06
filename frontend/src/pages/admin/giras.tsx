@@ -3,7 +3,7 @@
  *
  * - Cada gira vira um GiraCard com o estado em palavras do terreiro e um botão primário por
  *   estado (Compartilhar link / Abrir Porta / Liberar agora / Configurar senhas).
- * - "Nova gira" abre um CrudDrawer com Stepper: A gira → Senhas (padrões de
+ * - "Nova gira" abre um CrudDrawer em passos (barra de passos no topo): A gira → Senhas (padrões de
  *   `giraSenhaDefaults`) → Recados. Ao criar, as senhas já são salvas e o link é oferecido.
  * - "Configurar senhas" (gira existente) mantém o drawer completo, com o avançado
  *   (acompanhantes, fila de espera, horários, associados) em Accordion.
@@ -21,16 +21,22 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
 import {
+  ArrowRight,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  CircleCheck,
   Clock,
+  Info,
   Lock,
+  LockOpen,
   Plus,
   QrCode,
   RefreshCw,
-  Rocket,
-  Star,
+  Share2,
   Ticket,
   Trash2,
-  Users,
+  TriangleAlert,
 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
@@ -40,12 +46,19 @@ import { ChamadaDaGiraButton, giraTemChamada } from '@/components/admin/presenca
 import { EscalaDaGiraButton } from '@/components/admin/atividades/EscalaDaGiraButton';
 import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
 import { PermissionDenied } from '@/components/gates';
-import { Stepper } from '@/components/Stepper';
 import CrudDrawer from '@/components/CrudDrawer';
 import { DateTimeField, DurationField, TextField, durationRangeError } from '@/components/fields';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -130,9 +143,6 @@ const EMPTY_SENHA_FORM = {
 };
 type SenhaForm = typeof EMPTY_SENHA_FORM;
 
-const CREATE_STEPS = [{ label: 'A gira' }, { label: 'Senhas' }, { label: 'Recados', optional: true }];
-// Sem `giras:edit` não dá para salvar as senhas (PUT /senhas exige edit): a criação pula o passo.
-const CREATE_STEPS_SEM_SENHAS = [{ label: 'A gira' }, { label: 'Recados', optional: true }];
 
 /** Prazo da fila de espera em minutos — mesmos limites do backend (`waitlist_service`). */
 const WAITLIST_MIN_MINUTES = 5;
@@ -170,28 +180,93 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError');
 }
 
+/** "sáb, 8/11 · 19h" */
+/** "sex 12h", "sáb 18h30" — a abertura e o fechamento das senhas na revisão (J2 v2 · 10). */
+function formatJanelaCurta(local: string): string {
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return '';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${dia} ${m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`}`;
+}
+
+function formatGiraCurta(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${dia}, ${d.getDate()}/${d.getMonth() + 1} · ${m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`}`;
+}
+
+/** "sexta, 14 de novembro" */
+function formatGiraLonga(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace('-feira', '');
+}
+
+/** "As senhas ficam abertas por 30 horas." — a janela dita em frase (jornadas v2). */
+export function janelaEmFrase(inicio: string, fim: string): string | null {
+  const a = new Date(inicio).getTime();
+  const b = new Date(fim).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b) || b <= a) return null;
+  const minutos = Math.round((b - a) / 60000);
+  if (minutos < 60) return `As senhas ficam abertas por ${minutos} minuto${minutos === 1 ? '' : 's'}.`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 48) return `As senhas ficam abertas por ${horas} hora${horas === 1 ? '' : 's'}.`;
+  const dias = Math.round(horas / 24);
+  return `As senhas ficam abertas por ${dias} dias.`;
+}
+
+/** BarraDeUso do design system: o uso do mês numa linha, com "Ver planos" ao lado. */
 function GiraUsageBar({ used, max }: { used: number; max: number }) {
   const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
   const atLimit = used >= max;
-  return (
-    <Card className={cn('gap-2 px-4 py-3', atLimit && 'border-warning')}>
+  const barra = (
+    <div className="flex w-full max-w-sm flex-col gap-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-muted-foreground">Giras criadas este mês</span>
-        <span className={cn('font-bold tabular-nums', atLimit && 'text-warning-strong')}>
+        <span className="font-semibold text-foreground">Giras criadas este mês</span>
+        <span className={cn('font-semibold tabular-nums text-[color:var(--color-barro-700)]', atLimit && 'text-warning-strong')}>
           {used} de {max}
         </span>
       </div>
-      <Progress value={pct} className="h-2" aria-label="Giras criadas este mês" />
-      {atLimit && (
-        <p className="text-xs text-muted-foreground">
+      <Progress value={pct} className="h-1.5" aria-label="Giras criadas este mês" />
+    </div>
+  );
+  // J2 v2 · 12: no limite, a barra vira um aviso com o caminho para os planos.
+  if (atLimit) {
+    return (
+      <div className="flex w-full max-w-md flex-col gap-2 rounded-[10px] border border-warning/40 bg-warning/10 p-3.5" data-testid="limite-do-mes">
+        {barra}
+        <p className="text-sm font-semibold text-warning-strong">
           Limite do plano atingido.{' '}
-          <Link href="/admin/billing" className="font-semibold text-brand underline-offset-4 hover:underline">
+          <Link href="/admin/billing" className="text-foreground underline underline-offset-4">
             Ver planos
           </Link>{' '}
-          para criar mais giras.
+          <span className="font-normal text-foreground">para criar mais giras.</span>
         </p>
-      )}
-    </Card>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {barra}
+      <span className="flex-1" />
+      <Link href="/admin/billing" className="text-sm font-semibold text-foreground underline underline-offset-4">
+        Ver planos
+      </Link>
+    </div>
+  );
+}
+
+/** "🔒 Premium" no título da seção: o plano que libera, sem esconder a seção (J2 v2 · 11). */
+function SeloDoPlano({ feature }: { feature: PlanFeatureKey }) {
+  return (
+    <span className="flex items-center gap-1 text-[0.8125rem] font-semibold text-[color:var(--color-barro-700)]">
+      <Lock aria-hidden className="size-3.5" /> {minPlanFor(feature).label}
+    </span>
   );
 }
 
@@ -227,14 +302,15 @@ function SwitchRow({
   description?: string;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="mt-0.5" />
+    // J2 v2: o texto à esquerda e o Interruptor à direita, como no desenho.
+    <div className="flex items-start justify-between gap-4">
       <div className="flex flex-col gap-0.5">
-        <Label htmlFor={id} className="leading-snug">
+        <Label htmlFor={id} className="text-[0.9375rem] font-semibold leading-snug">
           {label}
         </Label>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        {description && <p className="text-[0.8125rem] text-muted-foreground">{description}</p>}
       </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="mt-0.5 shrink-0" />
     </div>
   );
 }
@@ -280,8 +356,17 @@ export default function AdminGirasPage() {
 }
 
 function AdminGirasContent() {
-  const { subscription, can, loading: subLoading, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } =
-    useSubscription();
+  const {
+    subscription,
+    can,
+    loading: subLoading,
+    canCreateGira: canCreateGiraFn,
+    refresh: refreshSubscription,
+    beta,
+  } = useSubscription();
+  // Betas do Laboratório nesta tela (J2 v2).
+  const betaRepetir = Boolean(beta?.('beta_repetir_gira'));
+  const betaAvisarExclusao = Boolean(beta?.('beta_avisar_exclusao_gira'));
   const { can: canGroup } = usePermissions();
   const canView = canGroup('giras', 'view');
   const canInsert = canGroup('giras', 'insert');
@@ -328,6 +413,11 @@ function AdminGirasContent() {
 
   // Exclusão
   const [deleteTarget, setDeleteTarget] = useState<Gira | null>(null);
+  // Beta "avisar quem tem senha" (decisão do Leonardo, 04/11/2026): nada vem marcado. Ao confirmar a
+  // exclusão de uma gira com senhas emitidas, um segundo diálogo pergunta se avisa por e-mail, com
+  // "Enviar aviso" e "Não enviar" no mesmo peso. O aviso sai na mesma chamada da exclusão (o servidor
+  // precisa das senhas antes de apagar a gira), por isso a pergunta vem antes do envio.
+  const [perguntarAviso, setPerguntarAviso] = useState(false);
 
   // Configuração de senhas
   const [senhaDrawerOpen, setSenhaDrawerOpen] = useState(false);
@@ -348,6 +438,7 @@ function AdminGirasContent() {
   // Compartilhar — sem `shareGira` é o link único do terreiro; com ela, o link da própria gira.
   const [shareOpen, setShareOpen] = useState(false);
   const [shareTitle, setShareTitle] = useState<string | undefined>(undefined);
+  const [shareSub, setShareSub] = useState<string | null>(null);
   const [shareGira, setShareGira] = useState<{ nome: string; link: string; sponsorLink: string } | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
 
@@ -359,6 +450,9 @@ function AdminGirasContent() {
   const [useTimeSlots, setUseTimeSlots] = useState(false);
   const [useTimeSlotsInitial, setUseTimeSlotsInitial] = useState(false);
   const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
+  // Horário marcado já na Nova gira (passo Senhas), quando a casa tem a funcionalidade.
+  const [createUseSlots, setCreateUseSlots] = useState(false);
+  const [createSlots, setCreateSlots] = useState<TimeSlotRow[]>([]);
   const [timeSlotsInitial, setTimeSlotsInitial] = useState<TimeSlotRow[]>([]);
 
   useEffect(() => {
@@ -456,6 +550,20 @@ function AdminGirasContent() {
     };
   }, [giras, canView, canViewPorta]);
 
+  // J1 v2 · 06: vindo do cadastro, "Conta da <casa> criada" sobre a agenda (uma vez).
+  const [contaCriada, setContaCriada] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const nome = sessionStorage.getItem('girahub:conta-criada');
+      if (nome !== null) {
+        setContaCriada(nome);
+        sessionStorage.removeItem('girahub:conta-criada');
+      }
+    } catch {
+      /* sem armazenamento */
+    }
+  }, []);
+
   // ?nova=1 abre a criação (botão "Criar gira" do checklist / barra inferior); espera a
   // assinatura carregar para respeitar o limite do plano e remove o parâmetro.
   useEffect(() => {
@@ -480,6 +588,7 @@ function AdminGirasContent() {
     setShareGira(null);
     setShareLoading(false);
     setShareTitle(title);
+    setShareSub(null);
     setShareOpen(true);
   };
 
@@ -489,7 +598,8 @@ function AdminGirasContent() {
    * consulente para a gira errada.
    */
   const openGiraShare = async (gira: Gira, config?: SenhaConfig | null) => {
-    setShareTitle(`Link de senhas — ${gira.nome}`);
+    setShareTitle('Mande o link.');
+    setShareSub([gira.nome, formatGiraCurta(gira.data_inicio)].filter(Boolean).join(' · '));
     setShareOpen(true);
     const fill = (c: SenhaConfig) =>
       setShareGira({ nome: gira.nome, link: c.public_link, sponsorLink: c.sponsor_public_link || '' });
@@ -517,6 +627,51 @@ function AdminGirasContent() {
     setCreateSenha(EMPTY_SENHA_FORM);
     setCreateTouched({});
     setSuggestedFor(null);
+    setCreateUseSlots(false);
+    setCreateSlots([]);
+    setCreateStep(0);
+    setCreateOpen(true);
+  };
+
+  /** Modelo de horários da casa (Configurações › Atendimento); sem modelo, uma linha vazia. */
+  const carregarModeloDeHorarios = async (): Promise<TimeSlotRow[]> => {
+    try {
+      const response = await apiClient.get('/api/v1/admin/config/time-slot-templates');
+      const rows: TimeSlotRow[] = (response.data || []).map((t: { horario: string; capacidade_maxima: number }) => ({
+        horario: timeToInputValue(t.horario),
+        capacidade_maxima: String(t.capacidade_maxima),
+      }));
+      return rows.length > 0 ? rows : [emptySlotRow()];
+    } catch {
+      return [emptySlotRow()];
+    }
+  };
+
+  const toggleCreateUseSlots = async (checked: boolean) => {
+    setCreateUseSlots(checked);
+    if (checked && createSlots.length === 0) setCreateSlots(await carregarModeloDeHorarios());
+  };
+
+  /** Beta "Repetir em outra data": a gaveta Nova gira já vem com o que a gira tinha, sem a data. */
+  const openRepeat = (gira: Gira) => {
+    setCreateForm({
+      ...EMPTY_FORM,
+      nome: gira.nome,
+      descricao: gira.descricao ?? '',
+      recados: gira.recados ?? '',
+      local: gira.local ?? '',
+      orientacoes_corrente: gira.orientacoes_corrente ?? '',
+    });
+    setCreateSenha({
+      ...EMPTY_SENHA_FORM,
+      max_tickets: gira.max_tickets ? String(gira.max_tickets) : '',
+      allow_acompanhantes: Boolean(gira.allow_acompanhantes),
+      max_acompanhantes: gira.max_acompanhantes ? String(gira.max_acompanhantes) : '',
+    });
+    setCreateTouched({});
+    setSuggestedFor(null);
+    setCreateUseSlots(false);
+    setCreateSlots([]);
     setCreateStep(0);
     setCreateOpen(true);
   };
@@ -548,13 +703,21 @@ function AdminGirasContent() {
       ? 'O fim precisa ser depois do início'
       : '';
   const step0Valid = !!createForm.nome.trim() && !!createForm.data_inicio;
+  const podeHorarioNaCriacao = timeSlotSchedulingEnabled && can('agendamento_por_horario');
+  const createSlotsValid =
+    !podeHorarioNaCriacao ||
+    !createUseSlots ||
+    (createSlots.length > 0 &&
+      createSlots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1) &&
+      new Set(createSlots.map((s) => s.horario)).size === createSlots.length);
   const step1Valid =
     !!createSenha.max_tickets &&
     Number(createSenha.max_tickets) >= 1 &&
     !!createSenha.release_start_at &&
     !!createSenha.release_end_at &&
     releaseWindowHours(createSenha.release_start_at, createSenha.release_end_at) !== null &&
-    (!createSenha.allow_acompanhantes || Number(createSenha.max_acompanhantes) >= 1);
+    (!createSenha.allow_acompanhantes || Number(createSenha.max_acompanhantes) >= 1) &&
+    createSlotsValid;
 
   const createDirty =
     Object.values(createForm).some((v) => v !== '') || JSON.stringify(createSenha) !== JSON.stringify(EMPTY_SENHA_FORM);
@@ -579,6 +742,16 @@ function AdminGirasContent() {
       setSuggestedFor(createForm.data_inicio);
     }
     setCreateStep(1);
+  };
+
+  const usarSugestaoDaCriacao = () => {
+    const window = createForm.data_inicio ? suggestReleaseWindow(new Date(createForm.data_inicio).toISOString()) : null;
+    setCreateSenha((prev) => ({
+      ...prev,
+      max_tickets: String(suggestMaxTickets(giras)),
+      release_start_at: window?.start ?? prev.release_start_at,
+      release_end_at: window?.end ?? prev.release_end_at,
+    }));
   };
 
   const handleCreateSave = async () => {
@@ -616,9 +789,15 @@ function AdminGirasContent() {
             max_acompanhantes:
               createSenha.allow_acompanhantes && createSenha.max_acompanhantes ? Number(createSenha.max_acompanhantes) : null,
           });
-          toast.success('Gira criada e senhas configuradas!');
+          if (podeHorarioNaCriacao && createUseSlots) {
+            await apiClient.put(`/api/v1/admin/giras/${created.id}/time-slots`, {
+              use_time_slots: true,
+              slots: createSlots.map((s) => ({ horario: s.horario, capacidade_maxima: Number(s.capacidade_maxima) })),
+            });
+          }
+          toast.success(createUseSlots && podeHorarioNaCriacao ? 'Gira criada com horário marcado!' : 'Gira criada e senhas configuradas!');
           await loadUnifiedLinks();
-          openShare('Gira criada! Compartilhe o link de senhas');
+          openShare('Gira criada! Compartilhe.');
         } catch (error) {
           toast.error(extractApiErrorMessage(error, 'A gira foi criada, mas as senhas não foram salvas.'));
           openSenhaDrawer(created, { fromCreate: true });
@@ -702,12 +881,23 @@ function AdminGirasContent() {
   };
 
   // ── Exclusão ─────────────────────────────────────────────────────────────────
-  const handleDelete = async () => {
+  const confirmarExclusao = () => {
     if (!deleteTarget || !canDelete) return;
+    if (betaAvisarExclusao && deleteIssued > 0) {
+      setPerguntarAviso(true);
+      return;
+    }
+    void handleDelete(false);
+  };
+
+  const handleDelete = async (avisarPorEmail: boolean) => {
+    if (!deleteTarget || !canDelete) return;
+    setPerguntarAviso(false);
     try {
-      await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.id}`);
+      const avisar = betaAvisarExclusao && avisarPorEmail;
+      await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.id}${avisar ? '?avisar=true' : ''}`);
       setDeleteTarget(null);
-      toast.success('Gira excluída.');
+      toast.success(avisar ? 'Gira excluída. Avisamos por e-mail quem tinha senha.' : 'Gira excluída.');
       loadGiras();
       refreshSubscription();
       void giraCtx.refresh();
@@ -1000,47 +1190,71 @@ function AdminGirasContent() {
       onRelease={(g) => setReleaseTarget(g as Gira)}
       onEdit={(g) => openEdit(g as Gira)}
       onDelete={(g) => setDeleteTarget(g as Gira)}
+      onRepeat={betaRepetir && canInsert ? (g) => openRepeat(g as Gira) : undefined}
       extraAction={
         <>
-          <EscalaDaGiraButton giraId={gira.id} />
-          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} />}
+          <EscalaDaGiraButton giraId={gira.id} icone={false} className="h-11 text-[0.9375rem] font-semibold" />
+          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} icone={false} className="h-11 text-[0.9375rem] font-semibold" />}
+        </>
+      }
+      menuNoCelular={
+        <>
+          <EscalaDaGiraButton giraId={gira.id} comoItemDeMenu />
+          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} comoItemDeMenu />}
         </>
       }
     />
   );
 
+  const deleteIssued = (deleteTarget && counts[deleteTarget.id]?.issued) || 0;
   const createGiraStartIso = createForm.data_inicio ? new Date(createForm.data_inicio).toISOString() : null;
   // Vazio = endereço do terreiro (Configurações), usado no e-mail da senha e no cartão da gira.
   const localHelperText = tenantEndereco
-    ? `Opcional. Em branco, vale o endereço do terreiro (${tenantEndereco}). Aparece no e-mail da senha.`
-    : 'Opcional. Aparece no e-mail da senha, com o botão “Como chegar”.';
+    ? `Em branco, vale o endereço da casa (${tenantEndereco}). Aparece no e-mail da senha.`
+    : 'Em branco, vale o endereço da casa. Aparece no e-mail da senha, com o botão “Como chegar”.';
 
   return (
     <div className="pb-6">
       <div data-tour="giras-header">
+        {contaCriada !== null && (
+          <Alert variant="success" role="status" className="mb-4" data-testid="conta-criada">
+            <CircleCheck aria-hidden />
+            <AlertTitle>{contaCriada ? `Conta da ${contaCriada} criada.` : 'Conta criada.'}</AlertTitle>
+            <AlertDescription>Agora, a primeira gira: o nome, o dia e as senhas.</AlertDescription>
+          </Alert>
+        )}
         <PageHeader
           title="Giras"
-          subtitle="A agenda do terreiro e as senhas de cada gira."
+          subtitle="Crie a gira, mande o link e acompanhe as senhas."
           actions={
             <>
-              <Button type="button" variant="outline" size="sm" onClick={() => loadGiras()} disabled={loading}>
-                <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} /> Atualizar
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-11"
+                onClick={() => loadGiras()}
+                disabled={loading}
+                aria-label="Atualizar"
+                title="Atualizar"
+              >
+                <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
               </Button>
               {unifiedLinks && (
-                <Button type="button" variant="outline" size="sm" onClick={() => openShare()}>
-                  <QrCode aria-hidden /> Link e QR
+                <Button type="button" variant="outline" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => openShare()}>
+                  Link do terreiro <QrCode aria-hidden />
                 </Button>
               )}
               {canInsert && (
                 <Button
                   type="button"
-                  size="sm"
+                  className="h-11 px-4 text-[0.9375rem] font-semibold"
                   data-tour="giras-nova"
                   onClick={openCreate}
                   disabled={!canCreateGira}
                   title={createBlockedReason || undefined}
                 >
-                  <Plus aria-hidden /> Nova gira
+                  Nova gira <Plus aria-hidden />
                 </Button>
               )}
             </>
@@ -1060,7 +1274,7 @@ function AdminGirasContent() {
 
       <section data-tour="giras-tabela" aria-label="Giras do terreiro">
         {loading ? (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-44 rounded-xl" />
             ))}
@@ -1086,7 +1300,7 @@ function AdminGirasContent() {
         ) : (
           <div className="flex flex-col gap-6">
             {upcoming.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2">{upcoming.map(renderCard)}</div>
+              <div className="grid gap-4 md:grid-cols-2">{upcoming.map(renderCard)}</div>
             ) : (
               <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                 Nenhuma gira marcada daqui para frente.
@@ -1094,13 +1308,17 @@ function AdminGirasContent() {
             )}
             {past.length > 0 && (
               <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-muted-foreground">Giras anteriores ({past.length})</h2>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowPast(!pastVisible)} aria-expanded={pastVisible}>
-                    {pastVisible ? 'Ocultar' : 'Mostrar'}
-                  </Button>
-                </div>
-                {pastVisible && <div className="grid gap-3 md:grid-cols-2">{past.map(renderCard)}</div>}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-11 self-start px-0 text-[0.9375rem]"
+                  onClick={() => setShowPast(!pastVisible)}
+                  aria-expanded={pastVisible}
+                >
+                  Giras anteriores ({past.length})
+                  <ChevronDown aria-hidden className={cn('transition-transform', pastVisible && 'rotate-180')} />
+                </Button>
+                {pastVisible && <div className="grid gap-4 md:grid-cols-2">{past.map(renderCard)}</div>}
               </div>
             )}
           </div>
@@ -1115,24 +1333,44 @@ function AdminGirasContent() {
         subtitle="Em três passos a gira fica pronta para os consulentes pegarem senha."
         icon={<Plus />}
         onSave={handleCreateSave}
-        saveLabel={createStep < 2 ? 'Continuar' : 'Criar gira'}
+        saveLabel={
+          createStep === 0
+            ? canEdit
+              ? 'Continuar para as senhas'
+              : 'Continuar para os recados'
+            : createStep === 1
+              ? 'Continuar para os recados'
+              : 'Criar a gira'
+        }
+        saveIcon={createStep < 2 ? <ArrowRight aria-hidden /> : <Check aria-hidden />}
         saving={saving}
         isDirty={createDirty}
+        // J2 v2 · 01/02/10: a barra de passos no topo e "Voltar" no rodapé (sem as senhas, 2 passos).
+        passos={
+          canEdit
+            ? { atual: createStep, total: 3, rotulo: ['A gira', 'Senhas', 'Recados (opcional)'][createStep] }
+            : { atual: createStep === 0 ? 0 : 1, total: 2, rotulo: createStep === 0 ? 'A gira' : 'Recados (opcional)' }
+        }
+        acaoSecundaria={
+          createStep > 0
+            ? { rotulo: 'Voltar', aoClicar: () => setCreateStep((st) => (!canEdit && st === 2 ? 0 : st - 1)) }
+            : undefined
+        }
       >
-        {canEdit ? (
-          <Stepper steps={CREATE_STEPS} active={createStep} onStepClick={(i) => i < createStep && setCreateStep(i)} className="mb-2" />
-        ) : (
-          // Sem o passo "Senhas": índices visuais 0 (A gira) e 1 (Recados = passo interno 2).
-          <Stepper
-            steps={CREATE_STEPS_SEM_SENHAS}
-            active={createStep === 0 ? 0 : 1}
-            onStepClick={(i) => i === 0 && setCreateStep(0)}
-            className="mb-2"
-          />
-        )}
-
         {createStep === 0 && (
           <div className="flex flex-col gap-4">
+            <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">Qual é a próxima gira?</h3>
+            {/* J2 v2 · 13: quem não edita giras sabe logo no primeiro passo que as senhas ficam para depois. */}
+            {!canEdit && (
+              <Alert variant="warning" data-testid="create-sem-senhas-aviso">
+                <TriangleAlert aria-hidden />
+                <AlertTitle>A gira será criada sem senhas liberadas</AlertTitle>
+                <AlertDescription>
+                  Configurar as senhas precisa da permissão de editar giras. Depois de criar, peça a quem tem essa
+                  permissão para abrir “Configurar senhas” na gira.
+                </AlertDescription>
+              </Alert>
+            )}
             <TextField
               label="Nome da gira"
               placeholder="Ex.: Gira de Caboclos"
@@ -1144,14 +1382,14 @@ function AdminGirasContent() {
               autoFocus
             />
             <DateTimeField
-              label="Dia e hora da gira"
+              label="Dia e hora"
               value={createForm.data_inicio}
               onChange={(v) => setCreateField('data_inicio', v ?? '')}
               required
               error={createDataError}
             />
             <TextField
-              label="Local (se diferente do endereço do terreiro)"
+              label="Local"
               value={createForm.local}
               onChange={(e) => setCreateField('local', e.target.value)}
               placeholder={tenantEndereco ?? 'Ex.: Cachoeira do Parque, entrada 2'}
@@ -1162,11 +1400,28 @@ function AdminGirasContent() {
 
         {createStep === 1 && (
           <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium text-muted-foreground">
+                {[createForm.nome.trim(), createForm.data_inicio && formatGiraCurta(createForm.data_inicio)].filter(Boolean).join(' · ')}
+              </p>
+              <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">Quantas senhas e quando?</h3>
+            </div>
+            {/* J2 v2 · 02: a sugestão pelo histórico da casa, com "Usar sugestão" para voltar a ela. */}
             <Alert variant="info" data-testid="create-senha-suggestion">
-              <Ticket aria-hidden />
+              <Info aria-hidden />
+              <AlertTitle className="flex items-start justify-between gap-3">
+                <span>{giras.some((g) => (g.max_tickets ?? 0) > 0) ? 'Sugestão pelo histórico da casa' : 'Sugestão para começar'}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto shrink-0 p-0 text-sm font-semibold text-foreground underline underline-offset-4"
+                  onClick={usarSugestaoDaCriacao}
+                >
+                  Usar sugestão
+                </Button>
+              </AlertTitle>
               <AlertDescription>
-                Preenchemos uma sugestão: senhas liberadas a partir de agora até o início da gira, para quem vir o link
-                no grupo pegar na hora. Ajuste se precisar.
+                {suggestMaxTickets(giras)} senhas, abrindo agora e fechando quando a gira começa.
               </AlertDescription>
             </Alert>
             <TextField
@@ -1177,21 +1432,29 @@ function AdminGirasContent() {
               onChange={(e) => setCreateSenhaField('max_tickets', e.target.value)}
               required
               error={createMaxError}
-              helperText="Total de senhas disponíveis no link para esta gira."
+              helperText={`Preferencial e acompanhante entram dentro das ${createSenha.max_tickets || 'N'}.`}
             />
-            <DateTimeField
-              label="Senhas abrem em"
-              value={createSenha.release_start_at}
-              onChange={(v) => setCreateSenhaField('release_start_at', v ?? '')}
-              required
-            />
-            <DateTimeField
-              label="Senhas fecham em"
-              value={createSenha.release_end_at}
-              onChange={(v) => setCreateSenhaField('release_end_at', v ?? '')}
-              required
-              error={createWindowError}
-            />
+            <div className="flex flex-col gap-4">
+              <DateTimeField
+                label="Senhas abrem em"
+                value={createSenha.release_start_at}
+                onChange={(v) => setCreateSenhaField('release_start_at', v ?? '')}
+                required
+              />
+              <DateTimeField
+                label="Senhas fecham em"
+                value={createSenha.release_end_at}
+                onChange={(v) => setCreateSenhaField('release_end_at', v ?? '')}
+                required
+                error={createWindowError}
+              />
+            </div>
+            {janelaEmFrase(createSenha.release_start_at, createSenha.release_end_at) && (
+              <p className="flex items-center gap-2.5 rounded-[10px] bg-success/10 px-3.5 py-3 text-[0.9375rem] font-semibold text-success-strong">
+                <Clock aria-hidden className="size-[18px] shrink-0" />
+                {janelaEmFrase(createSenha.release_start_at, createSenha.release_end_at)}
+              </p>
+            )}
             <ShortWindowWarning
               start={createSenha.release_start_at}
               end={createSenha.release_end_at}
@@ -1200,10 +1463,10 @@ function AdminGirasContent() {
                 setCreateSenha((prev) => ({ ...prev, release_start_at: s.start, release_end_at: s.end }))
               }
             />
-            <Accordion type="single" collapsible>
-              <AccordionItem value="avancado">
-                <AccordionTrigger>Mais opções</AccordionTrigger>
-                <AccordionContent className="flex flex-col gap-3">
+            {/* J2 v2 · 02: "Mais opções" à vista, só o acompanhante (e o horário marcado, quando a casa usa). */}
+            <section aria-labelledby="mais-opcoes" className="flex flex-col gap-3">
+              <h4 id="mais-opcoes" className="text-sm font-semibold text-muted-foreground">Mais opções</h4>
+              <div className="flex flex-col gap-3">
                   <SwitchRow
                     id="create-acompanhantes"
                     checked={createSenha.allow_acompanhantes}
@@ -1214,8 +1477,12 @@ function AdminGirasContent() {
                         max_acompanhantes: checked && !prev.max_acompanhantes ? '1' : prev.max_acompanhantes,
                       }))
                     }
-                    label="Consulente pode levar acompanhantes"
-                    description="Cada acompanhante recebe uma senha própria, que conta na quantidade da gira."
+                    label="Consulente pode levar acompanhante"
+                    description={
+                      createSenha.allow_acompanhantes
+                        ? `Até ${createSenha.max_acompanhantes || 1} por senha`
+                        : 'Cada acompanhante recebe uma senha própria, que conta na quantidade da gira.'
+                    }
                   />
                   {createSenha.allow_acompanhantes && (
                     <TextField
@@ -1227,32 +1494,131 @@ function AdminGirasContent() {
                       onChange={(e) => setCreateSenhaField('max_acompanhantes', e.target.value)}
                     />
                   )}
+                  {/* Horário marcado já na criação (J2 v2): com a funcionalidade ligada e o plano. Sem plano, o selo
+                      com "Ver planos"; com plano e sem ligar, o caminho para Configurações. */}
+                  {!subLoading && !can('agendamento_por_horario') ? (
+                    <PlanLockedInline
+                      feature="agendamento_por_horario"
+                      text="Deixe o consulente escolher um horário de atendimento ao pegar a senha."
+                    />
+                  ) : !timeSlotSchedulingEnabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      Senha com horário marcado: ative em{' '}
+                      <Link href="/admin/config" className="font-semibold text-brand underline-offset-4 hover:underline">
+                        Configurações → Funcionalidades
+                      </Link>
+                      .
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2" data-testid="create-horarios">
+                      <SwitchRow
+                        id="create-horarios"
+                        checked={createUseSlots}
+                        onCheckedChange={(c) => void toggleCreateUseSlots(c)}
+                        label="Consulente escolhe um horário ao pegar a senha"
+                        description="Cada horário (ex.: 20h, 20h30, 21h) tem as próprias vagas, para não juntar gente na porta."
+                      />
+                      {createUseSlots &&
+                        createSlots.map((slot, index) => (
+                          <div key={index} className="flex items-start gap-2">
+                            <TextField
+                              label="Horário"
+                              type="time"
+                              size="small"
+                              value={slot.horario}
+                              onChange={(e) =>
+                                setCreateSlots((prev) => prev.map((r, i) => (i === index ? { ...r, horario: e.target.value } : r)))
+                              }
+                              className="flex-1"
+                            />
+                            <TextField
+                              label="Vagas"
+                              type="number"
+                              size="small"
+                              min={1}
+                              value={slot.capacidade_maxima}
+                              onChange={(e) =>
+                                setCreateSlots((prev) =>
+                                  prev.map((r, i) => (i === index ? { ...r, capacidade_maxima: e.target.value } : r)),
+                                )
+                              }
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="mt-6"
+                              aria-label={`Remover horário ${slot.horario || index + 1}`}
+                              onClick={() => setCreateSlots((prev) => prev.filter((_, i) => i !== index))}
+                            >
+                              <Trash2 aria-hidden />
+                            </Button>
+                          </div>
+                        ))}
+                      {createUseSlots && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="self-start"
+                          onClick={() => setCreateSlots((prev) => [...prev, emptySlotRow()])}
+                        >
+                          <Plus aria-hidden /> Adicionar horário
+                        </Button>
+                      )}
+                      {createUseSlots && !createSlotsValid && (
+                        <p className="text-xs text-destructive">Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.</p>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    Senhas de associados, horários de atendimento e fila de espera ficam em “Configurar senhas”, no menu
-                    da gira.
+                    Senhas de associados e fila de espera ficam em “Configurar senhas”, no menu da gira.
                   </p>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+              </div>
+            </section>
           </div>
         )}
 
         {createStep === 2 && (
           <div className="flex flex-col gap-4">
-            <div className="rounded-lg border bg-muted/40 p-3 text-sm" data-testid="create-review">
-              <p className="font-semibold">{createForm.nome}</p>
-              <p className="text-muted-foreground">
-                {createForm.data_inicio &&
-                  new Date(createForm.data_inicio).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })}
-              </p>
-              {canEdit ? (
-                <p className="mt-1">
-                  {createSenha.max_tickets} senhas · abrem{' '}
-                  {createSenha.release_start_at &&
-                    new Date(createSenha.release_start_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                </p>
-              ) : null}
-            </div>
+            <h3 className="font-display text-[2rem] leading-[1.1] tracking-[-0.02em] text-foreground">
+              Confira e deixe um recado
+            </h3>
+            {/* ListaDeDetalhes do design system: rótulo à esquerda, valor à direita, filete entre as linhas. */}
+            <dl className="m-0 flex flex-col text-[0.9375rem]" data-testid="create-review">
+              {[
+                ['Gira', createForm.nome],
+                ['Quando', createForm.data_inicio && formatGiraCurta(createForm.data_inicio)],
+                ['Local', createForm.local.trim() || tenantEndereco || 'Endereço do terreiro'],
+                ...(canEdit
+                  ? [
+                      [
+                        'Senhas',
+                        [
+                          createSenha.max_tickets,
+                          createSenha.release_start_at &&
+                            createSenha.release_end_at &&
+                            `abrem ${formatJanelaCurta(createSenha.release_start_at)}, fecham ${formatJanelaCurta(createSenha.release_end_at)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
+                      ],
+                      [
+                        'Acompanhante',
+                        createSenha.allow_acompanhantes
+                          ? `até ${createSenha.max_acompanhantes || 1} por senha`
+                          : 'não',
+                      ],
+                    ]
+                  : []),
+              ].map(([rotulo, valor]) => (
+                <div key={rotulo as string} className="flex items-baseline justify-between gap-4 border-t border-border py-2.5 first:border-t-0">
+                  <dt className="text-muted-foreground">{rotulo}</dt>
+                  <dd className="m-0 text-right font-semibold text-foreground">{valor || '—'}</dd>
+                </div>
+              ))}
+            </dl>
             {!canEdit && (
               <Alert variant="info" data-testid="create-sem-senhas">
                 <Ticket aria-hidden />
@@ -1275,7 +1641,7 @@ function AdminGirasContent() {
               rows={3}
               value={createForm.recados}
               onChange={(e) => setCreateField('recados', e.target.value)}
-              helperText="Opcional. Vai no e-mail da senha — investimento, itens de doação, avisos."
+              helperText="Vai no e-mail da senha e no bilhete — investimento, itens de doação, avisos."
             />
             <OrientacoesCorrenteField
               value={createForm.orientacoes_corrente}
@@ -1284,17 +1650,6 @@ function AdminGirasContent() {
           </div>
         )}
 
-        {createStep > 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="self-start"
-            onClick={() => setCreateStep((s) => (!canEdit && s === 2 ? 0 : s - 1))}
-          >
-            Voltar
-          </Button>
-        )}
       </CrudDrawer>
 
       {/* Editar gira */}
@@ -1360,10 +1715,11 @@ function AdminGirasContent() {
         open={senhaDrawerOpen}
         onClose={closeSenhaDrawer}
         title="Configurar senhas"
-        subtitle={senhaTarget ? `Quantidade e horário das senhas de “${senhaTarget.nome}”.` : ''}
+        subtitle={senhaTarget ? [senhaTarget.nome, formatGiraCurta(senhaTarget.data_inicio)].filter(Boolean).join(' · ') : ''}
         icon={<Ticket />}
+        estilo="v2"
         onSave={handleSenhaSave}
-        saveLabel="Salvar"
+        saveLabel="Salvar senhas"
         saving={senhaSaving}
         saveDisabled={senhaSaveDisabled}
         isDirty={senhaDirty}
@@ -1429,8 +1785,11 @@ function AdminGirasContent() {
 
             {senhaConfig && senhaConfig.max_tickets > 0 && (
               <div className="flex flex-col gap-1.5">
-                <p className="text-sm text-muted-foreground">
-                  {senhaConfig.current_count} de {senhaConfig.max_tickets} senhas emitidas
+                <p className="flex items-center justify-between text-sm font-semibold">
+                  <span>Senhas emitidas</span>
+                  <span className="tabular-nums text-[color:var(--color-barro-700)]">
+                    {senhaConfig.current_count} de {senhaConfig.max_tickets}
+                  </span>
                 </p>
                 <Progress
                   value={Math.min(100, (senhaConfig.current_count / senhaConfig.max_tickets) * 100)}
@@ -1442,22 +1801,26 @@ function AdminGirasContent() {
 
             <div className="flex flex-col gap-2 sm:flex-row">
               {senhaConfig?.public_link && (
-                <Button type="button" variant="outline" className="flex-1" onClick={() => senhaTarget && void openGiraShare(senhaTarget, senhaConfig)}>
-                  <QrCode aria-hidden /> Compartilhar link
+                <Button type="button" variant="outline" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => senhaTarget && void openGiraShare(senhaTarget, senhaConfig)}>
+                  Compartilhar link <Share2 aria-hidden />
                 </Button>
               )}
               {senhaTarget && canEdit && (
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setReleaseTarget(senhaTarget)}>
-                  <Rocket aria-hidden /> Liberar agora
+                <Button type="button" variant="outline" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => setReleaseTarget(senhaTarget)}>
+                  Liberar agora <LockOpen aria-hidden />
                 </Button>
               )}
             </div>
 
-            <Accordion type="multiple" className="rounded-lg border px-3">
+            {/* J2 v2 · 11: seções separadas por filete; o que o plano não cobre diz o plano no título. */}
+            <Accordion type="multiple" className="border-t border-border [&_[data-slot=accordion-trigger]]:text-base [&_[data-slot=accordion-trigger]]:font-semibold">
               <AccordionItem value="acompanhantes">
                 <AccordionTrigger>
-                  <span className="flex items-center gap-2">
-                    <Users className="size-4" aria-hidden /> Acompanhantes
+                  <span className="flex flex-col items-start gap-0.5">
+                    Acompanhantes
+                    <span className="text-[0.8125rem] font-normal text-muted-foreground">
+                      {senhaForm.allow_acompanhantes ? `Até ${senhaForm.max_acompanhantes || 1} por senha` : 'Desligado'}
+                    </span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
@@ -1492,10 +1855,18 @@ function AdminGirasContent() {
                 </AccordionContent>
               </AccordionItem>
 
-              {can('fila_espera') && (
+              {(can('fila_espera') || !subLoading) && (
                 <AccordionItem value="fila">
-                  <AccordionTrigger>Fila de espera</AccordionTrigger>
+                  <AccordionTrigger>
+                    <span className="flex flex-1 items-center justify-between gap-3 pr-2">
+                      Fila de espera
+                      {!can('fila_espera') && <SeloDoPlano feature="fila_espera" />}
+                    </span>
+                  </AccordionTrigger>
                   <AccordionContent>
+                    {!can('fila_espera') ? (
+                      <PlanLockedInline feature="fila_espera" text="Quando as senhas acabam, quem chega entra na fila e é avisado se abrir uma vaga." />
+                    ) : (
                     <DurationField
                       label="Prazo para confirmar a vaga (hh:mm)"
                       min={WAITLIST_MIN_MINUTES}
@@ -1504,14 +1875,16 @@ function AdminGirasContent() {
                       onChange={(m) => handleSenhaChange('waitlist_confirmation_minutes', m == null ? '' : String(m))}
                       helperText="Quando abre uma vaga, quem está na fila tem esse prazo para confirmar antes de passar para o próximo. Aceita horas e minutos (ex.: 00:45, 01:30). Em branco: 24h."
                     />
+                    )}
                   </AccordionContent>
                 </AccordionItem>
               )}
 
               <AccordionItem value="horarios">
                 <AccordionTrigger>
-                  <span className="flex items-center gap-2">
-                    <Clock className="size-4" aria-hidden /> Horários de atendimento
+                  <span className="flex flex-1 items-center justify-between gap-3 pr-2">
+                    Horários de atendimento
+                    {!subLoading && !can('agendamento_por_horario') && <SeloDoPlano feature="agendamento_por_horario" />}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
@@ -1602,8 +1975,9 @@ function AdminGirasContent() {
 
               <AccordionItem value="associados">
                 <AccordionTrigger>
-                  <span className="flex items-center gap-2">
-                    <Star className="size-4 text-warning" aria-hidden /> Senhas de associados
+                  <span className="flex flex-1 items-center justify-between gap-3 pr-2">
+                    Senhas de associados
+                    {!subLoading && !can('associados') && <SeloDoPlano feature="associados" />}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
@@ -1662,13 +2036,71 @@ function AdminGirasContent() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Excluir gira"
-        message={`Tem certeza que deseja excluir a gira “${deleteTarget?.nome ?? ''}”?`}
-        confirmText="Excluir"
+        title={`Excluir a ${deleteTarget?.nome ?? 'gira'}?`}
+        message={
+          <div className="flex flex-col gap-3.5 text-base text-foreground">
+            <p className="m-0">
+              {deleteTarget && deleteIssued > 0
+                ? `${deleteIssued} ${deleteIssued === 1 ? 'pessoa já pegou' : 'pessoas já pegaram'} senha para esta gira, de ${formatGiraLonga(deleteTarget.data_inicio)}. Com a gira excluída, essas senhas deixam de valer.`
+                : deleteTarget
+                  ? `A gira de ${formatGiraLonga(deleteTarget.data_inicio)} sai da agenda e o link dela deixa de funcionar.`
+                  : ''}
+            </p>
+            {deleteTarget && canEdit && (
+              <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-primary/5 px-4 py-3.5">
+                <CalendarDays aria-hidden className="size-[18px] shrink-0 text-[color:var(--color-barro-700)]" />
+                <p className="m-0 min-w-0 flex-1 text-[0.9375rem]">Se só mudou o dia, edite a data: as senhas continuam valendo.</p>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto px-0 text-[0.9375rem] font-semibold text-foreground underline underline-offset-4"
+                  onClick={() => {
+                    const g = deleteTarget;
+                    setDeleteTarget(null);
+                    openEdit(g);
+                  }}
+                >
+                  Editar a data
+                </Button>
+              </div>
+            )}
+          </div>
+        }
+        confirmText="Excluir a gira"
+        cancelText="Manter a gira"
+        size="default"
+        className="data-[size=default]:sm:max-w-xl"
         destructive
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmarExclusao}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setPerguntarAviso(false);
+        }}
       />
+
+      {/* Beta "avisar quem tem senha": a pergunta depois de confirmar a exclusão, com os dois botões
+          no mesmo peso (design ético: sem botão principal e sem texto que constranja). */}
+      <AlertDialog open={perguntarAviso} onOpenChange={(o) => !o && setPerguntarAviso(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Avisar por e-mail {deleteIssued === 1 ? 'a pessoa que tem' : `as ${deleteIssued} pessoas que têm`} senha?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Quem tem senha para {deleteTarget?.nome ?? 'esta gira'} recebe um e-mail dizendo que a gira foi cancelada, com o link
+              das próximas giras. A gira é excluída nos dois casos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-end">
+            <Button type="button" variant="outline" className="min-w-36" onClick={() => void handleDelete(false)}>
+              Não enviar
+            </Button>
+            <Button type="button" variant="outline" className="min-w-36" onClick={() => void handleDelete(true)}>
+              Enviar aviso
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ConfirmDialog
         open={!!releaseTarget}
@@ -1691,11 +2123,7 @@ function AdminGirasContent() {
         title={shareTitle}
         giraName={shareGira?.nome}
         loading={shareLoading}
-        description={
-          shareGira
-            ? 'Por este link os consulentes pegam a senha desta gira pelo celular.'
-            : 'Por este link os consulentes pegam a senha pelo celular.'
-        }
+        description={shareGira && shareSub ? shareSub : 'Link de senhas do terreiro'}
       />
     </div>
   );

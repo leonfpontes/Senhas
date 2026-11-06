@@ -8,7 +8,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Link2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { Link2, MoreHorizontal, Plus, Trash2, Users } from 'lucide-react';
 
 import AdminLayout from './admin_layout';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -100,7 +100,7 @@ const emptyForm = (): CursoForm => ({
 
 function StatusBadge({ ativo }: { ativo: boolean }) {
   return ativo ? (
-    <Badge className="border-transparent bg-success text-success-foreground">Ativo</Badge>
+    <Badge className="border-transparent bg-success/15 text-success-strong">Ativo</Badge>
   ) : (
     <Badge variant="outline">Inativo</Badge>
   );
@@ -283,7 +283,6 @@ function CursosPresenciaisContent() {
         {(canEdit || canDelete) && <DropdownMenuSeparator />}
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(curso)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -301,10 +300,10 @@ function CursosPresenciaisContent() {
     () => [
       {
         accessorKey: 'titulo',
-        header: 'Título',
+        header: 'Curso',
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium">{row.original.titulo}</span>
+            <span className="truncate font-semibold">{row.original.titulo}</span>
             {row.original.local && <span className="truncate text-xs text-muted-foreground">{row.original.local}</span>}
           </div>
         ),
@@ -313,13 +312,8 @@ function CursosPresenciaisContent() {
         accessorKey: 'data_inicio',
         header: 'Início',
         meta: { cellClassName: 'whitespace-nowrap' },
-        cell: ({ getValue }) => formatDateTimeBr(getValue<string>()),
-      },
-      {
-        accessorKey: 'data_fim',
-        header: 'Fim',
-        meta: { cellClassName: 'whitespace-nowrap' },
-        cell: ({ getValue }) => formatDateTimeBr(getValue<string | null>()),
+        // J9 v2 · 07: só a data do início, em cinza; o término fica na gaveta.
+        cell: ({ getValue }) => <span className="text-muted-foreground">{formatDateTimeBr(getValue<string>()).split(',')[0]}</span>,
       },
       {
         accessorKey: 'max_participantes',
@@ -338,7 +332,7 @@ function CursosPresenciaisContent() {
         accessorKey: 'tipo_formulario',
         header: 'Formulário',
         cell: ({ getValue }) =>
-          getValue<string>() === 'completo' ? <Badge variant="outline">Completo</Badge> : <Badge variant="secondary">Simples</Badge>,
+          <span className="text-muted-foreground">{getValue<string>() === 'completo' ? 'Completo' : 'Simples'}</span>,
       },
       {
         accessorKey: 'is_active',
@@ -404,7 +398,8 @@ function CursosPresenciaisContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Cursos presenciais"
-        subtitle="Turmas, inscrições públicas e participantes"
+        subtitle="Turmas, inscrições públicas e participantes."
+        eyebrow="Casa · plano Pro"
         className="mb-0"
         actions={
           canInsert && (
@@ -417,6 +412,9 @@ function CursosPresenciaisContent() {
       />
 
       <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(c) => `Editar ${c.titulo}`}
         columns={columns}
         data={cursos}
         getRowId={(c) => c.id}

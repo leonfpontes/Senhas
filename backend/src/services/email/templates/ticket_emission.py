@@ -198,7 +198,7 @@ def _sponsor_html(
   <div style="background:linear-gradient(135deg,{gold} 0%,#E8D48B 100%);padding:40px 20px;text-align:center;border-bottom:3px solid {gold_light};">
     {logo_block}
     <p style="margin:0 0 10px 0;color:{black};font-size:18px;font-weight:700;">{t_name}</p>
-    <h1 style="margin:0;color:{black};font-size:24px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">
+    <h1 style="margin:0;color:{black};font-size:24px;font-weight:800;">
       ✦ ASSOCIADO ✦
     </h1>
     <p style="margin:6px 0 0 0;color:#333;font-size:13px;letter-spacing:1px;">
@@ -220,7 +220,7 @@ def _sponsor_html(
 
     <!-- Ticket Number -->
     <div style="background:linear-gradient(135deg,{gold} 0%,#B8963F 100%);padding:28px 20px;border-radius:8px;text-align:center;margin:20px 0;">
-      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(0,0,0,0.6);text-transform:uppercase;letter-spacing:3px;font-weight:700;">Sua Senha</p>
+      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(0,0,0,0.6);font-weight:700;">Sua senha</p>
       <p style="margin:0;font-size:52px;font-weight:900;color:{black};letter-spacing:8px;">{_esc(ticket_number)}</p>
     </div>
 
@@ -387,7 +387,7 @@ def _regular_html(
 
     <!-- Ticket Number -->
     <div style="background:linear-gradient(135deg,{pc} 0%,{sc} 100%);padding:28px 20px;border-radius:8px;text-align:center;margin:20px 0;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:3px;font-weight:700;">Sua Senha</p>
+      <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);font-weight:700;">Sua senha</p>
       <p style="margin:0;font-size:52px;font-weight:900;color:#ffffff;letter-spacing:8px;">{_esc(ticket_number)}</p>
     </div>
 

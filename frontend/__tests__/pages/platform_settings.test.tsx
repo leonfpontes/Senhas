@@ -63,7 +63,7 @@ describe('Platform — Configurações', () => {
   it('editar admin envia o is_active desmarcado (não mais sempre true)', async () => {
     mockRouter.query = { tab: 'admins' };
     render(<SettingsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Editar leo@girahub.com.br' }));
+    fireEvent.click(await screen.findByRole('row', { name: 'Editar leo@girahub.com.br' }));
     const toggle = await screen.findByRole('switch', { name: /Conta ativa/ });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(toggle);

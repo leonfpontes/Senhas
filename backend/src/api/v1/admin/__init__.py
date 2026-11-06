@@ -17,6 +17,7 @@ from .validate_bulk import router as validate_router
 from .health import router as health_router
 from .door_control import router as door_control_router
 from .door_duplas import router as door_duplas_router
+from .door_retornos import router as door_retornos_router
 from .associados import router as associados_router
 from .subscription_info import router as subscription_info_router
 from .billing_stripe import router as billing_stripe_router
@@ -32,6 +33,7 @@ from .permission_groups import router as permission_groups_router
 from .contas_financeiras import router as contas_financeiras_router
 from .support_chat import router as support_chat_router
 from .area_medium_config import router as area_medium_config_router
+from .laboratorio import router as laboratorio_router
 from .mensalidade_pix import router as mensalidade_pix_router
 from .mensalidade_chaves_pix import router as mensalidade_chaves_pix_router
 from .mensalidade_comprovantes import router as mensalidade_comprovantes_router
@@ -66,6 +68,7 @@ admin_router.include_router(validate_router)
 admin_router.include_router(health_router)
 admin_router.include_router(door_control_router)
 admin_router.include_router(door_duplas_router)
+admin_router.include_router(door_retornos_router)
 admin_router.include_router(associados_router)
 admin_router.include_router(subscription_info_router)
 admin_router.include_router(billing_stripe_router)
@@ -81,6 +84,7 @@ admin_router.include_router(permission_groups_router)
 admin_router.include_router(contas_financeiras_router)
 admin_router.include_router(support_chat_router)
 admin_router.include_router(area_medium_config_router)
+admin_router.include_router(laboratorio_router)
 admin_router.include_router(mensalidade_pix_router)
 admin_router.include_router(mensalidade_chaves_pix_router)
 admin_router.include_router(mensalidade_comprovantes_router)

@@ -40,20 +40,28 @@ describe('Login — Lembrar-me', () => {
     mockPost.mockResolvedValue({ data: { user: { id: 'u1', role: 'admin' } } });
   });
 
-  it('exibe o checkbox "Lembrar-me" marcado por padrão', () => {
+  it('exibe o checkbox "Lembrar-me" desmarcado por padrão (J11 v2, design ético)', () => {
     render(<LoginPage />);
     const checkbox = screen.getByRole('checkbox', { name: /lembrar-me/i });
     expect(checkbox).toBeInTheDocument();
-    expect(checkbox).toBeChecked();
+    expect(checkbox).not.toBeChecked();
   });
 
-  it('envia remember_me=false quando desmarcado e conclui o login', async () => {
+  it('envia remember_me=false sem marcar e conclui o login', async () => {
     render(<LoginPage />);
-    fireEvent.click(screen.getByRole('checkbox', { name: /lembrar-me/i }));
     fillAndSubmit();
 
     await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalledWith({ id: 'u1', role: 'admin' }));
     expect(mockPost).toHaveBeenCalledWith('/api/v1/auth/login', expect.objectContaining({ remember_me: false }));
+  });
+
+  it('envia remember_me=true quando a pessoa marca Lembrar-me', async () => {
+    render(<LoginPage />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /lembrar-me/i }));
+    fillAndSubmit();
+
+    await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalled());
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/auth/login', expect.objectContaining({ remember_me: true }));
   });
 
   it('conta desativada: "Reativar e entrar" usa a senha já digitada e entra direto', async () => {
@@ -67,7 +75,7 @@ describe('Login — Lembrar-me', () => {
     await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalled());
     expect(mockPost).toHaveBeenLastCalledWith(
       '/api/v1/auth/reactivate-account',
-      { email: 'a@b.com', password: 'secret123', remember_me: true },
+      { email: 'a@b.com', password: 'secret123', remember_me: false },
       expect.objectContaining({ skipAutoLogout: true }),
     );
   });

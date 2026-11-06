@@ -13,11 +13,10 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, CircleCheck, ExternalLink, Lock, Share2, X } from 'lucide-react';
+import { Check, ExternalLink, Lock, Share2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { setAnalyticsTag, trackEvent } from '@/services/analytics';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ShareLinkDialog, buildWhatsAppShareUrl, type ShareKind } from '@/components/admin/ShareLinkDialog';
 import {
@@ -106,6 +105,13 @@ export function readChecklistDismissed(tenantId?: string | null): boolean {
   return readFlag(storageKey('dismissed', tenantId));
 }
 
+/** "Esconder os primeiros passos" (no topo do Início, J1 v2 · 07): some com a trilha. */
+export function writeChecklistDismissed(tenantId?: string | null): void {
+  writeFlag(storageKey('dismissed', tenantId), true);
+  writeOnboardingPending(tenantId, false);
+  trackEvent('onboarding_dismiss');
+}
+
 /** "Mostrar primeiros passos" no menu do usuário: volta a exibir o checklist. */
 export function resetChecklistDismissed(tenantId?: string | null): void {
   writeFlag(storageKey('dismissed', tenantId), false);
@@ -157,7 +163,7 @@ export default function FirstGiraChecklist({
   const [shared, setShared] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [tested, setTested] = useState(false);
+  const [, setTested] = useState(false);
 
   useEffect(() => {
     setDismissed(readFlag(storageKey('dismissed', tenantId)));
@@ -205,17 +211,17 @@ export default function FirstGiraChecklist({
   };
 
   const shareActions = link ? (
-    <div className="flex flex-wrap gap-2">
-      <Button asChild size="sm">
+    <div className="flex flex-wrap items-center gap-2.5">
+      <Button asChild variant="outline" className="h-[42px]">
         <a href={link} target="_blank" rel="noopener noreferrer" onClick={handleTestLink}>
           <ExternalLink aria-hidden /> Testar o link
         </a>
       </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => setShareOpen(true)}>
+      <Button type="button" className="h-[42px]" onClick={() => setShareOpen(true)}>
         <Share2 aria-hidden /> Compartilhar link
       </Button>
-      {tested && !shared && (
-        <Button type="button" size="sm" variant="secondary" onClick={handleConfirmShared}>
+      {!shared && (
+        <Button type="button" variant="link" className="h-[42px] px-1" onClick={handleConfirmShared}>
           <Check aria-hidden /> Já compartilhei
         </Button>
       )}
@@ -317,81 +323,92 @@ export default function FirstGiraChecklist({
 
   if (hidden) return null;
 
+  // J1 v2 · 07: a peça PrimeirosPassos — título em Fraunces, "2 de 5" com a barra e cada passo
+  // feito / agora / depois entre filetes; só o passo da vez traz as ações.
   return (
-    <Card
+    <section
       data-testid="first-gira-checklist"
       data-tour="first-gira-checklist"
       data-trilha={trilha}
-      className={cn('border-primary/60 py-0', fullscreen ? 'mx-auto w-full max-w-2xl' : 'mb-6')}
+      aria-labelledby="primeiros-passos-titulo"
+      className={cn('flex flex-col gap-3.5', fullscreen ? 'w-full max-w-3xl' : 'mb-6')}
     >
-      <CardContent className={cn('px-4 py-4 sm:px-6 sm:py-6')}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className={cn('font-bold tracking-tight', fullscreen ? 'text-2xl' : 'text-lg')}>
-              {titulos.title}
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{titulos.subtitle}</p>
-          </div>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={handleDismiss} aria-label="Ocultar primeiros passos">
-            <X aria-hidden />
-          </Button>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 id="primeiros-passos-titulo" className="font-display text-[1.75rem] leading-tight font-normal tracking-[-0.02em] sm:text-[2rem]">
+            {titulos.title}
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{titulos.subtitle}</p>
         </div>
-
-        <div className="mt-4 mb-2 flex items-center gap-3">
-          <Progress value={(doneCount / steps.length) * 100} className="h-1.5 flex-1" aria-label="Progresso dos primeiros passos" />
-          <span className="text-xs whitespace-nowrap text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span className="text-[0.9375rem] font-semibold text-[color:var(--color-barro-700)]">
             {doneCount} de {steps.length}
           </span>
+          {!fullscreen && (
+            <Button type="button" variant="ghost" size="icon-sm" onClick={handleDismiss} aria-label="Ocultar primeiros passos">
+              <X aria-hidden />
+            </Button>
+          )}
         </div>
+      </div>
+      <Progress value={(doneCount / steps.length) * 100} className="h-1.5" aria-label="Progresso dos primeiros passos" />
 
-        <ol className="m-0 list-none p-0">
-          {steps.map((step, i) => {
-            const isCurrent = i === currentIndex;
-            return (
-              <li
-                key={step.key}
-                data-testid={`checklist-step-${step.key}`}
-                data-done={step.done ? 'true' : 'false'}
-                aria-current={isCurrent ? 'step' : undefined}
-                className={cn('flex gap-3 py-3', i > 0 && 'border-t')}
-              >
-                <div className="shrink-0 pt-px">
-                  {step.done ? (
-                    <CircleCheck className="size-6 text-success" aria-label="Concluído" />
-                  ) : (
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'flex size-6 items-center justify-center rounded-full border-2 text-xs font-bold',
-                        isCurrent ? 'border-primary text-brand' : 'border-border text-muted-foreground',
-                      )}
-                    >
-                      {i + 1}
-                    </span>
-                  )}
-                </div>
+      <ol className="m-0 list-none border-b border-border p-0">
+        {steps.map((step, i) => {
+          const isCurrent = i === currentIndex;
+          const estado = step.done ? 'feito' : isCurrent ? 'agora' : 'depois';
+          return (
+            <li
+              key={step.key}
+              data-testid={`checklist-step-${step.key}`}
+              data-done={step.done ? 'true' : 'false'}
+              aria-current={isCurrent ? 'step' : undefined}
+              className="border-t border-border py-5"
+            >
+              <div className="flex items-center gap-4">
+                {step.done ? (
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-folha-600)]">
+                    <Check className="size-4 text-white" aria-label="Concluído" />
+                  </span>
+                ) : (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'flex size-8 shrink-0 items-center justify-center rounded-full text-sm',
+                      isCurrent ? 'bg-primary font-bold text-primary-foreground' : 'border-[1.5px] border-border font-semibold text-muted-foreground',
+                    )}
+                  >
+                    {i + 1}
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <p
                     className={cn(
-                      'text-sm',
-                      isCurrent ? 'font-bold' : 'font-medium',
-                      step.done ? 'text-muted-foreground line-through' : 'text-foreground',
+                      isCurrent
+                        ? 'font-display text-[1.625rem] leading-tight font-medium tracking-[-0.015em] text-foreground'
+                        : step.done
+                          ? 'text-[1.0625rem] font-medium text-muted-foreground'
+                          : 'text-[1.0625rem] font-semibold text-foreground',
                     )}
                   >
                     {step.title}
                   </p>
-                  {isCurrent && (
-                    <div>
-                      <div className="mt-1 text-sm text-muted-foreground">{step.description}</div>
-                      {step.actions && <div className="mt-3">{step.actions}</div>}
-                    </div>
-                  )}
+                  <div className="mt-1 text-sm text-muted-foreground">{step.description}</div>
                 </div>
-              </li>
-            );
-          })}
-        </ol>
-      </CardContent>
+                <span
+                  className={cn(
+                    'shrink-0 text-[0.8125rem] font-semibold',
+                    estado === 'feito' ? 'text-[color:var(--color-folha-700)]' : estado === 'agora' ? 'text-[color:var(--color-barro-700)]' : 'text-muted-foreground',
+                  )}
+                >
+                  {estado}
+                </span>
+              </div>
+              {isCurrent && step.actions && <div className="mt-4 pl-12">{step.actions}</div>}
+            </li>
+          );
+        })}
+      </ol>
 
       <ShareLinkDialog
         open={shareOpen}
@@ -400,6 +417,6 @@ export default function FirstGiraChecklist({
         tenantName={tenantName}
         onShared={handleShared}
       />
-    </Card>
+    </section>
   );
 }

@@ -421,9 +421,9 @@ function CartaoDoMes({
   return (
     <article className={CARD} data-testid="cartao-mensalidade">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-sm font-medium first-letter:uppercase">
-          <Wallet className="size-4 text-brand" aria-hidden />
-          <span className="first-letter:uppercase">{monthLabelLong(mes.mes)}</span>
+        {/* J6 v2 · 09 (CartaoDaMensalidade): "Mensalidade de novembro" e o valor em Fraunces. */}
+        <span className="text-sm font-semibold text-brand">
+          Mensalidade de {monthLabelLong(mes.mes).split(' de ')[0].toLocaleLowerCase('pt-BR')}
         </span>
         <Pill mes={mes} />
       </div>
@@ -431,7 +431,7 @@ function CartaoDoMes({
         <span className="text-base font-semibold text-warning-strong">Falta pagar</span>
       )}
       <span
-        className="text-4xl leading-none font-semibold tracking-tight tabular-nums"
+        className="font-display text-4xl leading-none font-semibold tracking-tight tabular-nums"
         data-testid="valor-mes"
       >
         {valorBr(mes.valor)}

@@ -9,10 +9,12 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, CircleAlert, CloudUpload, DoorOpen, HeartHandshake, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { useRouter } from 'next/router';
+import { Check, CircleAlert, CloudUpload, DoorOpen, FlaskConical, HeartHandshake, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader } from '@/components/admin';
 import { AreaMediumConfigSection } from '@/components/admin/AreaMediumConfigSection';
+import { LaboratorioSection } from '@/components/admin/LaboratorioSection';
 import { PermissionDenied, ReadOnlyNotice } from '@/components/gates';
 import { TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,7 +36,7 @@ import { useSubscription, type PlanFeatures } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { minPlanFor, type PlanFeatureKey } from '@/constants/plans';
-import { pickForeground } from '@/lib/brand';
+import { corDaCasa, corSecundariaDaCasa, pickForeground } from '@/lib/brand';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -134,7 +136,8 @@ interface Palette {
 
 /** Paletas prontas: cores com contraste bom com a fonte indicada. */
 const PALETTES: Palette[] = [
-  { name: 'Índigo', primary: '#4F46E5', secondary: '#EC4899', font: '#FFFFFF' },
+  // Jornadas v2: o padrão da casa é o verde folha; o antigo Índigo (#4F46E5) passou a significar "sem cor escolhida".
+  { name: 'Folha (padrão)', primary: '#2E6A4E', secondary: '#E9B04A', font: '#FFFFFF' },
   { name: 'Mata', primary: '#15803D', secondary: '#84CC16', font: '#FFFFFF' },
   { name: 'Mar', primary: '#0E7490', secondary: '#38BDF8', font: '#FFFFFF' },
   { name: 'Terra', primary: '#9A3412', secondary: '#F59E0B', font: '#FFFFFF' },
@@ -394,8 +397,14 @@ export default function AdminConfigPage() {
 }
 
 function AdminConfigContent() {
+  const router = useRouter();
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
+  // Laboratório (jornadas v2): a aba só existe para terreiro beta tester (o GET responde 403 sem isso).
+  const [showLab, setShowLab] = useState(false);
+  useEffect(() => {
+    apiClient.get('/api/v1/admin/config/laboratorio').then(() => setShowLab(true)).catch(() => setShowLab(false));
+  }, []);
   const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('configuracoes', 'view');
   const canEdit = canGroup('configuracoes', 'edit');
@@ -415,8 +424,9 @@ function AdminConfigContent() {
     return JSON.stringify(config) !== JSON.stringify(savedConfig);
   }, [config, savedConfig]);
 
-  const previewPrimary = config?.primary_color || '#4F46E5';
-  const previewSecondary = config?.secondary_color || '#EC4899';
+  // Jornadas v2: casa sem cor escolhida (vazio ou o roxo antigo) aparece como o verde folha, como no painel.
+  const previewPrimary = corDaCasa(config?.primary_color);
+  const previewSecondary = corSecundariaDaCasa(config?.primary_color, config?.secondary_color);
   const previewFontColor = getFontColor(config);
   const previewLogo = config?.logo_url?.trim() || '';
   const canTheme = can('tema_personalizado');
@@ -605,6 +615,11 @@ function AdminConfigContent() {
   const showSaveBar = isDirty && canEdit;
   // Área do Médium em piloto: some sem a feature (plano Basic+ e chave da plataforma), sem oferta de upgrade.
   const showAreaMedium = can('area_medium');
+  // ?aba=area-medium (ou outra aba): abre direto nela — o atalho "Área do Médium" da barra e dos Módulos.
+  const abaPedida = typeof router.query.aba === 'string' ? router.query.aba : '';
+  const abaInicial = ['identidade', 'funcionalidades', 'atendimento', 'area-medium', 'laboratorio'].includes(abaPedida)
+    ? abaPedida
+    : 'identidade';
   const lockedPlan = lockedFeature ? minPlanFor(lockedFeature.gate) : null;
 
   return (
@@ -615,8 +630,8 @@ function AdminConfigContent() {
 
       {!canEdit && <ReadOnlyNotice />}
 
-      <Tabs defaultValue="identidade" data-tour="config-tabs">
-        <TabsList className={cn('grid w-full', showAreaMedium ? 'max-w-2xl grid-cols-4' : 'max-w-lg grid-cols-3')}>
+      <Tabs key={abaInicial} defaultValue={abaInicial} data-tour="config-tabs">
+        <TabsList variant="line" className="w-full justify-start gap-5 overflow-x-auto border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_svg]:hidden">
           <TabsTrigger value="identidade">
             <Palette aria-hidden /> <span className="hidden sm:inline">Identidade</span>
             <span className="sm:hidden">Visual</span>
@@ -632,6 +647,12 @@ function AdminConfigContent() {
             <TabsTrigger value="area-medium">
               <HeartHandshake aria-hidden /> <span className="hidden sm:inline">Área do Médium</span>
               <span className="sm:hidden">Médium</span>
+            </TabsTrigger>
+          )}
+          {showLab && (
+            <TabsTrigger value="laboratorio">
+              <FlaskConical aria-hidden /> <span className="hidden sm:inline">Laboratório (beta)</span>
+              <span className="sm:hidden">Lab</span>
             </TabsTrigger>
           )}
         </TabsList>
@@ -718,7 +739,7 @@ function AdminConfigContent() {
                   </Alert>
                 )}
 
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">Paletas prontas</p>
+                <p className="mb-2 text-xs font-bold text-muted-foreground">Paletas prontas</p>
                 <div className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-6" role="group" aria-label="Paletas prontas">
                   {PALETTES.map((p) => {
                     const active =
@@ -751,7 +772,7 @@ function AdminConfigContent() {
                   })}
                 </div>
 
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">Ou escolha cada cor</p>
+                <p className="mb-2 text-xs font-bold text-muted-foreground">Ou escolha cada cor</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <ColorField
                     label="Cor principal"
@@ -798,7 +819,7 @@ function AdminConfigContent() {
           {/* Prévia */}
           <div className="flex flex-col gap-3 lg:sticky lg:top-24" data-tour="config-preview">
             <div className="rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${previewPrimary} 0%, ${previewSecondary} 100%)` }}>
-              <p className="text-[0.7rem] uppercase tracking-[0.1em]" style={{ color: previewOnPrimary, opacity: 0.75 }}>
+              <p className="text-[0.7rem]" style={{ color: previewOnPrimary, opacity: 0.75 }}>
                 Prévia
               </p>
               <div className="mt-2 flex items-center gap-3">
@@ -836,7 +857,7 @@ function AdminConfigContent() {
             )}
             <Card>
               <CardContent className="p-4">
-                <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.06em] text-muted-foreground">O que muda ao salvar</p>
+                <p className="mb-2 text-[0.68rem] font-bold text-muted-foreground">O que muda ao salvar</p>
                 <ul className="flex flex-col gap-1">
                   {BRANDING_IMPACT.map((item) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -922,6 +943,11 @@ function AdminConfigContent() {
         {showAreaMedium && (
           <TabsContent value="area-medium" className="mt-4">
             <AreaMediumConfigSection canEdit={canEdit} />
+          </TabsContent>
+        )}
+        {showLab && (
+          <TabsContent value="laboratorio" className="mt-4">
+            <LaboratorioSection canEdit={canEdit} tenantName={config.tenant_nome} />
           </TabsContent>
         )}
       </Tabs>

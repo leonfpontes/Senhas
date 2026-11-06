@@ -80,7 +80,7 @@ describe('Estoque — Itens', () => {
     expect(await screen.findByText('Vela branca')).toBeInTheDocument();
     expect(screen.getByText('Pemba')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Mostrar só itens críticos ou em atenção' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mostrar só itens críticos ou em atenção' }));
 
     expect(screen.queryByText('Vela branca')).not.toBeInTheDocument();
     expect(screen.getByText('Pemba')).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe('Estoque — Itens', () => {
     render(<AdminEstoqueItensPage />);
     expect(await screen.findByText('Pemba')).toBeInTheDocument();
     expect(screen.queryByText('Vela branca')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mostrar só itens críticos ou em atenção' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('checkbox', { name: 'Mostrar só itens críticos ou em atenção' })).toBeChecked();
   });
 
   it('sem insert/edit: sem "Novo item" e sem "Movimentar"', async () => {
@@ -106,7 +106,7 @@ describe('Estoque — Itens', () => {
   it('sem permissão de visualização: estado padrão', async () => {
     mockPerms = {};
     render(<AdminEstoqueItensPage />);
-    expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
+    expect(await screen.findByText(/não tem permissão/i)).toBeInTheDocument();
   });
 
   it('/admin/estoque/relatorio redireciona para itens, repassando ?criticos=1', async () => {

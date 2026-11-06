@@ -77,7 +77,7 @@ export default function ParceirosPage() {
                 por {COMISSAO_MESES} meses, direto no PIX.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button asChild size="touch" className="bg-ouro-400 text-base font-bold text-cafe-950 hover:bg-ouro-300">
+                <Button asChild size="touch" className="bg-folha-600 text-base font-bold text-white hover:bg-folha-700">
                   <a href="#quero-ser-parceiro">
                     Quero ser parceiro <ChevronRight aria-hidden />
                   </a>

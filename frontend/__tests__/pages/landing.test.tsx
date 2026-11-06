@@ -56,11 +56,18 @@ describe('Landing', () => {
     expect(within(section).getByText(/quantas pessoas cabem hoje/i)).toBeInTheDocument();
   });
 
-  it('V-04: FAQ com todas as perguntas e o mesmo texto do JSON-LD', () => {
+  it('V-04: FAQ em sanfona com todas as perguntas e respostas no HTML, e o mesmo texto do JSON-LD', () => {
     const { container } = render(<HomePage />);
     const faq = screen.getByRole('region', { name: /perguntas que todo terreiro faz/i });
+    // J1 v2 · 21 (decisão de 04/11/2026): details/summary, a primeira aberta, e as respostas já no
+    // HTML mesmo fechadas (SEO e GEO: nada é buscado ao clicar).
+    const itens = faq.querySelectorAll('details');
+    expect(itens).toHaveLength(LANDING_FAQ.length);
+    expect(itens[0]).toHaveAttribute('open');
+    expect(itens[1]).not.toHaveAttribute('open');
     for (const item of LANDING_FAQ) {
-      expect(within(faq).getByRole('button', { name: item.q })).toBeInTheDocument();
+      expect(within(faq).getByText(item.q).closest('summary')).not.toBeNull();
+      expect(within(faq).getByText(item.a)).toBeInTheDocument();
     }
     const scripts = Array.from(container.querySelectorAll('script[type="application/ld+json"]')).map((s) =>
       JSON.parse(s.innerHTML),

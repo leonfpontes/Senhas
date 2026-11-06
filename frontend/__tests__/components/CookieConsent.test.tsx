@@ -3,7 +3,7 @@
  * painel com as categorias (necessários travados) e a escolha some com o banner.
  */
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { CookieConsent } from '@/components/shared/CookieConsent';
 import { abrirPreferenciasDeCookies, lerConsentimento } from '@/lib/consent';
 
@@ -37,6 +37,20 @@ describe('<CookieConsent />', () => {
     render(<CookieConsent />);
     fireEvent.click(await screen.findByRole('button', { name: 'Aceitar todos' }));
     expect(lerConsentimento()).toMatchObject({ estatisticas: true, marketing: true });
+  });
+
+  it('recusar e aceitar têm o mesmo peso visual, no aviso e nas preferências (J13 v2 · 04, ADR 0010)', async () => {
+    render(<CookieConsent />);
+    const aviso = await screen.findByRole('region', { name: 'Aviso de cookies' });
+    const recusar = within(aviso).getByRole('button', { name: 'Recusar opcionais' });
+    const aceitar = within(aviso).getByRole('button', { name: 'Aceitar todos' });
+    expect(recusar.className).toBe(aceitar.className);
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Personalizar' }));
+    const painel = await screen.findByRole('dialog');
+    const classes = ['Recusar opcionais', 'Salvar escolhas', 'Aceitar todos'].map(
+      (nome) => within(painel).getByRole('button', { name: nome }).className,
+    );
+    expect(new Set(classes).size).toBe(1);
   });
 
   it('personalizar: opcionais começam desligados e a escolha é salva', async () => {

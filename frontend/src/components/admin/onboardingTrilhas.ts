@@ -42,7 +42,7 @@ export const TRILHA_POR_DOR: Record<PrincipalDor, Trilha> = {
 };
 
 export const TRILHA_PASSOS: Record<Trilha, StepKey[]> = {
-  gira: ['gira', 'share', 'tickets', 'porta'],
+  gira: ['gira', 'senhas', 'share', 'tickets', 'porta'], // J1 v2 · 07: 5 passos
   senhas: ['gira', 'senhas', 'share', 'tickets'],
   mediuns: ['medium', 'mensalidade', 'gira'],
   financeiro: ['mensalidade', 'pagamento', 'lancamento', 'gira'],
@@ -238,6 +238,9 @@ export function resolveTrilha(status: TrilhaStatusLike, gates: TrilhaGates): Res
   const doneByKey = new Map(fromBackend.map((s) => [s.key, s.done]));
   const fallbackDone: Partial<Record<StepKey, boolean>> = {
     gira: status.has_gira,
+    // Resposta antiga, sem `steps`: a Nova gira já configura as senhas no passo 2, e senha emitida
+    // pelo link só existe com elas configuradas (o backend novo manda o sinal real).
+    senhas: status.has_gira || status.public_tickets > 0,
     tickets: status.public_tickets > 0,
     share: status.public_tickets > 0,
     porta: status.door_used,

@@ -242,11 +242,14 @@ export function AcessoAreaSheet({ medium, casa, onOpenChange, onChanged, onEdita
     <>
       <Sheet open onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md" data-testid="acesso-area-sheet">
-          <SheetHeader className="border-b">
-            <SheetTitle>{medium.nome}</SheetTitle>
-            <SheetDescription>Acesso à Área do Médium</SheetDescription>
+          {/* J5 v2 · 03: o título é o que a gaveta faz; quem é, embaixo. */}
+          <SheetHeader className="px-6 pt-6 pb-2">
+            <SheetTitle className="font-display text-[2rem] leading-[1.1] font-normal tracking-[-0.02em]">Acesso à Área do Médium</SheetTitle>
+            <SheetDescription className="text-[0.9375rem]">
+              {medium.nome}
+            </SheetDescription>
           </SheetHeader>
-          <div className="flex flex-col gap-3 p-4">{corpo}</div>
+          <div className="flex flex-col gap-3 px-6 py-4">{corpo}</div>
         </SheetContent>
       </Sheet>
       <ConfirmDialog

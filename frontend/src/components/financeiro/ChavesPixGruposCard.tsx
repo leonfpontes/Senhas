@@ -12,13 +12,14 @@
  * - Formulário no `CrudDrawer`; grupos num `MultiCombobox` com a cor de cada grupo.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { CircleAlert, KeyRound, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { CircleAlert, KeyRound, MoreHorizontal, Plus, Trash2, Users } from 'lucide-react';
 import CrudDrawer from '@/components/CrudDrawer';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { MultiCombobox, PasswordField, TextField } from '@/components/fields';
 import { GrupoChip } from '@/components/grupos/GrupoChip';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
@@ -305,7 +306,16 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
         ) : (
           <ul className="flex flex-col divide-y rounded-md border">
             {data.chaves.map((c) => (
-              <li key={c.id} className="flex items-start gap-3 px-3 py-3" data-testid="pix-chave-grupo">
+              // Clique para editar (04/11/2026): a linha da chave abre a edição; o menu ⋮ guarda o excluir.
+              <CartaoClicavel
+                as="li"
+                variante="linha"
+                key={c.id}
+                aoAbrir={canEdit ? () => abrirEdicao(c) : undefined}
+                rotulo={`Editar a chave ${c.apelido}`}
+                className="flex items-start gap-3 px-3 py-3"
+                data-testid="pix-chave-grupo"
+              >
                 <KeyRound className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p className="text-sm font-semibold">{c.apelido}</p>
@@ -338,7 +348,7 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
                     <DropdownMenuContent align="end">
                       {canEdit && (
                         <DropdownMenuItem onSelect={() => abrirEdicao(c)}>
-                          <Pencil /> Editar
+                          Editar
                         </DropdownMenuItem>
                       )}
                       {canDelete && (
@@ -349,7 +359,7 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-              </li>
+              </CartaoClicavel>
             ))}
           </ul>
         )}

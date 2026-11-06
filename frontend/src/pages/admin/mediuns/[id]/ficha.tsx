@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ArrowLeft, Check, Eye, EyeOff, Flag, Pencil, Plus, ScrollText, ShieldCheck, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Flag, Plus, ScrollText, ShieldCheck, Trash2, X } from 'lucide-react';
 import AdminLayout from '../../admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -32,6 +32,7 @@ import { Combobox, DateField, TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -382,6 +383,7 @@ function FichaDoMediumContent() {
       {voltar}
       <PageHeader
         title={nome}
+        eyebrow="Médiuns · Ficha espiritual"
         subtitle="Ficha espiritual e caminhada. Só a direção e quem ela autorizou veem estes dados."
         actions={
           <Button asChild variant="outline">
@@ -394,7 +396,7 @@ function FichaDoMediumContent() {
       />
 
       {consentido ? (
-        <Alert variant="info" data-testid="ficha-autorizada">
+        <Alert variant="success" data-testid="ficha-autorizada">
           <ShieldCheck aria-hidden />
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span>
@@ -450,7 +452,7 @@ function FichaDoMediumContent() {
       )}
 
       <Tabs defaultValue="ficha">
-        <TabsList>
+        <TabsList variant="line" className="gap-5 border-b border-border [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem]">
           <TabsTrigger value="ficha">Ficha</TabsTrigger>
           <TabsTrigger value="caminhada">Caminhada</TabsTrigger>
         </TabsList>
@@ -543,7 +545,12 @@ function FichaDoMediumContent() {
               {marcos.map((m) => (
                 <li key={m.id} className="relative" data-testid="ficha-marco">
                   <span aria-hidden className="absolute top-2 -left-[27px] size-3 rounded-full bg-primary ring-4 ring-background" />
-                  <Card className="flex-row items-start gap-3 p-3">
+                  {/* Clique para editar (04/11/2026): o marco abre a edição; apagar segue como botão. */}
+                  <CartaoClicavel
+                    aoAbrir={canEdit && consentido ? () => abrirMarco(m) : undefined}
+                    rotulo={`Editar ${m.titulo}`}
+                    className="flex flex-row items-start gap-3 p-3 shadow-sm"
+                  >
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="text-sm text-muted-foreground tabular-nums">{isoToBrDate(m.data)}</span>
                       <span className="font-medium">{m.titulo}</span>
@@ -555,11 +562,6 @@ function FichaDoMediumContent() {
                     </div>
                     {(canEdit || canDelete) && (
                       <div className="flex shrink-0 gap-1">
-                        {canEdit && consentido && (
-                          <Button variant="ghost" size="icon-sm" onClick={() => abrirMarco(m)} aria-label={`Editar ${m.titulo}`}>
-                            <Pencil />
-                          </Button>
-                        )}
                         {canDelete && (
                           <Button variant="ghost" size="icon-sm" onClick={() => setMarcoApagar(m)} aria-label={`Apagar ${m.titulo}`}>
                             <Trash2 />
@@ -567,7 +569,7 @@ function FichaDoMediumContent() {
                         )}
                       </div>
                     )}
-                  </Card>
+                  </CartaoClicavel>
                 </li>
               ))}
             </ol>

@@ -39,7 +39,7 @@ export function Hero({ whatsapp = supportWhatsappLink() }: { whatsapp?: string }
           </h1>
           <p className="mt-5 max-w-xl text-lg text-areia-100 sm:text-xl">{HERO.subtitle}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="touch" className="bg-ouro-400 text-base font-bold text-cafe-950 hover:bg-ouro-300">
+            <Button asChild size="touch" className="bg-folha-600 text-base font-bold text-white hover:bg-folha-700">
               <Link href="/cadastro">
                 Criar minha primeira gira <ChevronRight aria-hidden />
               </Link>

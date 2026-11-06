@@ -152,12 +152,24 @@ class TestOnboardingStatus:
             "trilha": "gira",
             "steps": [
                 {"key": "gira", "done": False},
+                {"key": "senhas", "done": False},
                 {"key": "share", "done": False},
                 {"key": "tickets", "done": False},
                 {"key": "porta", "done": False},
             ],
             "completed": False,
         }
+
+    def test_trilha_concluida_antes_do_passo_de_senhas_continua_concluida(self):
+        """J1 v2 · 07: o 5º passo (senhas) conta feito para quem já recebeu senha pelo link."""
+        status, _ = _run(has_gira=True, public_tickets=5, door_used=True, senhas_configuradas=False)
+        assert dict(_steps(status))["senhas"] is True
+        assert status.completed is True
+
+    def test_senhas_configuradas_sem_senha_emitida_marca_so_o_passo(self):
+        status, _ = _run(has_gira=True, senhas_configuradas=True)
+        assert _steps(status)[:2] == [("gira", True), ("senhas", True)]
+        assert status.completed is False
 
     def test_completed_requires_all_three_signals_on_gira_trilha(self):
         assert _run(has_gira=True, public_tickets=5, door_used=True)[0].completed is True
@@ -192,8 +204,8 @@ class TestTrilhasPorDor:
     @pytest.mark.parametrize(
         "dor,trilha,passos",
         [
-            (None, "gira", ["gira", "share", "tickets", "porta"]),
-            ("outro", "gira", ["gira", "share", "tickets", "porta"]),
+            (None, "gira", ["gira", "senhas", "share", "tickets", "porta"]),
+            ("outro", "gira", ["gira", "senhas", "share", "tickets", "porta"]),
             ("senhas", "senhas", ["gira", "senhas", "share", "tickets"]),
             ("mediuns", "mediuns", ["medium", "mensalidade", "gira"]),
             ("financeiro", "financeiro", ["mensalidade", "pagamento", "lancamento", "gira"]),

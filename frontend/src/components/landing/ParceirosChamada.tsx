@@ -29,7 +29,7 @@ export function ParceirosChamada() {
               </p>
             </div>
           </div>
-          <Button asChild size="touch" className="shrink-0 bg-barro-600 text-base font-bold text-white hover:bg-barro-700">
+          <Button asChild size="touch" className="shrink-0 bg-folha-600 text-base font-bold text-white hover:bg-folha-700">
             <Link href={PARCEIROS_PATH}>
               Seja parceiro <ChevronRight aria-hidden />
             </Link>

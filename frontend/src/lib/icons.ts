@@ -73,7 +73,8 @@ import {
   Settings,
   Shield,
   SlidersHorizontal,
-  Sparkles,
+  Lightbulb,
+  Newspaper,
   SprayCan,
   Sprout,
   Star,
@@ -185,7 +186,7 @@ export const MUI_TO_LUCIDE: Record<string, LucideIcon> = {
   Category: Tag,
   BusinessRounded: Building2,
   Business: Building2,
-  AutoAwesomeRounded: Sparkles,
+  AutoAwesomeRounded: Lightbulb,
   Person: User,
   PersonAdd: UserPlus,
   Email: Mail,
@@ -263,7 +264,7 @@ export const IconPendente = Hourglass;
 export const IconHorario = Clock;
 export const IconBloqueado = Lock;
 export const IconDestaque = Star;
-export const IconNovidade = Sparkles;
+export const IconNovidade = Newspaper;
 export const IconSubiu = TrendingUp;
 export const IconDesceu = TrendingDown;
 export const IconEstavel = MoveRight;

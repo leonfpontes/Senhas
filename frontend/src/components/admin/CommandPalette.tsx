@@ -58,6 +58,15 @@ export function CommandPalette({
   const router = useRouter();
   const pages = flattenNav(groups).filter((p) => !p.action);
 
+  // J1 v2 · 15: à direita de cada tela, onde ela mora no menu ("Casa · Financeiro").
+  const ondeMora = new Map<string, string>();
+  for (const g of groups) {
+    for (const entry of g.items) {
+      if (entry.kind === 'link') ondeMora.set(entry.href, g.label);
+      else for (const l of entry.items) ondeMora.set(l.href, `${g.label} · ${entry.label}`);
+    }
+  }
+
   const run = (fn: () => void) => {
     onOpenChange(false);
     fn();
@@ -84,7 +93,7 @@ export function CommandPalette({
       <CommandInput placeholder="O que você quer fazer?" />
       <CommandList>
         <CommandEmpty>Nada encontrado.</CommandEmpty>
-        <CommandGroup heading="Ações">
+        <CommandGroup heading="Ações rápidas">
           {canCreateGira && (
             <CommandItem value="criar gira nova gira" onSelect={() => run(() => router.push('/admin/giras?nova=1'))}>
               <Plus aria-hidden /> Criar gira
@@ -117,12 +126,17 @@ export function CommandPalette({
                 onSelect={() => run(() => router.push(page.href))}
               >
                 <Icon aria-hidden /> {page.label}
-                {typeof page.badge === 'number' && page.badge > 0 && <CommandShortcut>{page.badge}</CommandShortcut>}
+                {typeof page.badge === 'number' && page.badge > 0 ? (
+                  <CommandShortcut>{page.badge}</CommandShortcut>
+                ) : ondeMora.get(page.href) ? (
+                  <span className="ml-auto text-xs text-muted-foreground">{ondeMora.get(page.href)}</span>
+                ) : null}
               </CommandItem>
             );
           })}
         </CommandGroup>
       </CommandList>
+      <p className="border-t px-3 py-2 text-xs text-muted-foreground">↑↓ para escolher · Enter para abrir · Esc fecha</p>
     </CommandDialog>
   );
 }

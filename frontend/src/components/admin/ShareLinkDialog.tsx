@@ -10,7 +10,10 @@
  */
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Check, Copy, ExternalLink, MessageCircle, Star } from 'lucide-react';
+import { Check, Copy, ExternalLink, Send, Star } from 'lucide-react';
+import { CartazDoPortao } from '@/components/admin/CartazDoPortao';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useTenant } from '@/providers/ThemeProvider';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
@@ -113,6 +116,11 @@ export function resetUnifiedLinksCache(): void {
   unifiedLinksPromise = null;
 }
 
+/** O texto que vai no WhatsApp (o mesmo do link `wa.me`), para a prévia "No grupo da casa vai ficar assim". */
+export function whatsAppShareText(link: string, tenantName?: string | null, giraName?: string | null): string {
+  return decodeURIComponent(buildWhatsAppShareUrl(link, tenantName, giraName).split('?text=')[1] ?? '');
+}
+
 function LinkPanel({
   link,
   tenantName,
@@ -143,49 +151,65 @@ function LinkPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        <div className="shrink-0 rounded-xl border bg-white p-3" aria-hidden>
-          <QRCodeSVG value={link} size={148} level="M" data-testid="share-link-qr" />
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <p
-            data-testid="share-link-text"
-            className={cn(
-              'rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm break-all text-foreground',
-              accent && 'border-warning/50',
-            )}
-          >
-            {link}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {giraName
-              ? `Este link é só da ${giraName}. Para um link que vale para todas as giras, use “Link e QR do terreiro”.`
-              : 'O link é o mesmo para todas as giras: compartilhe uma vez e deixe o QR impresso na entrada — quem chegar aponta a câmera e pega a senha.'}
-          </p>
-        </div>
+    <div className="flex flex-col gap-3.5">
+      <p className="text-sm text-muted-foreground">
+        {giraName
+          ? 'O link desta gira abre direto nela. O do terreiro sempre abre a próxima gira com senhas abertas: bom para a bio do Instagram e para o cartaz fixo.'
+          : 'O link do terreiro é o mesmo para todas as giras: sempre abre a próxima com senhas abertas. Bom para a bio do Instagram e para o cartaz fixo.'}
+      </p>
+      <div
+        className={cn(
+          'flex min-h-15 items-center gap-2.5 rounded-[10px] border-[1.5px] border-input bg-card py-2 pr-2.5 pl-4',
+          accent && 'border-warning/60',
+        )}
+      >
+        <p data-testid="share-link-text" className="min-w-0 flex-1 text-base font-medium break-all text-foreground">
+          {link}
+        </p>
+        <Button type="button" variant="outline" className="h-10 shrink-0" onClick={handleCopy}>
+          {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+          {copied ? 'Copiado!' : 'Copiar'}
+        </Button>
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Button asChild size="touch" className="bg-[#15803d] text-white hover:bg-[#166534] sm:col-span-2">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <Button asChild size="touch">
           <a
             href={buildWhatsAppShareUrl(link, tenantName, giraName)}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => onShared?.('whatsapp')}
           >
-            <MessageCircle aria-hidden /> Enviar no WhatsApp
+            <Send aria-hidden /> Mandar no WhatsApp
           </a>
         </Button>
-        <Button type="button" size="touch" variant="outline" onClick={handleCopy}>
-          {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-          {copied ? 'Link copiado!' : 'Copiar link'}
-        </Button>
-        <Button asChild size="touch" variant="outline">
+        <Button asChild variant="link" className="h-11 px-0 text-base">
           <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => onShared?.('open')}>
-            <ExternalLink aria-hidden /> Abrir
+            Abrir o link <ExternalLink aria-hidden />
           </a>
         </Button>
       </div>
+      <p className="mt-1 text-sm font-medium text-muted-foreground">No grupo da casa vai ficar assim:</p>
+      {/* A mensagem como chega no grupo: o cartão do link (casa, gira, endereço) e o texto do wa.me. */}
+      <div className="rounded-[10px] rounded-tl-none bg-success/10 p-1.5 text-sm text-foreground" data-testid="share-preview">
+        <div className="rounded-md border-l-4 border-primary bg-card px-3 py-2">
+          {tenantName && <p className="text-xs font-semibold text-success-strong">{tenantName}</p>}
+          <p className="font-semibold">{giraName || 'A próxima gira com senhas abertas'}</p>
+          <p className="truncate text-xs text-muted-foreground">{link.replace(/^https?:\/\//, '')}</p>
+        </div>
+        <p className="px-2 pt-2 pb-1 whitespace-pre-line">{whatsAppShareText(link, tenantName, giraName)}</p>
+      </div>
+    </div>
+  );
+}
+
+/** QR simples (sem a beta do cartaz): o mesmo de sempre, para imprimir na entrada. */
+function QrSimples({ link }: { link: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="rounded-xl border bg-white p-3" aria-hidden>
+        <QRCodeSVG value={link} size={148} level="M" data-testid="share-link-qr" />
+      </div>
+      <p className="w-40 text-center text-xs text-muted-foreground">Aponte a câmera do celular.</p>
     </div>
   );
 }
@@ -196,20 +220,56 @@ export function ShareLinkDialog({
   link,
   sponsorLink,
   tenantName,
-  title = 'Link de senhas do terreiro',
-  description = 'Por este link os consulentes pegam a senha pelo celular.',
+  title = 'Mande o link.',
+  description = 'Link de senhas do terreiro',
   loading = false,
   onShared,
   giraName,
 }: ShareLinkDialogProps) {
   const hasSponsor = Boolean(sponsorLink);
+  const { beta } = useSubscription();
+  // O perfil nem sempre traz o nome da casa: o tema do painel sempre traz.
+  const { tenantName: nomeDoTema } = useTenant();
+  tenantName = tenantName || nomeDoTema;
+  const cartaz = Boolean(beta?.('beta_cartaz_portao'));
+  // O cartaz é sempre do link do terreiro (vale para todas as giras), mesmo abrindo pela gira.
+  const [linkDoTerreiro, setLinkDoTerreiro] = useState<string | null>(giraName ? null : link ?? null);
+  useEffect(() => {
+    if (!open || !cartaz) return;
+    if (!giraName) {
+      setLinkDoTerreiro(link ?? null);
+      return;
+    }
+    let vivo = true;
+    void fetchUnifiedLinks().then((l) => vivo && setLinkDoTerreiro(l?.public_link ?? null));
+    return () => {
+      vivo = false;
+    };
+  }, [open, cartaz, giraName, link]);
+
+  const painel = (l: string, accent?: boolean) => (
+    <LinkPanel link={l} tenantName={tenantName} onShared={onShared} giraName={giraName} accent={accent} />
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl" data-testid="share-link-dialog">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto bg-background sm:max-w-4xl" data-testid="share-link-dialog">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription className="text-sm font-medium">{description}</DialogDescription>
+          <DialogTitle className="font-display text-[2.25rem] leading-[1.05] font-normal tracking-[-0.02em]">
+            {/* J2 v2 · 04: "Mande o *link.*", com a ênfase em barro. */}
+            {title === 'Mande o link.' ? (
+              <>
+                Mande o <em className="text-[color:var(--color-barro-600)]">link.</em>
+              </>
+            ) : title === 'Gira criada! Compartilhe.' ? (
+              <>
+                Gira criada! <em className="text-[color:var(--color-barro-600)]">Compartilhe.</em>
+              </>
+            ) : (
+              title
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         {loading ? (
@@ -220,25 +280,38 @@ export function ShareLinkDialog({
           <p className="py-6 text-center text-sm text-muted-foreground" role="status">
             O link aparece assim que a primeira gira tiver senhas configuradas.
           </p>
-        ) : hasSponsor ? (
-          <Tabs defaultValue="comum">
-            <TabsList className="w-full">
-              <TabsTrigger value="comum" className="flex-1">
-                Senha comum
-              </TabsTrigger>
-              <TabsTrigger value="associado" className="flex-1">
-                <Star className="size-3.5" aria-hidden /> Associados
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="comum" className="mt-4">
-              <LinkPanel link={link} tenantName={tenantName} onShared={onShared} giraName={giraName} />
-            </TabsContent>
-            <TabsContent value="associado" className="mt-4">
-              <LinkPanel link={sponsorLink as string} tenantName={tenantName} onShared={onShared} giraName={giraName} accent />
-            </TabsContent>
-          </Tabs>
         ) : (
-          <LinkPanel link={link} tenantName={tenantName} onShared={onShared} giraName={giraName} />
+          <div className="flex flex-col gap-8 md:flex-row">
+            <div className="min-w-0 flex-1">
+              {hasSponsor ? (
+                <Tabs defaultValue="comum">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="comum" className="flex-1">
+                      Comum
+                    </TabsTrigger>
+                    <TabsTrigger value="associado" className="flex-1">
+                      <Star className="size-3.5" aria-hidden /> Associado
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="comum" className="mt-4">
+                    {painel(link)}
+                  </TabsContent>
+                  <TabsContent value="associado" className="mt-4">
+                    {painel(sponsorLink as string, true)}
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                painel(link)
+              )}
+            </div>
+            <div className="flex shrink-0 justify-center md:w-[260px]">
+              {cartaz && linkDoTerreiro ? (
+                <CartazDoPortao link={linkDoTerreiro} tenantName={tenantName ?? ''} />
+              ) : (
+                <QrSimples link={link} />
+              )}
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>

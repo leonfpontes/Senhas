@@ -268,11 +268,17 @@ function Escala() {
       </Link>
 
       <header className="flex flex-col gap-2">
-        <TipoChip tipo={a.tipo} size="sm" />
-        <h1 className="text-2xl font-bold">Escala · {a.titulo}</h1>
-        <p className="text-sm text-muted-foreground">
-          {formatDateTimeBr(a.inicio)}
-          {a.local ? ` · ${a.local}` : ''}
+        {/* J5 v2 · 13: "Escala" em Fraunces e a atividade embaixo. */}
+        <p className="text-[0.9375rem] font-medium text-muted-foreground">Atividades e escalas</p>
+        <h1 className="font-display text-[2.5rem] leading-tight font-normal tracking-[-0.02em]">
+          Escala<span className="sr-only"> · {a.titulo}</span>
+        </h1>
+        <p className="flex flex-wrap items-center gap-2 text-base text-muted-foreground">
+          <TipoChip tipo={a.tipo} size="sm" />
+          <span>
+            <strong className="font-semibold text-foreground">{a.titulo}</strong> · {formatDateTimeBr(a.inicio)}
+            {a.local ? ` · ${a.local}` : ''}
+          </span>
         </p>
         {a.cancelada && (
           <p className={cn('self-start rounded-md px-3 py-1.5 text-sm font-semibold', CLASSE_TOM.bad)}>

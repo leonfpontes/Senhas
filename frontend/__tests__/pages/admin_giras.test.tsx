@@ -3,7 +3,7 @@
  * Focus: CRUD table, ConfirmDialog for delete + release-now, status chips
  */
 import React from 'react';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 
 // Objeto mutável (prefixo `mock` para o jest permitir no factory): cada teste
 // pode ajustar query/isReady.
@@ -63,18 +63,30 @@ function wrap(ui: React.ReactElement) {
 }
 
 /** DateTimeField: data "dd/mm/aaaa" no campo rotulado e hora no input de hora ao lado. */
-function timeInputOf(label: RegExp | string): HTMLInputElement {
-  let el: HTMLElement | null = screen.getByLabelText(label);
-  while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
-  return (el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement;
+// O DateTimeField (J2 v2) é um campo só que abre um diálogo com a data, a hora e o calendário.
+function abrirDataHora(label: RegExp | string) {
+  fireEvent.click(screen.getByLabelText(label));
+  const nome = typeof label === 'string' ? `${label}: dia e hora` : new RegExp(`${label.source}.*dia e hora`);
+  return within(screen.getByRole('dialog', { name: nome }));
+}
+
+function fecharDataHora(dialogo: ReturnType<typeof within>) {
+  fireEvent.click(dialogo.getByRole('button', { name: 'Pronto' }));
 }
 
 function setDateTime(label: RegExp | string, date: string, time: string) {
-  fireEvent.change(screen.getByLabelText(label), { target: { value: date } });
-  fireEvent.change(timeInputOf(label), { target: { value: time } });
+  const dialogo = abrirDataHora(label);
+  fireEvent.change(dialogo.getByLabelText('Data'), { target: { value: date } });
+  fireEvent.change(dialogo.getByLabelText('Hora'), { target: { value: time } });
+  fecharDataHora(dialogo);
 }
 
-const timeOf = (label: RegExp | string) => timeInputOf(label).value;
+const timeOf = (label: RegExp | string) => {
+  const dialogo = abrirDataHora(label);
+  const hora = (dialogo.getByLabelText('Hora') as HTMLInputElement).value;
+  fecharDataHora(dialogo);
+  return hora;
+};
 
 const MOCK_GIRAS = [
   {
@@ -98,6 +110,14 @@ describe('Admin Giras Page', () => {
     const AdminGiras = require('@/pages/admin/giras').default;
     const { container } = wrap(<AdminGiras />);
     expect(container).toBeTruthy();
+  });
+
+  it('vindo do cadastro, mostra "Conta da <casa> criada" uma vez (J1 v2 · 06)', async () => {
+    sessionStorage.setItem('girahub:conta-criada', 'Terreiro Filhos de Fé');
+    const AdminGiras = require('@/pages/admin/giras').default;
+    wrap(<AdminGiras />);
+    expect(await screen.findByTestId('conta-criada')).toHaveTextContent('Conta da Terreiro Filhos de Fé criada.');
+    expect(sessionStorage.getItem('girahub:conta-criada')).toBeNull();
   });
 
   it('renders gira name after loading', async () => {
@@ -186,7 +206,7 @@ describe('Admin Giras Page', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /Nova gira/ })).toBeEnabled());
       fireEvent.click(screen.getByRole('button', { name: /Nova gira/ }));
       fireEvent.change(screen.getByLabelText(/^Nome da gira/), { target: { value: NEW_GIRA.nome } });
-      setDateTime(/^Dia e hora da gira/, '10/01/2099', '19:00');
+      setDateTime(/^Dia e hora/, '10/01/2099', '19:00');
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
       });
@@ -197,8 +217,8 @@ describe('Admin Giras Page', () => {
       await fillStepOne();
       expect(screen.getByTestId('create-senha-suggestion')).toBeInTheDocument();
       expect(screen.getByLabelText(/^Quantas senhas/)).toHaveValue(30);
-      expect((screen.getByLabelText(/^Senhas abrem em/) as HTMLInputElement).value).not.toBe('');
-      expect(screen.getByLabelText(/^Senhas fecham em/)).toHaveValue('10/01/2099');
+      expect(screen.getByLabelText(/^Senhas abrem em/)).not.toHaveTextContent('Escolher dia e hora');
+      expect(screen.getByLabelText(/^Senhas fecham em/)).toHaveTextContent(/10 de janeiro de 2099/);
       expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
       expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
     });
@@ -210,9 +230,42 @@ describe('Admin Giras Page', () => {
       setDateTime(/^Senhas abrem em/, '10/01/2099', '18:00');
       setDateTime(/^Senhas fecham em/, '10/01/2099', '18:30');
       expect(screen.getByTestId('short-window-warning')).toHaveTextContent('A liberação dura só 30 minutos');
-      fireEvent.click(screen.getByRole('button', { name: 'Usar sugestão' }));
+      fireEvent.click(within(screen.getByTestId('short-window-warning')).getByRole('button', { name: 'Usar sugestão' }));
       expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
       expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
+    });
+
+    it('com horário marcado ligado na casa, a Nova gira já oferece os horários e salva junto', async () => {
+      const api = mockApi([]);
+      const base = api.get.getMockImplementation();
+      api.get.mockImplementation((url: string) => {
+        if (url === '/api/v1/admin/giras/settings') return Promise.resolve({ data: { enable_time_slot_scheduling: true } });
+        if (url === '/api/v1/admin/config/time-slot-templates') {
+          return Promise.resolve({ data: [{ horario: '19:00:00', capacidade_maxima: 20 }, { horario: '20:00:00', capacidade_maxima: 20 }] });
+        }
+        return base(url);
+      });
+      await fillStepOne();
+      expect(screen.getByTestId('create-horarios')).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('switch', { name: /Consulente escolhe um horário/ }));
+      });
+      await waitFor(() => expect(screen.getAllByLabelText(/^Vagas/)).toHaveLength(2));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      await waitFor(() =>
+        expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/nova/time-slots', {
+          use_time_slots: true,
+          slots: [
+            { horario: '19:00', capacidade_maxima: 20 },
+            { horario: '20:00', capacidade_maxima: 20 },
+          ],
+        }),
+      );
     });
 
     it('ao concluir, cria a gira, salva as senhas e oferece o link', async () => {
@@ -234,7 +287,7 @@ describe('Admin Giras Page', () => {
         expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/nova/senhas', expect.objectContaining({ max_tickets: 30 })),
       );
       await waitFor(() => expect(screen.getByTestId('share-link-dialog')).toBeInTheDocument());
-      expect(screen.getByText('Gira criada! Compartilhe o link de senhas')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Gira criada! Compartilhe.' })).toBeInTheDocument();
       expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(LINK);
     });
 
@@ -258,7 +311,7 @@ describe('Admin Giras Page', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /Nova gira/ })).toBeEnabled());
       fireEvent.click(screen.getByRole('button', { name: /Nova gira/ }));
       fireEvent.change(screen.getByLabelText(/^Nome da gira/), { target: { value: NEW_GIRA.nome } });
-      setDateTime(/^Dia e hora da gira/, '10/01/2099', '19:00');
+      setDateTime(/^Dia e hora/, '10/01/2099', '19:00');
       fireEvent.change(screen.getByLabelText(/^Local/), { target: { value: 'Cachoeira do Parque' } });
       for (let i = 0; i < 3; i += 1) {
         await act(async () => {
@@ -294,7 +347,7 @@ describe('Admin Giras Page', () => {
         fireEvent.click(screen.getByRole('button', { name: /Compartilhar link/ }));
       });
       await waitFor(() => expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(GIRA_LINK));
-      expect(screen.getByTestId('share-link-dialog')).toHaveTextContent('Este link é só da Gira de Ogum');
+      expect(screen.getByTestId('share-link-dialog')).toHaveTextContent('O link desta gira abre direto nela');
       expect(screen.getByTestId('share-link-dialog')).not.toHaveTextContent(LINK);
     });
 

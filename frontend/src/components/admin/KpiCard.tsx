@@ -50,15 +50,17 @@ export const KpiCard: React.FC<KpiCardProps> = ({
       )}
       <div className="flex items-start justify-between gap-2 px-4 sm:px-5">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.05em] [overflow-wrap:anywhere] text-muted-foreground uppercase">{label}</p>
+          <p className="text-sm font-medium [overflow-wrap:anywhere] text-muted-foreground">{label}</p>
           {loading ? (
             <Skeleton data-testid="kpi-skeleton" className="mt-1.5 h-8 w-20" />
           ) : (
-            <p className="mt-1 text-xl leading-none font-extrabold tracking-tight [overflow-wrap:anywhere] text-foreground sm:text-2xl">{value}</p>
+            <p className="mt-1.5 font-display text-[1.625rem] leading-none font-normal tracking-[-0.02em] [overflow-wrap:anywhere] text-foreground sm:text-[2rem]">{value}</p>
           )}
           {caption && <p className="mt-1.5 text-xs text-muted-foreground">{caption}</p>}
         </div>
-        {icon && (
+        {/* Jornadas v2: o CartaoKpi do design system não tem ícone (rótulo, valor e contexto).
+            O `icon` continua aceito, mas só aparece com `highlight`. */}
+        {icon && highlight && (
           // Ícone some no celular: em grade de 2 colunas ele roubava o espaço do rótulo e do valor.
           <span
             aria-hidden

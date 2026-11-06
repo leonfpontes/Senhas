@@ -1394,6 +1394,15 @@ Incluir obrigatoriamente:
   "Publicado" ao publicar e a cada salvamento com o site no ar; "Rascunho" no salvamento fora do ar, no máximo a
   cada 10 min (`DRAFT_SNAPSHOT_INTERVAL`); "Antes de restaurar" antes de aplicar uma versão. `GET /versions` não
   devolve o snapshot.
+- **Meu Site — cores padrão (3.0.0, migração 106, 06/11/2026)**: campo de cor vazio no config da seção vale o
+  padrão do código (`components/site/lib.ts`): verde #2E6A4E e dourado #E9B04A desde a 3.0.0 (antes índigo
+  #6366f1 e rosa #ec4899; marca sem Hero #4f46e5). A `106_site_cores_padrao_antigas` (só dados) gravou nos sites que
+  já existiam as cores antigas nos campos vazios — Hero `bg_color`/`gradient_from`/`gradient_to`; site sem Hero ganha
+  `site_brand_color` #4f46e5 em toda seção (lido por `siteBrandColor` como reserva) e o `calendar_highlight_color`
+  vazio do calendário; com Hero, o destaque do calendário vazio continua seguindo o Hero — e nas versões salvas
+  (`site_versions.snapshot`). Nunca troca cor escolhida; downgrade no-op. Sites novos: o assistente usa a cor da casa
+  e cai no verde/dourado quando a casa está nos padrões (#4f46e5/#818cf8). O rodapé "GiraHub" é a marca do produto
+  (verde). O botão do calendário diz "Retire sua senha" (ícone Ticket), como antes da 3.0.0.
 - **Meu Site — imagens**: o editor não apaga imagem ao trocar/remover (ela pode estar no histórico). No limite de 50,
   o upload primeiro apaga as órfãs (`_prune_unreferenced_images`: nenhum UUID nas seções atuais — que são o conteúdo
   publicado — nem em versão do histórico, e com mais de 1 h). `DELETE /sites/images/{id}` devolve 409 se a imagem
@@ -1988,7 +1997,13 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
 - **Navegador mínimo: Safari/WebKit do iOS 15** (iPad de terreiro preso no 15.8; todo navegador de iOS usa o WebKit do
   sistema). O Next não rebaixa a sintaxe de `node_modules`: pacote que publica ES2022+ (ex.: `static {}` do
   `@radix-ui/react-collection`) entra em `transpilePackages` no `next.config.js`. O CI roda
-  `scripts/audit-legacy-syntax.js` depois do build (bloco estático de classe, regex com lookbehind ou flag `v`).
+  `scripts/audit-legacy-syntax.js` depois do build (bloco estático de classe, regex com lookbehind ou flag `v`;
+  chamadas `x.toSorted/toReversed/toSpliced()`, `Object.groupBy`, `Map.groupBy`, `Promise.withResolvers`,
+  `Array.fromAsync`; e no CSS do build `color-mix()`/`light-dark()`/cor relativa fora de `@supports` sem fallback
+  antes, ou CSS aninhado). Aparelho antigo também tem que ser LEVE: sem `color-mix` = WebKit < 16.2 → o `globals.css`
+  desliga `backdrop-filter` e o `instrumentation-client.ts` desliga o Replay do Sentry (que grava toda mudança de
+  tela); telas com atualização periódica usam `useAtualizacaoPeriodica` + `manterSeIgual` (`lib/polling.ts`):
+  não buscam com a aba escondida e não redesenham quando a resposta veio igual.
   CSS: o iOS 15 não tem `color-mix()`, e o fallback do Tailwind v4 para `bg-X/NN` é a cor CHEIA. O
   `postcss/colorMixFallback.js` (depois do Tailwind no `postcss.config.mjs`) declara `--X-rgb` ao lado de cada token
   opaco e troca o fallback por `rgb(var(--X-rgb) / NN%)`; token translúcido fica sem canal (fallback transparente).

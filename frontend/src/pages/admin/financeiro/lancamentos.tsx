@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   Ban,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -132,13 +131,13 @@ const TEXTO: Record<TipoLancamento, {
 function StatusBadge({ status, tipo }: { status: ContaFinanceira['status']; tipo: TipoLancamento }) {
   switch (status) {
     case 'pago':
-      return <Badge className="border-transparent bg-success text-success-foreground">{TEXTO[tipo].statusPago}</Badge>;
+      return <Badge className="border-transparent bg-success/15 text-success-strong">{TEXTO[tipo].statusPago}</Badge>;
     case 'vencido':
-      return <Badge variant="destructive">Vencido</Badge>;
+      return <Badge className="border-transparent bg-destructive/12 text-destructive-strong">Vencido</Badge>;
     case 'cancelado':
       return <Badge variant="outline">Cancelado</Badge>;
     default:
-      return <Badge className="border-transparent bg-warning text-warning-foreground">Pendente</Badge>;
+      return <Badge className="border-transparent bg-warning/20 text-warning-strong">Pendente</Badge>;
   }
 }
 
@@ -439,7 +438,6 @@ function LancamentosContent() {
       <DropdownMenuContent align="end">
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(c)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -583,6 +581,7 @@ function LancamentosContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Lançamentos"
+        eyebrow="Financeiro"
         subtitle={texto.subtitulo}
         actions={
           <>
@@ -695,6 +694,9 @@ function LancamentosContent() {
       </div>
 
       <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(c) => `Editar ${c.descricao}`}
         columns={columns}
         data={contas}
         getRowId={(c) => c.id}

@@ -29,6 +29,7 @@ import {
   TrendingUp,
   TriangleAlert,
   UserPlus,
+  X,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import AdminLayout from './admin_layout';
@@ -39,6 +40,7 @@ import FirstGiraChecklist, {
   isTenantActivated,
   readChecklistDismissed,
   resetChecklistDismissed,
+  writeChecklistDismissed,
   type OnboardingStatus,
 } from '@/components/admin/FirstGiraChecklist';
 import { ShareLinkDialog, fetchUnifiedLinks, type UnifiedLinks } from '@/components/admin/ShareLinkDialog';
@@ -217,50 +219,61 @@ function TodayGiraCard({
   return (
     <Card className="mb-6 gap-4 border-primary/50 py-5" data-testid="gira-de-hoje">
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-brand uppercase">
-              {isToday ? 'Gira de hoje' : 'Próxima gira'}
-            </p>
-            <h2 className="truncate text-xl font-bold">{gira.nome}</h2>
-            <p className="text-sm text-muted-foreground first-letter:uppercase">{whenLabel(start)}</p>
-          </div>
-          <Badge
-            variant="outline"
-            className={gira.is_open ? 'border-success/30 bg-success/15 text-success-strong' : 'text-muted-foreground'}
-          >
-            {gira.is_open ? 'Senhas abertas no link' : 'Senhas fechadas'}
-          </Badge>
+        {/* J12 v2 · 01: selo do dia e hora no alto, título em Fraunces, a ação do momento
+            sozinha numa linha e as outras duas lado a lado. */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-brand">
+            {isToday ? 'Gira de hoje' : 'Próxima gira'}
+          </span>
+          <span className="text-sm font-semibold tabular-nums first-letter:uppercase">{whenLabel(start)}</span>
+        </div>
+        <div className="-mt-1 min-w-0">
+          <h2 className="font-display text-2xl leading-tight font-normal">{gira.nome}</h2>
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-sm">
-            <strong className="tabular-nums">{gira.current_count}</strong>
-            {gira.max_tickets ? ` de ${gira.max_tickets} senhas` : ' senhas'}
-            {gira.sponsor_count > 0 ? ` · ${gira.sponsor_count} de associados` : ''}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              <strong className="font-semibold text-foreground tabular-nums">{gira.current_count}</strong>
+              {gira.max_tickets ? ` de ${gira.max_tickets} senhas` : ' senhas'}
+              {gira.sponsor_count > 0 ? ` · ${gira.sponsor_count} de associados` : ''}
+            </p>
+            <Badge
+              variant="outline"
+              className={gira.is_open ? 'border-transparent bg-success/15 text-success-strong' : 'text-muted-foreground'}
+            >
+              {gira.is_open ? 'Senhas abertas no link' : 'Senhas fechadas'}
+            </Badge>
+          </div>
           {pct !== null && <Progress value={pct} className="h-2" aria-label="Senhas emitidas" />}
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          {canViewPorta && (
-            <Button asChild className="sm:flex-1" variant={isToday ? 'default' : 'outline'}>
+        {(() => {
+          const porta = canViewPorta && (
+            <Button key="porta" asChild className="h-11 font-semibold" variant={isToday ? 'default' : 'outline'}>
               <Link href={`/admin/porta?gira=${encodeURIComponent(gira.id)}`}>
-                <DoorOpen aria-hidden /> Abrir Porta
+                Abrir Porta <DoorOpen aria-hidden />
               </Link>
             </Button>
-          )}
-          {canViewTickets && (
-            <Button asChild variant="outline" className="sm:flex-1">
+          );
+          const senhas = canViewTickets && (
+            <Button key="senhas" asChild variant="outline" className="h-11 font-semibold">
               <Link href={`/admin/tickets?gira=${encodeURIComponent(gira.id)}`}>
-                <Ticket aria-hidden /> Ver senhas
+                Ver senhas <Ticket aria-hidden />
               </Link>
             </Button>
-          )}
-          {canShare && (
-            <Button type="button" variant={isToday ? 'outline' : 'default'} className="sm:flex-1" onClick={onShare}>
-              <Share2 aria-hidden /> Compartilhar link
+          );
+          const share = canShare && (
+            <Button key="share" type="button" variant={isToday ? 'outline' : 'default'} className="h-11 font-semibold" onClick={onShare}>
+              {isToday ? 'Compartilhar' : 'Compartilhar link'} <Share2 aria-hidden />
             </Button>
-          )}
-        </div>
+          );
+          const [principal, ...outras] = (isToday ? [porta, senhas, share] : [share, porta, senhas]).filter(Boolean);
+          return (
+            <div className="flex flex-col gap-2">
+              {principal}
+              {outras.length > 0 && <div className="grid grid-cols-2 gap-2">{outras}</div>}
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );
@@ -438,23 +451,57 @@ function DashboardContent() {
   ];
   const hasAniversariantes = canViewAniversariantes && aniversariantes.length > 0;
 
+  const esconderPassos = () => {
+    writeChecklistDismissed(tenantId);
+    setChecklistDismissed(true);
+  };
+
+  // Jornada 1 v2 · 07/11: a data em cima e "Boa tarde, *Nome.*" em Fraunces, com o nome em itálico.
+  const primeiroNome = (profile?.full_name || '').trim().split(/\s+/)[0] || '';
   const header = (
-    <div data-tour="dashboard-greeting" className="mb-6 flex items-start justify-between gap-3">
+    <div data-tour="dashboard-greeting" className="mb-7 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{greeting || ' '}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">{todayLabel || ' '}</p>
+        <p className="text-[0.9375rem] font-medium text-muted-foreground first-letter:uppercase">{todayLabel || ' '}</p>
+        <h1 className="mt-1.5 font-display text-[2.5rem] leading-[1.05] font-normal tracking-[-0.03em] sm:text-[3.25rem]">
+          {greeting ? (
+            <>
+              {greeting}
+              {primeiroNome ? (
+                <>
+                  , <em className="text-[color:var(--color-barro-600)]">{primeiroNome}.</em>
+                </>
+              ) : (
+                '.'
+              )}
+            </>
+          ) : (
+            ' '
+          )}
+        </h1>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => loadDashboard()}
-        disabled={loading}
-        aria-label="Atualizar"
-        title="Atualizar"
-      >
-        <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
-      </Button>
+      <div className="flex items-center gap-2">
+        {onboardingOnly && onboarding && (
+          <Button
+            type="button"
+            variant="link"
+            className="h-11 px-0 text-sm font-semibold text-foreground underline underline-offset-4"
+            onClick={esconderPassos}
+          >
+            Esconder os primeiros passos <X aria-hidden />
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => loadDashboard()}
+          disabled={loading}
+          aria-label="Atualizar"
+          title="Atualizar"
+        >
+          <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
+        </Button>
+      </div>
     </div>
   );
 

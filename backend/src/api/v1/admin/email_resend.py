@@ -164,7 +164,10 @@ async def resend_ticket_email(
     result_consulente = await db.execute(stmt_consulente)
     consulente = result_consulente.scalar_one_or_none()
 
-    if not consulente or not consulente.email:
+    # Beta "Senha para outra pessoa": o e-mail vai para quem pediu a senha.
+    pedido = getattr(ticket, "email_de_quem_pediu", None)
+    destino = pedido if isinstance(pedido, str) and pedido else (consulente.email if consulente else None)
+    if not consulente or not destino:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Consulente sem email cadastrado",
@@ -224,7 +227,7 @@ async def resend_ticket_email(
         tenant_address=tenant_address,
         primary_color=primary_color,
         secondary_color=secondary_color,
-        consulente_email=consulente.email,
+        consulente_email=destino,
         consulente_phone=consulente.telefone or "",
         priority_category=getattr(ticket, "priority_category", None),
         recados=gira.recados if gira else None,
@@ -240,7 +243,7 @@ async def resend_ticket_email(
         is_sponsor=ticket.is_sponsor,
         tenant_address=tenant_address,
         tenant_name=tenant_name,
-        consulente_email=consulente.email,
+        consulente_email=destino,
         consulente_phone=consulente.telefone or "",
         priority_category=getattr(ticket, "priority_category", None),
         recados=gira.recados if gira else None,
@@ -248,7 +251,7 @@ async def resend_ticket_email(
     )
     subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
     message = EmailMessage(
-        to_email=consulente.email,
+        to_email=destino,
         subject=f"{subject_prefix}Reenvio — Sua Senha #{ticket_numero_str}",
         html_body=html_body,
         text_body=text_body,
@@ -258,6 +261,6 @@ async def resend_ticket_email(
     return ResendEmailResponse(
         success=True,
         message="Email será reenviado em breve",
-        email_sent_to=consulente.email,
+        email_sent_to=destino,
     )
 

@@ -39,7 +39,8 @@ import { KpiCard } from '@/components/admin/KpiCard';
 import CrudDrawer from '@/components/CrudDrawer';
 import { DateField, MoneyInput, TextField } from '@/components/fields';
 import { useSnackbar } from '@/contexts/SnackbarContext';
-import { currentMonthBr, formatBRL, formatDateBr, todayBr } from '@/lib/dateBr';
+import { currentMonthBr, formatBRL, formatDateBr, monthLabelLong, todayBr } from '@/lib/dateBr';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -190,11 +191,12 @@ const STATUS_LABEL: Record<CobrancaStatusEfetivo, string> = {
   INADIMPLENTE: 'Inadimplente',
 };
 
+// J7 v2 (SeloDaMensalidade): tons claros, o texto na cor forte — o vermelho cheio fica para excluir.
 const STATUS_CLASS: Record<CobrancaStatusEfetivo, string> = {
-  PAGO: 'border-transparent bg-success text-success-foreground',
+  PAGO: 'border-transparent bg-success/15 text-success-strong',
   ISENTO: 'border-transparent bg-muted text-muted-foreground',
-  PENDENTE: 'border-transparent bg-warning text-warning-foreground',
-  INADIMPLENTE: 'border-transparent bg-destructive text-destructive-foreground',
+  PENDENTE: 'border-transparent bg-warning/20 text-warning-strong',
+  INADIMPLENTE: 'border-transparent bg-destructive/12 text-destructive-strong',
 };
 
 /** Selo "Comprovante enviado" (médium mandou pela Área, falta a casa conferir — AM-12). */
@@ -254,16 +256,12 @@ export function CobrancaStatusBadge({ status }: { status: CobrancaStatusEfetivo 
 /** Grade de KPIs do mês (2×2 no celular, 4 colunas no desktop — sem item solitário). */
 export function CobrancaKpisGrid({ kpis, loading }: { kpis: CobrancaKpis | null; loading?: boolean }) {
   return (
+    // J7 v2 · 03: esperado, arrecadado, em aberto e inadimplentes numa linha, na ordem do desenho.
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="cobranca-kpis">
       <KpiCard label="Esperado" value={kpis ? formatBRL(kpis.esperado) : '—'} loading={loading} />
-      <KpiCard label="Arrecadado" value={kpis ? formatBRL(kpis.arrecadado) : '—'} color="var(--success)" loading={loading} />
-      <KpiCard
-        label="Inadimplentes"
-        value={kpis ? kpis.inadimplentes : '—'}
-        color={kpis && kpis.inadimplentes > 0 ? 'var(--destructive)' : 'var(--success)'}
-        loading={loading}
-      />
-      <KpiCard label="Em aberto" value={kpis ? formatBRL(kpis.emAberto) : '—'} color="var(--warning)" loading={loading} />
+      <KpiCard label="Arrecadado" value={kpis ? formatBRL(kpis.arrecadado) : '—'} loading={loading} />
+      <KpiCard label="Em aberto" value={kpis ? formatBRL(kpis.emAberto) : '—'} loading={loading} />
+      <KpiCard label="Inadimplentes" value={kpis ? kpis.inadimplentes : '—'} loading={loading} />
     </div>
   );
 }
@@ -581,7 +579,8 @@ export function CobrancaMensal({
   };
 
   const mesPassado = mes < currentMonthBr();
-  const drawerTitle = drawerItem ? `Registrar pagamento — ${drawerItem.nome}` : 'Registrar pagamento';
+  // J7 v2 · 05: "Registrar o pagamento", com quem e o mês embaixo.
+  const drawerTitle = 'Registrar o pagamento';
 
   return (
     <div className={cn('flex flex-col gap-3', selectedIds.length > 0 && 'pb-20', className)} data-testid={testId}>
@@ -672,9 +671,9 @@ export function CobrancaMensal({
           open={drawerItem !== null}
           onClose={() => setDrawerItem(null)}
           title={drawerTitle}
-          subtitle={`Mês de referência ${mes.slice(5, 7)}/${mes.slice(0, 4)}`}
+          subtitle={[drawerItem?.nome, monthLabelLong(mes).split(' de ')[0]].filter(Boolean).join(' · ')}
           onSave={handleSave}
-          saveLabel="Salvar"
+          saveLabel={status === 'PAGO' ? 'Marcar como pago' : 'Salvar'}
           saving={saving}
         >
           <div className="flex flex-col gap-4">
@@ -693,19 +692,23 @@ export function CobrancaMensal({
             )}
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="cobranca-status" className="text-sm font-medium">
+              <span id="cobranca-status" className="text-base font-semibold">
                 Status
-              </label>
-              <Select value={status} onValueChange={(v) => setStatus(v as CobrancaStatus)}>
-                <SelectTrigger id="cobranca-status" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PAGO">Pago</SelectItem>
-                  <SelectItem value="PENDENTE">Pendente</SelectItem>
-                  <SelectItem value="ISENTO">Isento</SelectItem>
-                </SelectContent>
-              </Select>
+              </span>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={status}
+                onValueChange={(v) => v && setStatus(v as CobrancaStatus)}
+                aria-labelledby="cobranca-status"
+                className="h-12 w-full rounded-[10px] border border-border bg-card p-1"
+              >
+                {(['PAGO', 'PENDENTE', 'ISENTO'] as const).map((v) => (
+                  <ToggleGroupItem key={v} value={v} className="h-full flex-1 rounded-[8px] border-0 text-[0.9375rem]">
+                    {STATUS_LABEL[v]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
             </div>
 
             {status === 'PAGO' && (

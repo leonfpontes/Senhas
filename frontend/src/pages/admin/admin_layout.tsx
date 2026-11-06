@@ -16,7 +16,7 @@ import { AdminThemeProvider } from '@/providers/AdminThemeProvider';
 import { AdminSidebar } from '@/components/admin/layout/AdminSidebar';
 import { AdminTopbar } from '@/components/admin/layout/AdminTopbar';
 import { ImpersonationBanner } from '@/components/admin/layout/ImpersonationBanner';
-import { useAdminNav, type NavAction } from '@/components/admin/layout/navConfig';
+import { useAdminNav, type NavAction, type NavLink } from '@/components/admin/layout/navConfig';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SubscriptionWarningBanner } from '@/components/admin/SubscriptionWarningBanner';
 import { CommandPalette, useCommandPaletteShortcut } from '@/components/admin/CommandPalette';
@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { fraunces } from '@/components/landing/fonts';
 import { AREA_HOME, knownWithoutAdminArea } from '@/lib/areas';
 
 interface AdminLayoutProps {
@@ -89,6 +90,13 @@ export default function AdminLayout(props: AdminLayoutProps) {
     if (semPainel) void router.replace(AREA_HOME.medium);
   }, [semPainel, router]);
 
+  // Gavetas e diálogos vão para o <body> por portal: a variável da Fraunces e o tema do painel
+  // (areia e barra café, J1 v2 · 11) também precisam estar lá.
+  useEffect(() => {
+    document.body.classList.add(fraunces.variable, 'painel-terra');
+    return () => document.body.classList.remove(fraunces.variable, 'painel-terra');
+  }, []);
+
   if (semPainel) {
     return (
       <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Abrindo a Área do Médium">
@@ -100,9 +108,12 @@ export default function AdminLayout(props: AdminLayoutProps) {
   return (
     <AdminThemeProvider>
       <GiraProvider>
-        <SidebarProvider>
-          <AdminLayoutInner {...props} />
-        </SidebarProvider>
+        {/* Jornadas v2: Fraunces nos títulos do painel (font-display); `contents` não mexe no layout. */}
+        <div className={cn(fraunces.variable, 'contents')}>
+          <SidebarProvider>
+            <AdminLayoutInner {...props} />
+          </SidebarProvider>
+        </div>
       </GiraProvider>
     </AdminThemeProvider>
   );
@@ -181,7 +192,7 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
         <title>{pageTitle}</title>
       </Head>
 
-      <AdminSidebar isOperator={isOperator} onAction={handleNavAction} />
+      <AdminSidebar isOperator={isOperator} onAction={handleNavAction} onOpenCommand={() => setCommandOpen(true)} />
 
       <SidebarInset className="min-w-0">
         {isImpersonating && (
@@ -190,7 +201,11 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
             tenantLabel={impersonateTenant?.name || '...'}
           />
         )}
-        <AdminTopbar title={title || 'Início'} onOpenCommand={() => setCommandOpen(true)} />
+        <AdminTopbar
+          title={title || 'Início'}
+          onOpenCommand={() => setCommandOpen(true)}
+          contaLinks={(navGroups.find((g) => g.key === 'conta')?.items ?? []).filter((e): e is NavLink => e.kind === 'link')}
+        />
         <SubscriptionWarningBanner />
 
         {permissionsLoading && isOperator && feature ? (

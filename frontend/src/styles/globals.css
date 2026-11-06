@@ -60,22 +60,22 @@
   --chart-grid: rgba(0, 0, 0, 0.06);
   --chart-tick: #64748b; /* 4,8:1 no branco (o #94a3b8 ficava em 2,6:1) */
 
-  /* Marca — defaults iguais aos do TenantAwareThemeProvider (= TenantConfig.primary_color do
-   * backend e ao theme-color do _document); applyBrand() sobrescreve em runtime. */
-  --primary: #4f46e5;
+  /* Marca — defaults iguais aos do TenantAwareThemeProvider (jornadas v2: o verde folha, = o padrão
+   * do TenantConfig e o theme-color do _document); applyBrand() sobrescreve em runtime. */
+  --primary: #2e6a4e;
   --primary-foreground: #ffffff;
-  --secondary: #ec4899;
+  --secondary: #2e6a4e;
   --secondary-foreground: #ffffff;
-  --ring: #4f46e5;
+  --ring: #2e6a4e;
 
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #4f46e5;
+  --sidebar-primary: #2e6a4e;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(99, 102, 241, 0.04);
+  --sidebar-accent: rgba(46, 106, 78, 0.06);
   --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #4f46e5;
+  --sidebar-ring: #2e6a4e;
 
   /* Semânticas — usadas por Alert, toasts e badges de status. Todas passam WCAG AA (4,5:1)
    * como texto sobre o fundo claro e com texto branco por cima. O laranja (#ed6c02) e o azul
@@ -136,14 +136,56 @@
   --info-strong: #4fc3f7;
   --destructive-strong: #fca5a5;
 
-  /* O índigo padrão (#4f46e5) fica em ~2,3:1 sobre o fundo escuro. */
-  --primary-text: var(--brand-text-dark, #a5b4fc);
+  /* O verde folha padrão fica escuro demais sobre o fundo escuro: o texto usa o tom claro. */
+  --primary-text: var(--brand-text-dark, #8cad9e);
 
   --sidebar: #1e293b;
   --sidebar-foreground: #f1f5f9;
   --sidebar-accent: rgba(255, 255, 255, 0.04);
   --sidebar-accent-foreground: #f1f5f9;
   --sidebar-border: rgba(255, 255, 255, 0.08);
+}
+
+/* Painel /admin no tema GiraHub (jornadas v2, J1 · 11): areia e tinta no claro, e a barra lateral café
+ * (que não muda no escuro). Vai no <body> (AdminLayout), para valer também nas gavetas e diálogos, que
+ * abrem por portal. A cor da casa continua no --primary (applyBrand no :root). */
+html:not(.dark) body.painel-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+}
+/* Escuro do painel (J1 v2 · 17): o terra escuro, café no lugar do azul-marinho. */
+.dark body.painel-terra {
+  --background: #20150f;
+  --foreground: var(--color-areia-50);
+  --card: var(--color-cafe-900);
+  --card-foreground: var(--color-areia-50);
+  --popover: var(--color-cafe-900);
+  --popover-foreground: var(--color-areia-50);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.22);
+  --input-bg: #1b110c;
+  --muted: var(--color-cafe-800);
+  --muted-foreground: var(--color-areia-300);
+  --accent: var(--color-cafe-800);
+  --accent-foreground: var(--color-areia-50);
+}
+body.painel-terra {
+  --sidebar: var(--color-cafe-950);
+  --sidebar-foreground: var(--color-areia-100);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
 }
 
 /* Telas de conta (/login, /cadastro, esqueci/redefinir senha, reativar — `components/auth/AuthShell`):
@@ -165,10 +207,51 @@
   --muted-foreground: var(--color-tinta-suave);
   --accent: var(--color-areia-100);
   --accent-foreground: var(--color-tinta);
-  --primary: var(--color-barro-600);
+  /* Ação em verde folha, o padrão sem cor de casa (ADR 0011; J11 v2). */
+  --primary: var(--color-folha-700);
   --primary-foreground: #ffffff;
-  --primary-text: var(--color-barro-700);
-  --ring: var(--color-barro-600);
+  --primary-text: var(--color-folha-700);
+  --ring: var(--color-folha-700);
+}
+
+/* Páginas públicas do consulente (PublicShell, jornada 3 v2): a superfície "terra" (areia + tinta) com a
+ * COR DA CASA no --primary (o PublicShell põe as variáveis da marca no mesmo elemento, depois desta classe
+ * no estilo inline, então elas vencem). Sempre clara. Pares em __tests__/styles/marketingContrast.test.ts. */
+.public-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+}
+
+/* Jornada 3 v2: o formulário do consulente em letra de quem lê sem óculos — rótulo 16 px, campo de
+ * 58 px com texto de 18 px, ajuda de 15 px. O asterisco sai da tela (o campo continua aria-required). */
+.public-terra [data-slot='field'] > [data-slot='label'],
+.gaveta-v2 [data-slot='field'] > [data-slot='label'] {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.public-terra [data-slot='field'] > [data-slot='label'] > span[aria-hidden],
+.gaveta-v2 [data-slot='field'] > [data-slot='label'] > span[aria-hidden] {
+  display: none;
+}
+.public-terra [data-slot='field'] input:not([type='checkbox']):not([type='radio']),
+.gaveta-v2 [data-slot='field'] input:not([type='checkbox']):not([type='radio']),
+.gaveta-v2 [data-slot='field'] [data-slot='datetime-trigger'] {
+  height: 58px;
+  font-size: 1.125rem;
+}
+.public-terra [data-slot='field-message'] {
+  font-size: 0.9375rem;
 }
 
 /* Área do Médium (/medium/*, /escolher-area — `components/medium/MediumLayout`, AM-06): visual de
@@ -633,5 +716,18 @@ html:is([data-passagem='fechar-documento'], [data-passagem='folhear-tras'])::vie
     .documento-fio {
       animation: none !important;
     }
+  }
+}
+
+/* Aparelho antigo (WebKit < 16.2, o iPad da casa no iOS 15): sem o desfoque atrás das barras fixas
+ * (topo, abas de baixo, cabeçalho da Porta). O `backdrop-filter` redesenha o desfoque a cada quadro
+ * de rolagem e travava a GPU do iPad; as barras já têm fundo 95% opaco, então quase nada muda.
+ * O teste é o mesmo do colorMixFallback: quem não tem color-mix é o WebKit antigo. */
+@supports not (color: color-mix(in srgb, red, red)) {
+  *,
+  ::before,
+  ::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }

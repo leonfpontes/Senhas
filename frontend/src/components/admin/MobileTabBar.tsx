@@ -108,21 +108,22 @@ export function MobileTabBar({ canGiras, canPorta, canCreateGira, canWalkIn, onS
 
       <Sheet open={plusOpen} onOpenChange={setPlusOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <span aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
           <SheetHeader className="pb-0">
             <SheetTitle>O que você quer fazer?</SheetTitle>
             <SheetDescription>Ações rápidas do dia.</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-2 px-4">
             {canCreateGira && (
-              <Button asChild size="touch" className="justify-start">
+              <Button asChild size="touch" className="font-semibold">
                 <Link href="/admin/giras?nova=1" onClick={close}>
-                  <Plus aria-hidden /> Nova gira
+                  Nova gira <Plus aria-hidden />
                 </Link>
               </Button>
             )}
             {canWalkIn && (
-              <Button type="button" size="touch" variant="outline" className="justify-start" onClick={handleWalkIn}>
-                <UserPlus aria-hidden /> Sem senha
+              <Button type="button" size="touch" variant="outline" className="font-semibold" onClick={handleWalkIn}>
+                Sem senha <UserPlus aria-hidden />
               </Button>
             )}
             {canGiras && (
@@ -130,15 +131,19 @@ export function MobileTabBar({ canGiras, canPorta, canCreateGira, canWalkIn, onS
                 type="button"
                 size="touch"
                 variant="outline"
-                className="justify-start"
+                className="font-semibold"
                 onClick={() => {
                   close();
                   onShareLink();
                 }}
               >
-                <Share2 aria-hidden /> Compartilhar link
+                Compartilhar link <Share2 aria-hidden />
               </Button>
             )}
+            {/* J12 v2 · 02: diz por que uma ação pode não estar aqui. */}
+            <p className="pt-1 text-xs text-muted-foreground">
+              &quot;Sem senha&quot; só aparece na Porta e para quem pode registrar. Nova gira, só com permissão e plano.
+            </p>
           </div>
         </SheetContent>
       </Sheet>

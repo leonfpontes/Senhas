@@ -10,6 +10,27 @@
  */
 import * as Sentry from '@sentry/nextjs';
 
+/**
+ * Aparelho antigo/fraco (o iPad da casa, iOS 15 com 2 GB): sem `color-mix` no CSS (WebKit < 16.2,
+ * Chrome < 111) ou com até 2 GB de memória declarados. Nele o Replay fica desligado: mesmo "só em
+ * erros" ele grava cada mudança da tela o tempo todo (guarda o último minuto), e a Porta muda a
+ * cada 8 s. Os erros continuam chegando ao Sentry, só sem o vídeo.
+ */
+function aparelhoAntigo(): boolean {
+  try {
+    if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function' &&
+        !CSS.supports('color', 'color-mix(in srgb, red, red)')) {
+      return true;
+    }
+    const memoria = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    return typeof memoria === 'number' && memoria <= 2;
+  } catch {
+    return false;
+  }
+}
+
+const comReplay = !aparelhoAntigo();
+
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || 'development',
@@ -18,7 +39,7 @@ Sentry.init({
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
 
   // Replay de sessão só em erros (sem PII)
-  replaysOnErrorSampleRate: 1.0,
+  replaysOnErrorSampleRate: comReplay ? 1.0 : 0,
   replaysSessionSampleRate: 0,
 
   // Não enviar dados sensíveis do usuário (no SDK 10 isso também desliga a
@@ -33,9 +54,7 @@ Sentry.init({
     /^chrome-extension:\/\//,
   ],
 
-  integrations: [
-    Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
-  ],
+  integrations: comReplay ? [Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })] : [],
 });
 
 // Hook de transição de rota do Next. Ele só é chamado pelo App Router; no

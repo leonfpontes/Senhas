@@ -38,6 +38,12 @@ const CATEGORIAS = [
   { id: 'cat2', nome: 'Antiga', tipo: 'pagar', cor: null, ativo: false },
 ];
 
+function abrirCategorias() {
+  const aba = screen.getByRole('tab', { name: 'Categorias' });
+  fireEvent.mouseDown(aba);
+  fireEvent.click(aba);
+}
+
 describe('Configuração financeira', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -49,6 +55,8 @@ describe('Configuração financeira', () => {
 
   it('lista categorias inativas (incluir_inativos) e permite reativar', async () => {
     render(<FinanceiroConfigPage />);
+    // J7 v2 · 01: a aba Mensalidade abre primeiro.
+    abrirCategorias();
     expect(await screen.findByText('Antiga')).toBeInTheDocument();
     expect(mockGet).toHaveBeenCalledWith('/api/v1/admin/financeiro/categorias', { params: { incluir_inativos: true } });
     expect(screen.getByText('Inativa')).toBeInTheDocument();
@@ -61,6 +69,7 @@ describe('Configuração financeira', () => {
 
   it('excluir categoria não promete exclusão permanente (é soft delete)', async () => {
     render(<FinanceiroConfigPage />);
+    abrirCategorias();
     await screen.findByText('Velas');
     fireEvent.keyDown(screen.getByRole('button', { name: 'Ações de Velas' }), { key: 'Enter' });
     const menu = await screen.findByRole('menu');

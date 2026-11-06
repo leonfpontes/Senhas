@@ -20,9 +20,11 @@ interface Props {
   failures: number;
   /** Chamado quando o navegador volta a ficar online. */
   onOnline?: () => void;
+  /** Quando a fila na tela foi carregada (J4 v2: "Mostrando a última fila, das 19h12"). */
+  desde?: Date | null;
 }
 
-export default function PortaOfflineNotice({ failures, onOnline }: Props) {
+export default function PortaOfflineNotice({ failures, onOnline, desde }: Props) {
   const online = useOnlineStatus();
   const offline = !online || failures >= OFFLINE_AFTER_FAILURES;
 
@@ -49,7 +51,12 @@ export default function PortaOfflineNotice({ failures, onOnline }: Props) {
       className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/15 px-3 py-1.5 text-sm text-warning-strong"
     >
       <WifiOff className="size-4 shrink-0" aria-hidden />
-      <span>Sem conexão — mostrando a última fila carregada</span>
+      <span>
+        {desde
+          ? `Sem conexão. Mostrando a última fila, das ${desde.getHours()}h${String(desde.getMinutes()).padStart(2, '0')}.`
+          : 'Sem conexão. Mostrando a última fila carregada.'}{' '}
+        &ldquo;Chamar próximo&rdquo; volta quando a internet voltar.
+      </span>
     </div>
   );
 }

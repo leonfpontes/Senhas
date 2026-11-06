@@ -41,30 +41,10 @@ describe('Página 404', () => {
     expect(screen.getByRole('button', { name: /voltar/i })).toBeInTheDocument();
   });
 
-  it('com prefers-reduced-motion a mensagem não troca sozinha', () => {
-    jest.useFakeTimers();
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('reduce'),
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia;
-    mockRouter.asPath = '/x/y';
-    render(<Custom404 />);
-    expect(screen.getByText('Essa página não está aqui.')).toBeInTheDocument();
-    act(() => { jest.advanceTimersByTime(8000); });
-    expect(screen.getByText('Essa página não está aqui.')).toBeInTheDocument();
-  });
-
-  it('sem reduced-motion as mensagens alternam', () => {
-    jest.useFakeTimers();
-    mockRouter.asPath = '/x/y';
-    render(<Custom404 />);
-    act(() => { jest.advanceTimersByTime(4000); });
-    expect(screen.getByText('O link pode ter mudado ou expirado.')).toBeInTheDocument();
+  it('J11 v2: recado fixo, sem ícones decorativos nem animação', () => {
+    mockRouter.asPath = '/admin/inexistente';
+    const { container } = render(<Custom404 />);
+    expect(screen.getByText(/O endereço pode ter mudado ou a gira já passou/)).toBeInTheDocument();
+    expect(container.querySelector('.motion-safe\\:animate-bounce, .motion-safe\\:animate-pulse')).toBeNull();
   });
 });

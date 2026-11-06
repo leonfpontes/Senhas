@@ -13,7 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ArrowLeft, CircleAlert, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleAlert, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { AuthShell, AUTH_INPUT, AUTH_LINK, PasswordRules } from '@/components/auth';
 import { PasswordField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -167,18 +167,15 @@ export default function ConvitePage() {
 
   if (erroCarga) {
     return (
-      <AuthShell headTitle="Convite da casa — GiraHub" title="Convite da casa">
+      // J11 v2 · 15: o convite que não vale mais ganha título próprio e a saída para o login.
+      <AuthShell headTitle="Convite da casa — GiraHub" eyebrow="Convite da casa" title="Este convite não vale mais">
         <div className="flex flex-col gap-6">
-          <Alert variant="destructive" role="alert">
-            <CircleAlert aria-hidden />
-            <AlertDescription>{erroCarga}</AlertDescription>
-          </Alert>
-          <p className="text-sm text-tinta-suave">
-            Já ativou seu acesso antes?{' '}
-            <Link href="/login" className={AUTH_LINK}>
-              Entrar
-            </Link>
+          <p role="alert" className="text-sm text-tinta-suave">
+            {erroCarga.replace(/^Este convite não vale mais\.\s*/, '')} Por segurança, cada convite vale por um tempo e só uma vez.
           </p>
+          <Link href="/login" className={`${AUTH_LINK} inline-flex min-h-12 items-center justify-center gap-2 self-center text-sm`}>
+            <ArrowRight className="size-4" aria-hidden /> Ir para o login
+          </Link>
         </div>
       </AuthShell>
     );
@@ -226,28 +223,24 @@ export default function ConvitePage() {
     return (
       <AuthShell
         headTitle="Convite da casa — GiraHub"
-        title={nome ? `Olá, ${nome}! ${casa} convidou você.` : `${casa} convidou você.`}
+        eyebrow="Convite da casa"
+        title={nome ? `Olá, ${nome}! ${casa} convidou você.` : `${casa} convidou você`}
         subtitle="A Área do Médium junta a agenda da casa, os avisos e a sua mensalidade num lugar só, no seu celular."
       >
         <div className="flex flex-col gap-6">
-          <p className="text-center text-xs font-bold tracking-[0.2em] text-barro-700 uppercase">Convite da casa</p>
           <LogoDaCasa convite={convite} />
-          <ul className="flex flex-col gap-4 rounded-2xl bg-areia-50 p-4 text-sm text-tinta">
-            <li className="flex items-start gap-3">
-              <Mail className="mt-0.5 size-5 shrink-0 text-barro-700" aria-hidden />
-              <span>
-                Seu e-mail de acesso
-                <br />
-                <strong className="text-base break-all">{convite.email_mascarado}</strong>
-              </span>
-            </li>
-            <li className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-barro-700" aria-hidden />
-              <span>Só a direção da casa vê seus dados. Os outros médiuns não veem nada seu.</span>
-            </li>
-          </ul>
+          <div className="rounded-xl bg-areia-100 px-3.5 py-3 text-sm text-tinta">
+            <span className="flex items-center gap-2 text-xs font-semibold text-tinta-suave">
+              <Mail className="size-4 shrink-0" aria-hidden /> Seu e-mail de acesso
+            </span>
+            <strong className="mt-0.5 block text-base break-all">{convite.email_mascarado}</strong>
+          </div>
+          <p className="-mt-2 flex items-start gap-2.5 text-sm text-tinta-suave">
+            <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>Só a direção da casa vê seus dados. Os outros médiuns não veem nada seu.</span>
+          </p>
           <Button type="button" size="touch" className="w-full font-bold" onClick={() => setPasso('senha')}>
-            Continuar
+            Continuar <ArrowRight aria-hidden />
           </Button>
           <p className="text-center text-sm text-tinta-suave">Não é você? Avise a casa.</p>
         </div>
@@ -258,6 +251,7 @@ export default function ConvitePage() {
   return (
     <AuthShell
       headTitle="Crie sua senha de acesso — GiraHub"
+      eyebrow="Passo 2 de 2"
       title={contaExistente ? 'Entre com a sua senha' : 'Crie sua senha de acesso'}
       subtitle={
         contaExistente
@@ -266,8 +260,6 @@ export default function ConvitePage() {
       }
     >
       <form onSubmit={ativar} className="flex flex-col gap-6" noValidate>
-        <p className="text-xs font-bold tracking-[0.2em] text-barro-700 uppercase">Passo 2 de 2</p>
-
         {erro && (
           <Alert variant="destructive" role="alert">
             <CircleAlert aria-hidden />
@@ -316,6 +308,13 @@ export default function ConvitePage() {
           {enviando ? <Loader2 className="animate-spin" aria-hidden /> : null}
           {enviando ? 'Ativando…' : 'Ativar meu acesso'}
         </Button>
+
+        {/* J11 v2 · 16: quem já tem conta pode ter esquecido a senha de sempre. */}
+        {contaExistente && (
+          <Link href="/forgot-password" className={`${AUTH_LINK} inline-flex min-h-12 items-center justify-center self-center text-sm`}>
+            Esqueci minha senha
+          </Link>
+        )}
 
         <Button
           type="button"

@@ -66,6 +66,12 @@ class Ticket(SoftDeleteModel):
         Index("ix_tickets_created_at", "created_at"),
         Index("ix_tickets_time_slot_id", "time_slot_id"),
         Index("ix_tickets_parent_ticket_id", "parent_ticket_id"),
+        Index(
+            "ix_tickets_email_de_quem_pediu",
+            "tenant_id",
+            "email_de_quem_pediu",
+            postgresql_where=text("email_de_quem_pediu IS NOT NULL"),
+        ),
         Index("ix_tickets_checkin_em", "checkin_em"),
         # Uma senha ativa por consulente/gira/tipo (migração 056, item Q-03).
         # Mesmo predicado de TicketRepository.check_duplicate_in_gira.
@@ -108,6 +114,11 @@ class Ticket(SoftDeleteModel):
     # vinculada via parent_ticket_id para cascatear cancelamento.
     is_acompanhante: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     parent_ticket_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="SET NULL"), nullable=True)
+    # Beta "Senha para outra pessoa" (migração 103): e-mail de quem preencheu por outra pessoa.
+    # Quando existe, é ele que recebe os e-mails da senha (ver email_de_aviso).
+    email_de_quem_pediu: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Beta "Lembrete no dia da gira" (migração 104): quando o lembrete saiu (uma vez só).
+    lembrete_enviado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Door control fields (Visão da Porta)
     checkin_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -147,3 +158,11 @@ class Ticket(SoftDeleteModel):
     def is_waitlist_pending_confirmation(self) -> bool:
         """WAITLISTED ticket that has been promoted and awaits consulente confirmation."""
         return self.status == TicketStatus.WAITLISTED and self.promoted_at is not None
+
+
+def email_de_aviso(ticket: "Ticket") -> str | None:
+    """Para onde vão os e-mails da senha: quem pediu por outra pessoa, ou o próprio consulente."""
+    pedido = getattr(ticket, "email_de_quem_pediu", None)
+    if isinstance(pedido, str) and pedido:
+        return pedido
+    return ticket.consulente.email if ticket.consulente else None

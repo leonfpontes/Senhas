@@ -10,6 +10,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -21,18 +22,33 @@ export function EscalaDaGiraButton({
   giraId,
   className,
   variant = 'outline',
+  icone = true,
+  comoItemDeMenu = false,
 }: {
   giraId: string;
   className?: string;
   variant?: 'outline' | 'default' | 'ghost';
+  /** Sem ícone na agenda (J2 v2): só o texto, como no desenho. */
+  icone?: boolean;
+  /** Item do "Mais ações" (celular, J2 v2 · 08), no lugar do botão. */
+  comoItemDeMenu?: boolean;
 }) {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
   if (!can('area_medium') || !can('atividades_corrente') || !canGroup('escalas', 'view')) return null;
+  if (comoItemDeMenu) {
+    return (
+      <DropdownMenuItem asChild className={className}>
+        <Link href={escalaDaGiraHref(giraId)}>
+          <Users aria-hidden /> Escala
+        </Link>
+      </DropdownMenuItem>
+    );
+  }
   return (
     <Button asChild variant={variant} className={className}>
       <Link href={escalaDaGiraHref(giraId)}>
-        <Users aria-hidden /> Escala
+        {icone && <Users aria-hidden />} Escala
       </Link>
     </Button>
   );

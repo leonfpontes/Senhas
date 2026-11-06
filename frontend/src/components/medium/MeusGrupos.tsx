@@ -14,7 +14,7 @@ export function MeusGrupos({ grupos, className }: { grupos?: GrupoResumo[] | nul
     <p className={cn('flex flex-wrap items-center gap-1.5 text-base', className)} data-testid="meus-grupos">
       <span>{grupos.length === 1 ? 'Seu grupo:' : 'Seus grupos:'}</span>
       {grupos.map((g) => (
-        <GrupoChip key={g.id} grupo={g} size="sm" />
+        <GrupoChip variante="solido" key={g.id} grupo={g} size="sm" />
       ))}
     </p>
   );

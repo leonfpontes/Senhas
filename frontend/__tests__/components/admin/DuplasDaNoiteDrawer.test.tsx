@@ -88,7 +88,7 @@ describe('Duplas da noite', () => {
     fireEvent.click(screen.getByLabelText('Pai Carlos trabalha hoje'));
     fireEvent.click(screen.getByRole('button', { name: /Ana\? · junto em 8 de 10 giras/ }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Salvar duplas' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Pronto' }));
     });
 
     expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/g1/door/duplas', {
@@ -110,7 +110,7 @@ describe('Duplas da noite', () => {
     fireEvent.click(screen.getByLabelText('Mãe Rita trabalha hoje'));
     fireEvent.click(screen.getByRole('button', { name: 'Usar sugestões (1)' }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Salvar duplas' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Pronto' }));
     });
     expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/g1/door/duplas', {
       duplas: [

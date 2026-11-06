@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { Megaphone, TriangleAlert } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
-import { IconTile, MediumList, MediumListItem, MediumPage, MediumPageHeader } from '@/components/medium/ui';
+import { MediumList, MediumListItem, MediumPage, MediumPageHeader } from '@/components/medium/ui';
 import { AVISOS_INDISPONIVEIS, FixadoBadge, dataCurtaBr } from '@/components/avisos/AvisoLeitura';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -70,7 +70,7 @@ function Avisos() {
   return (
     <MediumPage className="flex-1">
       <MediumPageHeader
-        title="Avisos"
+        title="Avisos da casa"
         description={
           data && data.nao_lidos > 0
             ? data.nao_lidos === 1
@@ -118,24 +118,22 @@ function Avisos() {
                 href={`/medium/avisos/${a.id}`}
                 data-testid="aviso-item"
                 className="items-start"
-                media={
-                  <span className="relative">
-                    <IconTile icon={Megaphone} tom={a.lido ? 'neutro' : 'marca'} />
-                    {!a.lido && (
-                      <span
-                        className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-primary ring-2 ring-card"
-                        role="img"
-                        aria-label="Não lido"
-                        data-testid="aviso-nao-lido"
-                      />
-                    )}
-                  </span>
-                }
                 title={<strong className={cn(a.lido ? 'font-medium' : 'font-semibold')}>{a.titulo}</strong>}
                 description={a.resumo ? <span className="line-clamp-2">{a.resumo}</span> : undefined}
+                // J6 v2 · 07: os selos em cima (Fixado, Não lido) e a data; sem ícone.
                 meta={
                   <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     {a.fixado && <FixadoBadge />}
+                    {!a.lido && (
+                      <span
+                        role="img"
+                        aria-label="Não lido"
+                        data-testid="aviso-nao-lido"
+                        className="rounded-full bg-info/15 px-2 py-0.5 text-xs font-semibold text-info-strong"
+                      >
+                        <span aria-hidden>Não lido</span>
+                      </span>
+                    )}
                     Publicado em {dataCurtaBr(a.publicado_em)}
                   </span>
                 }

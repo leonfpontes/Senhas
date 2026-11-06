@@ -9,13 +9,15 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
-import { ArrowLeftRight, BookOpen, Building2, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Building2, CircleHelp, LogOut, MessageCircle, Moon, Newspaper, Search, Sun, User } from 'lucide-react';
 import { logout } from '@/services/authSession';
+import { cn } from '@/lib/utils';
 import { hasAdminArea, hasMediumArea, switchArea } from '@/lib/areas';
 import { useMinhasContas } from '@/hooks/useMinhasContas';
 import { areasHint } from '@/components/auth/AccountChoiceList';
 import { TrocarTerreiroDialog } from '@/components/auth/TrocarTerreiroDialog';
 import { useTenant } from '@/providers/ThemeProvider';
+import type { NavLink } from './navConfig';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
@@ -59,9 +61,11 @@ export const TOPBAR_GIRA_SELECTOR_ROUTES = ['/admin/dashboard'];
 export interface AdminTopbarProps {
   title: string;
   onOpenCommand?: () => void;
+  /** Jornada 1 v2: "Conta e plano" mora no menu do avatar (já filtrado por plano e perfil). */
+  contaLinks?: NavLink[];
 }
 
-export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }) => {
+export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, contaLinks = [] }) => {
   const router = useRouter();
   const { tenantName, logoUrl } = useTenant();
   const { profile } = useProfile();
@@ -83,11 +87,23 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
 
   // Breadcrumb a partir da rota (sem querystring); só a partir do 3º nível (/admin/x/y).
   const segments = router.asPath.split('?')[0].split('#')[0].split('/').filter(Boolean);
-  const crumbs = segments.map((seg, idx) => ({
-    label: routeLabel(seg),
-    href: '/' + segments.slice(0, idx + 1).join('/'),
-    isLast: idx === segments.length - 1,
-  }));
+  // Id na rota (/admin/mediuns/<uuid>/ficha) não vira degrau da trilha: aparecia o UUID cru.
+  const ehId = (seg: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(seg);
+  const crumbs = segments
+    .map((seg, idx) => ({
+      label: routeLabel(seg),
+      href: '/' + segments.slice(0, idx + 1).join('/'),
+      isLast: idx === segments.length - 1,
+      id: ehId(seg),
+    }))
+    .filter((c) => !c.id);
+  // "Notas da versão · Beta testers" (Laboratório, J1 v2 · 12) abre as Novidades daqui.
+  React.useEffect(() => {
+    const abrir = () => setNotesOpen(true);
+    window.addEventListener('girahub:abrir-novidades', abrir);
+    return () => window.removeEventListener('girahub:abrir-novidades', abrir);
+  }, [setNotesOpen]);
+
   const showBreadcrumbs = segments.length > 2;
 
   const { setSteps, setIsOpen, setCurrentStep } = useTour();
@@ -105,6 +121,22 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
     router.push('/admin/dashboard?passos=1');
   };
 
+  // J12 v2 · 08: no celular, o fim do menu repete este menu da pessoa e pede daqui o que abre
+  // um diálogo (suporte, novidades, trocar de terreiro) ou os primeiros passos.
+  const onboardingRef = React.useRef(handleShowOnboarding);
+  onboardingRef.current = handleShowOnboarding;
+  React.useEffect(() => {
+    const abrir = (e: Event) => {
+      const acao = (e as CustomEvent<AcaoDoMenuDaPessoa>).detail;
+      if (acao === 'suporte') setSupportOpen(true);
+      else if (acao === 'novidades') setNotesOpen(true);
+      else if (acao === 'trocar-terreiro') setTrocaOpen(true);
+      else if (acao === 'primeiros-passos') onboardingRef.current();
+    };
+    window.addEventListener(MENU_DA_PESSOA_EVENT, abrir);
+    return () => window.removeEventListener(MENU_DA_PESSOA_EVENT, abrir);
+  }, [setNotesOpen]);
+
   const selectableGiras = [...giras].sort(
     (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime(),
   );
@@ -116,8 +148,24 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
     >
       <SidebarTrigger className="-ml-1" aria-label="Abrir menu" />
 
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <div className="flex min-w-0 items-center gap-2">
+      {/* J1 v2 · 11: no desktop, a busca grande fica à esquerda (o título já está na página). */}
+      {onOpenCommand && (
+        <Button
+          type="button"
+          variant="outline"
+          className="hidden h-10 w-full max-w-[22rem] justify-start gap-2.5 rounded-[10px] bg-card px-3 font-normal text-muted-foreground md:inline-flex"
+          onClick={onOpenCommand}
+          aria-label="Buscar ações (Ctrl K)"
+          data-testid="topbar-command"
+        >
+          <Search aria-hidden />
+          <span className="flex-1 truncate text-left text-sm">Buscar senha, médium, gira…</span>
+          <kbd className="pointer-events-none rounded border bg-muted px-1.5 font-sans text-[0.6875rem] font-semibold">Ctrl K</kbd>
+        </Button>
+      )}
+
+      <div className={cn('flex min-w-0 flex-1 flex-col justify-center', onOpenCommand && 'md:pl-2')}>
+        <div className={cn('flex min-w-0 items-center gap-2', onOpenCommand && 'md:sr-only')}>
           <h2 className="truncate text-sm font-bold text-foreground sm:text-base">{title}</h2>
           {tenantName && (
             <span className="hidden truncate text-xs text-muted-foreground md:inline" data-testid="topbar-tenant">
@@ -167,27 +215,6 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
             ))}
           </SelectContent>
         </Select>
-      )}
-
-      {onOpenCommand && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="hidden gap-2 text-muted-foreground md:inline-flex"
-              onClick={onOpenCommand}
-              aria-label="Buscar ações (Ctrl K)"
-              data-testid="topbar-command"
-            >
-              <Search aria-hidden />
-              <span className="text-xs">Buscar…</span>
-              <kbd className="pointer-events-none rounded border bg-muted px-1 font-mono text-[0.65rem]">⌘K</kbd>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Buscar páginas e ações (⌘K / Ctrl K)</TooltipContent>
-        </Tooltip>
       )}
 
       {tourSteps.length > 0 && (
@@ -256,6 +283,22 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
           <DropdownMenuItem onSelect={() => router.push('/admin/profile')}>
             <User aria-hidden /> Perfil
           </DropdownMenuItem>
+          {contaLinks.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Conta e plano</DropdownMenuLabel>
+              {contaLinks.map((l) => {
+                const Icone = l.icon;
+                return (
+                  <DropdownMenuItem key={l.href} onSelect={() => router.push(l.href)}>
+                    <Icone aria-hidden /> {l.label}
+                    {l.badge ? <span className="ml-auto text-xs font-semibold text-warning-strong">{l.badge}</span> : null}
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onSelect={handleShowOnboarding}>
             <BookOpen aria-hidden /> Mostrar primeiros passos
           </DropdownMenuItem>
@@ -266,7 +309,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onSelect={() => setNotesOpen(true)} data-testid="menu-version">
-            <Sparkles aria-hidden /> Novidades da versão
+            <Newspaper aria-hidden /> Novidades da versão
             <span className="ml-auto text-xs text-muted-foreground">v{APP_VERSION}</span>
           </DropdownMenuItem>
           {profile?.areas?.medium && (
@@ -323,6 +366,10 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
 export async function adminLogout(push: (url: string) => unknown, profileId?: string): Promise<void> {
   await logout(push, () => clearReleaseNotesSession(profileId));
 }
+
+/** Evento do menu do celular (AdminSidebar) para as ações que moram aqui. */
+export const MENU_DA_PESSOA_EVENT = 'girahub:menu-da-pessoa';
+export type AcaoDoMenuDaPessoa = 'suporte' | 'novidades' | 'trocar-terreiro' | 'primeiros-passos';
 
 function safeSessionItem(key: string): string | null {
   try {

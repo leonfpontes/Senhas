@@ -14,7 +14,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import * as Sentry from '@sentry/nextjs';
-import { Building2, Handshake, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun } from 'lucide-react';
+import { Building2, Handshake, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun, Telescope } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { APP_VERSION } from '@/lib/version';
 import { cn } from '@/lib/utils';
@@ -53,11 +53,15 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CommandPalette, useCommandPalette } from '@/components/platform/CommandPalette';
 import { initials } from '@/components/platform/format';
+import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
+import { fraunces } from '@/components/landing/fonts';
 
 // ─── Navegação — fonte única ─────────────────────────────────────────────────
 
 export const PLATFORM_NAV = [
   { label: 'Hoje', href: '/platform', icon: LayoutDashboard, exact: true },
+  // Observatório de volta como página própria (J14 v2 · 19, decisão do Leonardo, 04/11/2026).
+  { label: 'Observatório', href: '/platform/observatory', icon: Telescope, exact: false },
   { label: 'Terreiros', href: '/platform/tenants', icon: Building2, exact: false },
   { label: 'Suporte', href: '/platform/suporte', icon: LifeBuoy, exact: false },
   { label: 'Parceiros', href: '/platform/parceiros', icon: Handshake, exact: false },
@@ -103,18 +107,16 @@ function PlatformSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
+      <SidebarHeader className="justify-center px-3 pt-4 pb-2">
         <Link
           href="/platform"
           onClick={closeOnMobile}
-          className="flex items-center gap-2.5 rounded-md px-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+          className="flex flex-col items-start gap-2 rounded-md px-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
           aria-label="GiraHub — Hoje"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/favicon.svg" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
-          <span className="truncate text-sm font-bold tracking-tight group-data-[collapsible=icon]:hidden">
-            GiraHub
-            <span className="ml-1.5 text-[0.6rem] font-bold tracking-[0.18em] text-brand uppercase">Plataforma</span>
+          <GiraHubLogo className="text-sidebar-foreground group-data-[collapsible=icon]:hidden" />
+          <span className="rounded-md bg-ouro-300 px-1.5 py-0.5 text-[0.65rem] font-bold text-cafe-950 group-data-[collapsible=icon]:hidden">
+            Plataforma
           </span>
         </Link>
       </SidebarHeader>
@@ -165,19 +167,19 @@ function PlatformSidebar() {
                 </Avatar>
                 <span className="flex min-w-0 flex-col leading-tight">
                   <span className="truncate text-xs font-semibold">{displayName}</span>
-                  {email && <span className="truncate text-[0.68rem] text-muted-foreground">{email}</span>}
+                  {email && <span className="truncate text-[0.68rem] text-sidebar-foreground/70">{email}</span>}
                 </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} tooltip="Sair" className="text-muted-foreground hover:text-destructive">
+            <SidebarMenuButton onClick={handleLogout} tooltip="Sair" className="text-sidebar-foreground/80">
               <LogOut aria-hidden />
               <span>Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <p className="px-2 pb-1 text-center text-[0.62rem] font-semibold tracking-[0.08em] text-muted-foreground group-data-[collapsible=icon]:hidden">
+        <p className="px-2 pb-1 text-center text-[0.62rem] font-semibold tracking-[0.08em] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
           GiraHub v{APP_VERSION}
         </p>
       </SidebarFooter>
@@ -246,6 +248,12 @@ function PlatformShell({ children, breadcrumbs }: PlatformShellProps) {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [paletteOpen, setPaletteOpen] = useCommandPalette();
+
+  // J14 v2: o mesmo casco do painel do terreiro (areia e barra café), também nos portais.
+  useEffect(() => {
+    document.body.classList.add(fraunces.variable, 'painel-terra');
+    return () => document.body.classList.remove(fraunces.variable, 'painel-terra');
+  }, []);
 
   useEffect(() => {
     try {

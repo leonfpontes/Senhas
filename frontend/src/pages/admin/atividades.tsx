@@ -41,7 +41,6 @@ import {
   ExternalLink,
   EyeOff,
   ListOrdered,
-  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -66,12 +65,21 @@ import {
   useGruposDaCorrente,
 } from '@/components/admin/atividades/PorNaEscalaCampos';
 import { TipoChip } from '@/components/atividades/TipoChip';
+import { corDoTipo } from '@/constants/atividades';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { EmptyState } from '@/components/EmptyState';
 import { DateTimeField, TextField } from '@/components/fields';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { CartaoClicavel } from '@/components/admin/CartaoClicavel';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -189,10 +197,12 @@ function AtividadesContent() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Atividades e escalas"
+        eyebrow="Corrente"
         subtitle="Faxina, rituais, reuniões, desenvolvimento… Ficam só na Área do Médium: não vão ao site nem contam no limite de giras."
       />
       <Tabs value={aba} onValueChange={setAba}>
-        <TabsList className="w-full sm:w-auto">
+        {/* J5 v2 · 11: abas sublinhadas, como no desenho. */}
+        <TabsList className="h-auto w-full justify-start gap-5 rounded-none border-b border-border bg-transparent p-0 sm:w-auto [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:rounded-none [&>[data-slot=tabs-trigger]]:border-0 [&>[data-slot=tabs-trigger]]:border-b-2 [&>[data-slot=tabs-trigger]]:border-transparent [&>[data-slot=tabs-trigger]]:bg-transparent [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:pb-2 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&>[data-slot=tabs-trigger]]:shadow-none [&>[data-slot=tabs-trigger][data-state=active]]:border-foreground [&>[data-slot=tabs-trigger][data-state=active]]:font-semibold">
           <TabsTrigger value="agenda">Agenda da casa</TabsTrigger>
           <TabsTrigger value="faxina">Escala de faxina</TabsTrigger>
           <TabsTrigger value="tipos">Tipos e funções</TabsTrigger>
@@ -499,6 +509,136 @@ function AgendaDaCasa({
   const rotuloMes = monthLabelLong(mes);
   const itens = cal?.itens ?? [];
   const algumaAcao = canEdit || canDelete;
+  // J5 v2 · 11: no computador, a agenda do mês em calendário; no celular, a lista de sempre.
+  const comoCalendario = useMediaQuery('(min-width: 900px)');
+
+  /** O menu de uma atividade no calendário: as mesmas ações (e permissões) da lista. */
+  const menuDoItem = (item: (typeof itens)[number]) => (
+    <DropdownMenuContent align="start" className="min-w-52">
+      {(item.origem === 'atividade' || canInsert) && !item.cancelada && (
+        <DropdownMenuItem onSelect={() => setConfirmacoes({ origem: item.origem, id: item.id, titulo: item.titulo })}>
+          <Users aria-hidden /> Confirmações
+        </DropdownMenuItem>
+      )}
+      {canEdit && !item.cancelada && controlaPresenca(item) && (
+        <DropdownMenuItem onSelect={() => void abrirChamada(item)}>
+          <ClipboardCheck aria-hidden /> Chamada
+        </DropdownMenuItem>
+      )}
+      {!item.cancelada && temEscalaPorFuncao(item) && (
+        <DropdownMenuItem asChild>
+          <Link href={escalaHref(item)}>
+            <ListOrdered aria-hidden /> Escala
+          </Link>
+        </DropdownMenuItem>
+      )}
+      {item.origem === 'gira' ? (
+        canVerGiras && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin/giras">
+              <ExternalLink aria-hidden /> Ver em Giras
+            </Link>
+          </DropdownMenuItem>
+        )
+      ) : (
+        <>
+          {canEdit && !item.cancelada && (
+            <>
+              <DropdownMenuItem onSelect={() => void abrirEdicao(item)}>
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => abrirCancelar(item)}>
+                <Ban aria-hidden /> Cancelar
+              </DropdownMenuItem>
+            </>
+          )}
+          {canEdit && item.cancelada && (
+            <DropdownMenuItem onSelect={() => void reativar(item)}>
+              <RotateCcw aria-hidden /> Desfazer cancelamento
+            </DropdownMenuItem>
+          )}
+          {canDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setExcluir(item)}>
+                <Trash2 aria-hidden /> Excluir
+              </DropdownMenuItem>
+            </>
+          )}
+        </>
+      )}
+    </DropdownMenuContent>
+  );
+
+  const calendario = (() => {
+    const [ano, mesNum] = mes.split('-').map(Number);
+    const primeiro = new Date(ano, mesNum - 1, 1);
+    const dias = new Date(ano, mesNum, 0).getDate();
+    const vazio = primeiro.getDay();
+    const hoje = new Date();
+    const celulas: (number | null)[] = [...Array(vazio).fill(null), ...Array.from({ length: dias }, (_, i) => i + 1)];
+    while (celulas.length % 7) celulas.push(null);
+    const doDia = (d: number) =>
+      itens.filter((it) => {
+        const x = new Date(it.inicio);
+        return x.getFullYear() === ano && x.getMonth() === mesNum - 1 && x.getDate() === d;
+      });
+    return (
+      <div className="overflow-hidden rounded-[14px] border border-border bg-card" data-testid="agenda-calendario">
+        <div className="grid grid-cols-7 border-b border-border text-center text-[0.8125rem] font-medium text-muted-foreground">
+          {['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d) => (
+            <span key={d} className="py-2">
+              {d}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {celulas.map((d, i) => {
+            const ehHoje = d !== null && hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1 && hoje.getDate() === d;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  'flex min-h-[6.5rem] flex-col gap-1 border-border p-1.5 [&:not(:nth-child(7n))]:border-r',
+                  i < celulas.length - 7 && 'border-b',
+                  ehHoje && 'bg-primary/5',
+                )}
+              >
+                {d !== null && (
+                  <>
+                    <span className="px-1 text-[0.8125rem] font-semibold">{d}</span>
+                    {doDia(d).map((it) => {
+                      const hex = corDoTipo(it.tipo?.cor);
+                      return (
+                        <DropdownMenu key={`${it.origem}-${it.id}`}>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className={cn(
+                                'h-auto w-full justify-start truncate rounded-md px-1.5 py-0.5 text-left text-xs font-semibold text-white hover:opacity-90',
+                                it.cancelada && 'line-through opacity-60',
+                                !hex && 'bg-primary',
+                              )}
+                              style={hex ? { backgroundColor: hex } : undefined}
+                              aria-label={`${it.titulo}, ${formatDateTimeBr(it.inicio)}`}
+                            >
+                              <span className="truncate">{it.titulo}</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          {menuDoItem(it)}
+                        </DropdownMenu>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  })();
 
   return (
     <div className="flex flex-col gap-4">
@@ -507,7 +647,7 @@ function AgendaDaCasa({
           <Button variant="ghost" size="icon-sm" onClick={() => setMes((m) => addMonthsYm(m, -1))} aria-label="Mês anterior">
             <ChevronLeft />
           </Button>
-          <span className="min-w-40 text-center font-semibold first-letter:uppercase" data-testid="mes-atual">
+          <span className="min-w-40 text-center font-display text-2xl font-normal tracking-[-0.01em] first-letter:uppercase" data-testid="mes-atual">
             {rotuloMes}
           </span>
           <Button variant="ghost" size="icon-sm" onClick={() => setMes((m) => addMonthsYm(m, 1))} aria-label="Próximo mês">
@@ -554,6 +694,8 @@ function AgendaDaCasa({
             </Button>
           }
         />
+      ) : comoCalendario ? (
+        calendario
       ) : itens.length === 0 ? (
         <EmptyState
           icon={<CalendarDays />}
@@ -572,8 +714,11 @@ function AgendaDaCasa({
         <ul className="flex flex-col gap-3" aria-label="Agenda da casa">
           {itens.map((item) => (
             <li key={`${item.origem}-${item.id}`}>
-              <Card
-                className={cn('flex-row items-start gap-3 p-4', item.cancelada && 'opacity-75')}
+              {/* Clique para editar (04/11/2026): o cartão da atividade abre a edição (a gira se edita em Giras). */}
+              <CartaoClicavel
+                aoAbrir={canEdit && !item.cancelada && item.origem !== 'gira' ? () => void abrirEdicao(item) : undefined}
+                rotulo={`Editar ${item.titulo}`}
+                className={cn('flex flex-row items-start gap-3 p-4 shadow-sm', item.cancelada && 'opacity-75')}
                 data-testid="agenda-item"
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -639,15 +784,6 @@ function AgendaDaCasa({
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={() => void abrirEdicao(item)}
-                            title="Editar"
-                            aria-label={`Editar ${item.titulo}`}
-                          >
-                            <Pencil />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
                             onClick={() => abrirCancelar(item)}
                             title="Cancelar"
                             aria-label={`Cancelar ${item.titulo}`}
@@ -681,7 +817,7 @@ function AgendaDaCasa({
                     </div>
                   )
                 )}
-              </Card>
+              </CartaoClicavel>
             </li>
           ))}
         </ul>

@@ -372,16 +372,17 @@ function ColumnCard({
   id?: string;
 }) {
   return (
-    <Card id={id} className="gap-2 py-4" data-testid={id}>
-      <CardHeader className="px-4">
-        <CardTitle className="flex items-center gap-2 text-base">
+    // J14 v2 · 01: as colunas do Hoje sem cartão em volta, com o título em negrito e sem ícone.
+    <Card id={id} className="gap-2 rounded-none border-0 bg-transparent py-0 shadow-none" data-testid={id}>
+      <CardHeader className="px-0">
+        <CardTitle className="flex items-center gap-2 text-base [&>svg]:hidden">
           <span aria-hidden className="text-muted-foreground [&_svg]:size-4">{icon}</span>
           {title}
           {!loading && <span className="ml-auto text-xs font-semibold text-muted-foreground tabular-nums">{count}</span>}
         </CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="px-4">
+      <CardContent className="px-0">
         {loading ? (
           <div className="flex flex-col gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
@@ -587,7 +588,7 @@ const PlatformHoje: React.FC = () => {
       </div>
 
       {/* Três colunas */}
-      <div className="mb-6 grid gap-4 lg:grid-cols-3">
+      <div className="mb-6 grid gap-8 lg:grid-cols-3">
         <ColumnCard
           id="contatar"
           title="Contatar"
@@ -633,16 +634,16 @@ const PlatformHoje: React.FC = () => {
           ))}
         </ColumnCard>
 
-        <Card id="quebrou" className="gap-2 py-4" data-testid="quebrou">
-          <CardHeader className="px-4">
-            <CardTitle className="flex items-center gap-2 text-base">
+        <Card id="quebrou" className="gap-2 rounded-none border-0 bg-transparent py-0 shadow-none" data-testid="quebrou">
+          <CardHeader className="px-0">
+            <CardTitle className="flex items-center gap-2 text-base [&>svg]:hidden">
               <AlertTriangle aria-hidden className="size-4 text-muted-foreground" />
               Quebrou
               {!loading && <span className="ml-auto text-xs font-semibold text-muted-foreground tabular-nums">{quebrouCount}</span>}
             </CardTitle>
             <CardDescription>Saúde dos serviços, erros por terreiro e suporte não lido.</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4 px-4">
+          <CardContent className="flex flex-col gap-4 px-0">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" aria-label="Saúde dos serviços">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Database className="size-3.5" aria-hidden /> Banco
@@ -664,7 +665,7 @@ const PlatformHoje: React.FC = () => {
             </div>
 
             <section aria-labelledby="erros-title">
-              <h3 id="erros-title" className="mb-1.5 text-xs font-bold tracking-wide text-muted-foreground uppercase">
+              <h3 id="erros-title" className="mb-1.5 text-xs font-bold text-muted-foreground">
                 Erros (últimos {observatory?.error_window_minutes ?? 60} min)
               </h3>
               {loading ? (
@@ -695,7 +696,7 @@ const PlatformHoje: React.FC = () => {
             </section>
 
             <section aria-labelledby="suporte-title">
-              <h3 id="suporte-title" className="mb-1.5 text-xs font-bold tracking-wide text-muted-foreground uppercase">Suporte não lido</h3>
+              <h3 id="suporte-title" className="mb-1.5 text-xs font-bold text-muted-foreground">Suporte não lido</h3>
               {loading ? (
                 <Skeleton className="h-10 w-full" />
               ) : unreadConversations.length === 0 ? (

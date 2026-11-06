@@ -170,7 +170,7 @@ describe('Início da Área do Médium', () => {
 
     renderApp(<Page />);
 
-    expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), Ana$/ })).toBeInTheDocument();
     expect(await screen.findByText('Você tem 2 coisas para ver.')).toBeInTheDocument();
     const pend = screen.getByRole('region', { name: 'Para você ver agora' });
     const mensal = within(pend).getByTestId('pendencia-mensalidade');

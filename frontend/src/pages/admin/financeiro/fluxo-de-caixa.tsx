@@ -156,7 +156,7 @@ function buildProjecao(dados: FluxoMes[]): { reg: RegressionResult | null; proje
 
 export default function FluxoDeCaixaPage() {
   return (
-    <AdminLayout title="Fluxo de Caixa">
+    <AdminLayout title="Fluxo de caixa">
       <FluxoDeCaixaContent />
     </AdminLayout>
   );
@@ -378,7 +378,7 @@ function FluxoDeCaixaContent() {
 
   // ── Gates ──────────────────────────────────────────────────────────────────
 
-  if (!planAllows) return <PlanLocked feature="Fluxo de Caixa" minPlan={minPlanFor('contas_financeiras').label} />;
+  if (!planAllows) return <PlanLocked feature="Fluxo de caixa" minPlan={minPlanFor('contas_financeiras').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o fluxo de caixa." />;
 
   const tabela = [...dados].reverse();
@@ -386,8 +386,9 @@ function FluxoDeCaixaContent() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Fluxo de Caixa"
-        subtitle="Evolução de receitas, despesas e saldo acumulado"
+        title="Fluxo de caixa"
+        eyebrow="Financeiro"
+        subtitle="Evolução de receitas, despesas e saldo acumulado."
         actions={
           <>
             <Button variant="outline" onClick={fetchAll} disabled={loading} aria-label="Atualizar">

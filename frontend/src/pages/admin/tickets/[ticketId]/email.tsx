@@ -5,19 +5,16 @@
  */
 import React from 'react';
 import { useRouter } from 'next/router';
-import { ArrowLeft } from 'lucide-react';
 import AdminLayout from '../../admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useProfile } from '@/hooks/useProfile';
-import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/admin/PageHeader';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { TicketEmailPanel } from '@/components/admin/TicketEmailPanel';
 import { minPlanFor } from '@/constants/plans';
 
 export default function TicketEmailPage() {
   return (
-    <AdminLayout title="E-mail da senha" maxWidth="md">
+    <AdminLayout title="E-mail da senha" maxWidth="lg">
       <TicketEmailContent />
     </AdminLayout>
   );
@@ -38,18 +35,8 @@ function TicketEmailContent() {
     return <PermissionDenied message="Só administradores veem o rastreio e reenviam o e-mail da senha." />;
   }
 
-  return (
-    <>
-      <PageHeader
-        title="E-mail da senha"
-        subtitle="Status de entrega, reenvio e prévia do e-mail enviado ao consulente."
-        actions={
-          <Button variant="outline" size="sm" onClick={() => router.push('/admin/tickets')}>
-            <ArrowLeft aria-hidden /> Voltar para Senhas
-          </Button>
-        }
-      />
-      {ticketId && <TicketEmailPanel ticketId={ticketId} />}
-    </>
-  );
+  // J2 v2 · 07: o título, o rastreio e a prévia moram no painel, em duas colunas.
+  return ticketId ? (
+    <TicketEmailPanel ticketId={ticketId} layout="pagina" onVoltar={() => router.push('/admin/tickets')} />
+  ) : null;
 }

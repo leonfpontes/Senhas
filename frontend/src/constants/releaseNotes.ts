@@ -22,6 +22,22 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '3.0.0',
+    date: '2026-11-07',
+    title: 'GiraHub de cara nova: menu enxuto e tudo a um clique',
+    highlights: [
+      'O painel ganhou cara nova, com as cores da casa. Nada saiu do lugar sem deixar caminho: toda tela que existia continua lá, com o mesmo endereço.',
+      'O menu lateral ficou enxuto. Em cima, sempre, o dia de gira: Início, Giras, Porta e Senhas. Embaixo, em "Da casa", os módulos que a casa usa. Os outros estão em "Ver os módulos", no fim do menu, com o plano de cada um.',
+      'Para achar qualquer tela ou ação, use a busca no alto da tela (ou as teclas Ctrl K). Digite "fluxo", "médiuns" ou "nova gira" e vá direto.',
+      'Plano e assinatura, Pessoas e acessos, Perfis de acesso (o antigo "Grupos de permissão"), Configurações, Auditoria e Ajuda agora ficam no menu do seu nome: o círculo com a sua inicial, no alto à direita. No celular, no fim do Menu.',
+      'A configuração da Área do Médium fica em Configurações › Área do Médium.',
+      'Para editar uma gira, um médium, um lançamento ou qualquer item de lista, é só clicar ou tocar nele: a edição abre na hora, sem procurar o lápis. Excluir, arquivar e as outras ações continuam nos seus botões.',
+      'No site do GiraHub, quem já está logado vê "Abrir o <nome do terreiro>" para voltar ao painel, e o "Sair" fica à vista. Quem tem mais de um terreiro escolhe onde entrar.',
+      'A página onde o consulente pega a senha e o bilhete ganharam cara nova, com o selo de atendimento preferencial e os acompanhantes no bilhete.',
+      'Porta e Modo TV ficaram mais leves em iPad e celular antigos, e a janela de chamar cabe em tela pequena com o teclado aberto.',
+    ],
+  },
+  {
     version: '2.11.0',
     date: '2026-10-29',
     title: 'Avisos para médiuns escolhidos, lista do que repor e mais',
@@ -376,6 +392,30 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 /** "6 de outubro de 2026" ou, para versões agrupadas por mês, "outubro de 2026". */
+/**
+ * Notas da versão · Beta testers (jornadas v2): o canal das betas do Laboratório, visto só por
+ * terreiro beta tester. Uma entrada por beta quando ela nasce ou muda (docs/betas/).
+ */
+export interface BetaReleaseNote {
+  chave: string;
+  date: string;
+  title: string;
+  text: string;
+}
+
+export const BETA_RELEASE_NOTES: BetaReleaseNote[] = [
+  { chave: 'beta_retorno_consulente', date: '2026-11-06', title: 'Retorno do consulente na porta', text: 'Quem chama a senha marca "Precisa voltar" com o médium ou a entidade. Nas próximas giras, a senha da pessoa aparece com o selo Retorno até alguém marcar como resolvido.' },
+  { chave: 'beta_receber_senha_de_novo', date: '2026-11-02', title: 'Receber a senha de novo', text: 'O consulente pede o bilhete de novo no link da gira, e ele chega só no e-mail.' },
+  { chave: 'beta_bilhete_offline', date: '2026-11-02', title: 'Bilhete sem internet', text: 'O bilhete fica guardado no celular e abre no portão sem sinal.' },
+  { chave: 'beta_senha_para_outra_pessoa', date: '2026-11-02', title: 'Senha para outra pessoa', text: 'Quem preenche pega a senha de quem vai, e a senha chega no e-mail de quem preencheu.' },
+  { chave: 'beta_repetir_gira', date: '2026-11-02', title: 'Repetir a gira em outra data', text: 'Cria a mesma gira, com as mesmas senhas, em outro dia.' },
+  { chave: 'beta_cartaz_portao', date: '2026-11-02', title: 'Cartaz do portão', text: 'PDF com o QR do link do terreiro, para imprimir e colar no portão.' },
+  { chave: 'beta_lembrete_dia_gira', date: '2026-11-02', title: 'Lembrete no dia da gira', text: 'Um e-mail pela manhã para quem tem senha, com o horário da gira.' },
+  { chave: 'beta_avisar_exclusao_gira', date: '2026-11-02', title: 'Avisar quem tem senha quando a gira é excluída', text: 'Ao excluir, a casa pode mandar um e-mail para quem já pegou senha.' },
+  { chave: 'beta_menu_ajustavel', date: '2026-11-02', title: 'Menu que se ajusta ao uso', text: 'O que a casa já usa sobe para o menu, em "Da casa"; cada pessoa põe ou tira módulos na página Módulos.' },
+  { chave: 'beta_indicacao_plano', date: '2026-11-02', title: 'Indicação do plano pelo uso', text: 'Em Conta e plano, uma frase com o uso do mês (giras e médiuns) diz qual plano dá conta.' },
+];
+
 export function formatReleaseDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number);
   const month = MONTHS[(m ?? 1) - 1];

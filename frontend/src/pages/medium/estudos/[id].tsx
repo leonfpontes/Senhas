@@ -140,7 +140,7 @@ function Estudo() {
     conteudo = (
       <article className="flex flex-col gap-3.5">
         <p className="text-sm font-medium text-muted-foreground">{material.categoria}</p>
-        <h1 className="-mt-2 text-2xl leading-tight font-semibold tracking-tight">{material.titulo}</h1>
+        <h1 className="-mt-2 text-[1.625rem] leading-tight font-bold tracking-tight">{material.titulo}</h1>
         <p className="text-sm text-muted-foreground">
           {material.tipo === 'link' && material.fonte ? FONTE_LABEL[material.fonte] : TIPO_LABEL[material.tipo]}
         </p>

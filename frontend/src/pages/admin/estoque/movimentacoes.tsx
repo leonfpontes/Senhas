@@ -7,12 +7,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
-  ArrowDownToLine,
   ArrowUpDown,
-  ArrowUpFromLine,
   Filter,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -67,15 +64,22 @@ interface Filtros {
 
 const EMPTY_FILTROS: Filtros = { item: null, tipo: 'all', de: null, ate: null };
 
+/** "13/11 19h10" — a data como a casa fala (J8 v2 · 04); o ano aparece se não for o corrente. */
+function dataHoraCurta(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return formatDateTimeBr(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const ano = d.getFullYear() !== new Date().getFullYear() ? `/${d.getFullYear()}` : '';
+  return `${dd}/${mm}${ano} ${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function TipoBadge({ tipo }: { tipo: Movimentacao['tipo'] }) {
   return tipo === 'entrada' ? (
-    <Badge className="gap-1 border-transparent bg-success text-success-foreground">
-      <ArrowDownToLine aria-hidden /> Entrada
-    </Badge>
+    // J8 v2 · 04: selo em tom claro — saída não é erro, o vermelho cheio fica para excluir.
+    <Badge className="border-transparent bg-success/15 text-success-strong">Entrada</Badge>
   ) : (
-    <Badge variant="destructive" className="gap-1">
-      <ArrowUpFromLine aria-hidden /> Saída
-    </Badge>
+    <Badge className="border-transparent bg-warning/20 text-warning-strong">Saída</Badge>
   );
 }
 
@@ -208,7 +212,6 @@ function AdminEstoqueMovimentacoesContent() {
       <DropdownMenuContent align="end">
         {canEdit && (
           <DropdownMenuItem onSelect={() => openEdit(m)}>
-            <Pencil />
             Editar
           </DropdownMenuItem>
         )}
@@ -224,7 +227,7 @@ function AdminEstoqueMovimentacoesContent() {
 
   const columns = useMemo<ColumnDef<Movimentacao>[]>(() => {
     const cols: ColumnDef<Movimentacao>[] = [
-      { accessorKey: 'data_movimentacao', header: 'Data', cell: ({ getValue }) => <span className="whitespace-nowrap">{formatDateTimeBr(getValue<string>())}</span> },
+      { accessorKey: 'data_movimentacao', header: 'Data', cell: ({ getValue }) => <span className="whitespace-nowrap text-muted-foreground">{dataHoraCurta(getValue<string>())}</span> },
       { accessorKey: 'item_nome', header: 'Item', cell: ({ row }) => <span className="font-medium">{row.original.item_nome || row.original.item_id}</span> },
       { accessorKey: 'tipo', header: 'Tipo', cell: ({ getValue }) => <TipoBadge tipo={getValue<Movimentacao['tipo']>()} /> },
       { accessorKey: 'quantidade', header: 'Qtd.', meta: { align: 'right' } },
@@ -272,7 +275,8 @@ function AdminEstoqueMovimentacoesContent() {
       <div data-tour="estoque-mov-header">
         <PageHeader
           title="Movimentações"
-          subtitle={`${movimentacoes.length} ${movimentacoes.length === 1 ? 'registro' : 'registros'} no filtro atual`}
+          subtitle="Cada entrada e saída, com quem e por quê. Excluir recalcula o saldo do item."
+          eyebrow="Estoque"
           actions={
             <>
               <Button variant="outline" onClick={loadMovimentacoes} disabled={loading} aria-label="Atualizar">
@@ -352,6 +356,9 @@ function AdminEstoqueMovimentacoesContent() {
 
       <div data-tour="estoque-mov-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          rowLabel={(m) => `Editar a movimentação de ${m.item_nome ?? "item"}`}
           columns={columns}
           data={movimentacoes}
           getRowId={(m) => m.id}

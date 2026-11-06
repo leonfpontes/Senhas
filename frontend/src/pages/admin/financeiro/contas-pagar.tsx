@@ -24,7 +24,7 @@ export default function ContasPagarRedirectPage() {
   }, [router, canView]);
 
   return (
-    <AdminLayout title="Contas a Pagar">
+    <AdminLayout title="Contas a pagar">
       {canView ? (
         <div className="flex flex-col gap-3" aria-busy="true" aria-label="Redirecionando para Lançamentos">
           <Skeleton className="h-8 w-56" />

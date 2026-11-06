@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { ChevronRight, Gift, ShieldCheck, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MarketingShell } from '@/components/landing/MarketingShell';
+import { AssistenteDePlano } from '@/components/landing/AssistenteDePlano';
+import { ASSISTENTE_PLANO_PUBLICADO } from '@/constants/assistentePlano';
 import { PlanCards } from '@/components/landing/PlanCards';
 import { PlanComparisonTable } from '@/components/landing/PlanComparisonTable';
 import { SectionHeading } from '@/components/landing/SectionHeading';
@@ -84,6 +86,9 @@ export default function PlanosPage() {
             </ul>
           </div>
         </section>
+
+        {/* J1 v2 · 03: o assistente de plano, atrás da chave NEXT_PUBLIC_ASSISTENTE_PLANO. */}
+        {ASSISTENTE_PLANO_PUBLICADO && <AssistenteDePlano />}
 
         <section id="comparativo" aria-labelledby="comparativo-title" className="scroll-mt-20 py-16 md:py-24">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">

@@ -92,7 +92,7 @@ describe('Médiuns', () => {
     expect(medium).toBeChecked();
 
     fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Mãe Cida' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Criar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
     await waitFor(() => expect(mockPost).toHaveBeenCalled());
     expect(mockPost.mock.calls[0][0]).toBe('/api/v1/admin/mediuns');
@@ -128,10 +128,10 @@ describe('Médiuns', () => {
       mockArea = true;
       render(<AdminMediunsPage />);
       await screen.findByText('Pai Antônio');
-      expect(screen.getByRole('columnheader', { name: /Acesso à Área/ })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: /Área do Médium/ })).toBeInTheDocument();
       expect(screen.getAllByText('Sem acesso').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Ativo').length).toBeGreaterThan(0);
-      expect(screen.getByRole('button', { name: 'Convidar todos com e-mail (1)' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Convidar todos para a Área (1)' })).toBeInTheDocument();
 
       fireEvent.keyDown(screen.getByRole('button', { name: 'Ações de Pai Antônio' }), { key: 'Enter' });
       const menu = await screen.findByRole('menu');
@@ -144,7 +144,7 @@ describe('Médiuns', () => {
     it('sem a Área liberada (plano ou chave do piloto): nada da Área aparece, sem PlanLocked', async () => {
       render(<AdminMediunsPage />);
       await screen.findByText('Pai Antônio');
-      expect(screen.queryByRole('columnheader', { name: /Acesso à Área/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: /Área do Médium/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Convidar todos/ })).not.toBeInTheDocument();
       expect(screen.queryByText(/Área do Médium/)).not.toBeInTheDocument();
       fireEvent.keyDown(screen.getByRole('button', { name: 'Ações de Pai Antônio' }), { key: 'Enter' });
@@ -157,7 +157,7 @@ describe('Médiuns', () => {
       mockEdit = false;
       render(<AdminMediunsPage />);
       await screen.findByText('Pai Antônio');
-      expect(screen.queryByRole('columnheader', { name: /Acesso à Área/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: /Área do Médium/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Convidar todos/ })).not.toBeInTheDocument();
     });
   });

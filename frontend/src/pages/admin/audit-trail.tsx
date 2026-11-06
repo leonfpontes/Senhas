@@ -24,7 +24,6 @@ import { Combobox } from '@/components/fields';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -80,8 +79,8 @@ export const RESOURCE_TYPES: Array<{ value: string; label: string; automatico?: 
   { value: 'CursoParticipantePagamentoComprovante', label: 'Comprovante de pagamento de curso' },
   { value: 'CursoParticipanteInscricaoComprovante', label: 'Comprovante de inscrição em curso' },
   { value: 'User', label: 'Usuário' },
-  { value: 'UserGroupMembership', label: 'Membro de grupo de permissão' },
-  { value: 'PermissionGroup', label: 'Grupo de permissão' },
+  { value: 'UserGroupMembership', label: 'Membro de perfil de acesso' },
+  { value: 'PermissionGroup', label: 'Perfil de acesso' },
   { value: 'PermissionGroupPermissions', label: 'Permissões do grupo' },
   { value: 'Tenant', label: 'Terreiro' },
   { value: 'TenantConfig', label: 'Configuração do terreiro' },
@@ -99,7 +98,7 @@ export const RESOURCE_TYPES: Array<{ value: string; label: string; automatico?: 
   { value: 'cursos-presenciais', label: 'Cursos presenciais (rota)', automatico: true },
   { value: 'sites', label: 'Site do terreiro (rota)', automatico: true },
   { value: 'users', label: 'Usuários (rota)', automatico: true },
-  { value: 'permission-groups', label: 'Grupos de permissão (rota)', automatico: true },
+  { value: 'permission-groups', label: 'Perfis de acesso (rota)', automatico: true },
   { value: 'tenant', label: 'Terreiro (rota)', automatico: true },
   { value: 'config', label: 'Configurações (rota)', automatico: true },
   { value: 'billing', label: 'Assinatura (rota)', automatico: true },
@@ -125,11 +124,20 @@ const ACTION_LABELS: Record<string, string> = {
   TENANT_REACTIVATED: 'Terreiro reativado',
 };
 
+/** "13/11 19h10" (J10 v2 · 09): a data curta da trilha, no fuso de São Paulo. */
+function dataHoraCurta(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+  const v = (t: string) => p.find((x) => x.type === t)?.value ?? '';
+  return `${v('day')}/${v('month')} ${v('hour')}h${v('minute')}`;
+}
+
 const ACTION_CLASS: Record<string, string> = {
-  create: 'bg-success text-success-foreground',
-  update: 'bg-warning text-warning-foreground',
-  delete: 'bg-destructive text-destructive-foreground',
-  login: 'bg-info text-info-foreground',
+  create: 'bg-success/15 text-success-strong',
+  update: 'bg-warning/20 text-warning-strong',
+  delete: 'bg-destructive/12 text-destructive-strong',
+  login: 'bg-info/15 text-info',
   logout: 'bg-secondary text-secondary-foreground',
 };
 
@@ -152,7 +160,7 @@ const FIELD_LABELS: Record<string, string> = {
   enable_walk_in: 'Atendimento sem senha habilitado', enable_tv_medium: 'Médium no Modo TV', enable_sponsors: 'Associados habilitados',
   validate_associado_on_emit: 'Validar associado na emissão',
   enable_estoque_log: 'Log de estoque ativado', walk_in_limit: 'Limite sem senha',
-  slug: 'Slug', role: 'Papel', password_hash: 'Senha', status: 'Status',
+  slug: 'Slug', role: 'Tipo de acesso', password_hash: 'Senha', status: 'Status',
   tipo: 'Tipo', consulente_nome: 'Nome do consulente', consulente_email: 'E-mail do consulente',
   consulente_telefone: 'Telefone do consulente', is_sponsor: 'É associado',
   numero: 'Número', gira_id: 'Gira', plan: 'Plano', success: 'Sucesso',
@@ -423,14 +431,14 @@ function AdminAuditTrailContent() {
         header: 'Data',
         enableSorting: false,
         meta: { cellClassName: 'whitespace-nowrap align-top' },
-        cell: ({ getValue }) => <span className="text-sm">{formatDateTimeBr(getValue<string>())}</span>,
+        cell: ({ getValue }) => <span className="text-sm text-muted-foreground">{dataHoraCurta(getValue<string>())}</span>,
       },
       {
         accessorKey: 'user_name',
-        header: 'Usuário',
+        header: 'Pessoa',
         enableSorting: false,
         meta: { cellClassName: 'align-top' },
-        cell: ({ getValue }) => <span className="text-sm">{getValue<string | null>() || 'Sistema'}</span>,
+        cell: ({ getValue }) => <span className="text-sm font-medium">{getValue<string | null>() || 'Sistema'}</span>,
       },
       {
         accessorKey: 'action',
@@ -462,7 +470,7 @@ function AdminAuditTrailContent() {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="m-0 truncate text-sm font-medium">{log.user_name || 'Sistema'}</p>
-          <p className="m-0 text-xs text-muted-foreground">{formatDateTimeBr(log.created_at)}</p>
+          <p className="m-0 text-xs text-muted-foreground">{dataHoraCurta(log.created_at)}</p>
         </div>
         <ActionBadge action={log.action} />
       </div>
@@ -512,8 +520,8 @@ function AdminAuditTrailContent() {
         />
       </div>
 
-      <Card data-tour="audit-filtros" className="gap-0 py-4">
-        <CardContent className="grid grid-cols-1 items-end gap-3 px-4 sm:grid-cols-[12rem_minmax(0,18rem)_1fr]">
+      <div data-tour="audit-filtros">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[12rem_minmax(0,18rem)_1fr]">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="audit-acao">Ação</Label>
             <Select value={actionFilter ?? 'all'} onValueChange={changeAction}>
@@ -545,8 +553,8 @@ function AdminAuditTrailContent() {
               {total.toLocaleString('pt-BR')} registro{total !== 1 ? 's' : ''}
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {error && (
         <Alert variant="destructive" role="alert">

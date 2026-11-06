@@ -14,7 +14,7 @@ export default function Document(props: DocumentProps) {
         {/* Favicon — PNG/ICO gerados de favicon.svg por scripts/generate-icons.mjs */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <meta name="theme-color" content={barraClara ? '#ffffff' : '#4f46e5'} />
+        <meta name="theme-color" content={barraClara ? '#ffffff' : '#2E6A4E'} />
         {/* PWA (P-01): a Porta instalada na tela inicial. Service worker em public/sw.js,
             registrado por components/shared/ServiceWorkerRegistrar (só em produção). */}
         {!areaDoMedium && <link rel="manifest" href="/manifest.webmanifest" />}

@@ -19,7 +19,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Pencil, RefreshCw, Trash2, UserPlus } from 'lucide-react';
+import { RefreshCw, Trash2, UserPlus } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { permissionGroupsService, type PermissionGroup } from '@/services/permissionGroupsService';
@@ -75,7 +75,7 @@ const FETCH_LIMIT = 500;
 
 const ROLE_LABELS: Record<Role, { label: string; description: string }> = {
   admin: { label: 'Administrador', description: 'Vê e muda tudo, inclusive assinatura e pessoas.' },
-  operator: { label: 'Operador', description: 'Acessa só o que o grupo dele permite.' },
+  operator: { label: 'Operador', description: 'Acessa só o que o perfil de acesso dele permite.' },
 };
 
 const roleLabel = (role: string) => ROLE_LABELS[role as Role]?.label ?? role;
@@ -274,7 +274,7 @@ function AdminUsersContent() {
             showError(
               extractApiErrorMessage(
                 err,
-                'A pessoa foi criada, mas não deu para trocar o grupo. Ajuste em Grupos de permissão.',
+                'A pessoa foi criada, mas não deu para trocar o perfil. Ajuste em Perfis de acesso.',
               ),
             );
           }
@@ -327,18 +327,29 @@ function AdminUsersContent() {
         header: 'Pessoa',
         meta: { mobile: true },
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium">{row.original.username}</div>
-            <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
+          // J10 v2 · 01: as iniciais em círculo, o nome e o e-mail.
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-barro-600)] text-xs font-bold text-white">
+              {row.original.username
+                .split(/[\s@._-]+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((p) => p.charAt(0).toUpperCase())
+                .join('')}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{row.original.username}</div>
+              <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
+            </div>
           </div>
         ),
       },
       {
         accessorKey: 'role',
-        header: 'Perfil de acesso',
+        header: 'Tipo de acesso',
         meta: { mobile: true },
         cell: ({ row }) => (
-          <Badge variant={row.original.role === 'admin' ? 'default' : 'outline'}>{roleLabel(row.original.role)}</Badge>
+          <span className="font-semibold">{roleLabel(row.original.role)}</span>
         ),
       },
       {
@@ -347,15 +358,19 @@ function AdminUsersContent() {
         meta: { mobile: true },
         cell: ({ row }) =>
           row.original.is_active ? (
-            <Badge variant="outline" className="border-success/40 text-success">Ativo</Badge>
+            <Badge className="border-transparent bg-success/15 text-success-strong">Ativo</Badge>
           ) : (
-            <Badge variant="outline" className="text-muted-foreground">Inativo</Badge>
+            <Badge className="border-transparent bg-warning/20 text-warning-strong">Inativo</Badge>
           ),
       },
       {
         accessorKey: 'created_at',
         header: 'Desde',
-        cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString('pt-BR'),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {new Date(row.original.created_at).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })}
+          </span>
+        ),
       },
     ];
     if (canEdit || canDelete) {
@@ -368,11 +383,6 @@ function AdminUsersContent() {
           const guard = rowGuards(row.original);
           return (
             <div className="flex justify-end gap-1">
-              {canEdit && guard.canEditRow && (
-                <Button size="icon-sm" variant="ghost" aria-label="Editar usuário" onClick={() => openEdit(row.original)}>
-                  <Pencil />
-                </Button>
-              )}
               {canDelete && guard.canDeleteRow && (
                 <Button
                   size="icon-sm"
@@ -403,16 +413,17 @@ function AdminUsersContent() {
       <div data-tour="users-header">
         <PageHeader
           title="Pessoas e acessos"
-          subtitle="Quem entra no sistema do terreiro e o que cada pessoa pode fazer."
+          subtitle="Quem entra no sistema do terreiro."
+          eyebrow="Conta e plano"
           actions={
             <>
               <div data-tour="users-filtro">
                 <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as 'all' | Role)}>
-                  <SelectTrigger className="w-44" aria-label="Filtrar por perfil de acesso">
-                    <SelectValue placeholder="Perfil de acesso" />
+                  <SelectTrigger className="w-44" aria-label="Filtrar por tipo de acesso">
+                    <SelectValue placeholder="Tipo de acesso" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os perfis</SelectItem>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
                     <SelectItem value="admin">Administradores</SelectItem>
                     <SelectItem value="operator">Operadores</SelectItem>
                   </SelectContent>
@@ -439,6 +450,10 @@ function AdminUsersContent() {
 
       <div data-tour="users-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? openEdit : undefined}
+          isRowClickable={(u) => rowGuards(u).canEditRow}
+          rowLabel={(u) => `Editar ${u.username || u.email}`}
           columns={columns}
           data={users}
           getRowId={(u) => u.id}
@@ -499,7 +514,7 @@ function AdminUsersContent() {
         </div>
 
         <fieldset className="m-0 min-w-0 space-y-2 border-0 p-0">
-          <legend className="mb-2 p-0 text-sm font-medium">Perfil de acesso</legend>
+          <legend className="mb-2 p-0 text-sm font-medium">Tipo de acesso</legend>
           <RadioGroup
             value={formData.role}
             onValueChange={(v) => setField('role', v as Role)}
@@ -535,7 +550,7 @@ function AdminUsersContent() {
             <Label htmlFor="user-group">Pode fazer:</Label>
             <Select value={formData.group_id || defaultGroup?.id} onValueChange={(v) => setField('group_id', v)}>
               <SelectTrigger id="user-group" className="w-full">
-                <SelectValue placeholder="Escolha um grupo" />
+                <SelectValue placeholder="Escolha um perfil" />
               </SelectTrigger>
               <SelectContent>
                 {groups.map((g) => (
@@ -549,7 +564,7 @@ function AdminUsersContent() {
             <p className="text-xs text-muted-foreground">
               Os grupos ficam em{' '}
               <Link href="/admin/permission-groups" className="underline underline-offset-4">
-                Grupos de permissão
+                Perfis de acesso
               </Link>
               .
             </p>

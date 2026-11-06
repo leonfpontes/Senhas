@@ -14,12 +14,21 @@ import logging
 from src.core.database import get_db
 from src.models import User, Ticket, TicketStatus, Consulente, TenantConfig, Gira, PermissionFeature
 from src.models.tickets import PriorityCategory, PRIORITY_ORDER
+from src.models.tenants import Tenant
 from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
 from src.repositories.ticket_repo import TicketRepository
+from src.models.consulente_retornos import ConsulenteRetorno, RETORNO_NOME_MAX, RETORNO_RECADO_MAX
+from src.services.laboratorio import beta_ligada
+from src.services.retornos_consulente import (
+    CHAVE_BETA as BETA_RETORNO,
+    retorno_da_senha,
+    retornos_abertos_por_consulente,
+    retornos_das_senhas,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["door-control"])
 logger = logging.getLogger(__name__)
@@ -38,6 +47,42 @@ class DoorStatsResponse(BaseModel):
     walk_in: int
     preferenciais: int
     patrocinados: int
+
+
+class RetornoAbertoOut(BaseModel):
+    """Beta "Retorno do consulente na porta": um retorno pedido numa gira anterior e ainda aberto."""
+    id: UUID
+    medium_nome: Optional[str] = None
+    entidade: Optional[str] = None
+    recado: Optional[str] = None
+    criado_em: datetime
+    gira_nome: Optional[str] = None
+    gira_data: Optional[datetime] = None
+
+
+class RetornoMarcadoOut(BaseModel):
+    """O retorno anotado NESTA senha (para o "Editar atendimento" mostrar o que já foi marcado)."""
+    id: UUID
+    medium_nome: Optional[str] = None
+    entidade: Optional[str] = None
+    recado: Optional[str] = None
+    resolvido: bool = False
+
+
+class RetornoIn(BaseModel):
+    """Precisa voltar: com qual médium e/ou com qual entidade, e o recado. Pelo menos um dos três."""
+    medium_nome: Optional[str] = Field(None, max_length=RETORNO_NOME_MAX)
+    entidade: Optional[str] = Field(None, max_length=RETORNO_NOME_MAX)
+    recado: Optional[str] = Field(None, max_length=RETORNO_RECADO_MAX)
+
+    @field_validator("medium_nome", "entidade", "recado")
+    @classmethod
+    def _limpar(cls, v: Optional[str]) -> Optional[str]:
+        v = (v or "").strip()
+        return v or None
+
+    def vazio(self) -> bool:
+        return not (self.medium_nome or self.entidade or self.recado)
 
 
 class QueueItemResponse(BaseModel):
@@ -62,6 +107,10 @@ class QueueItemResponse(BaseModel):
     cambone_nome: Optional[str] = None
     atendimento_descricao: Optional[str] = None
     horario_desejado: Optional[str] = None  # "HH:MM" — agendamento por horário, se a gira usar
+    # Beta "Retorno do consulente na porta" (vazios sem a beta): retornos abertos de giras
+    # anteriores desta pessoa, e o retorno anotado nesta senha.
+    retornos: List[RetornoAbertoOut] = []
+    retorno_marcado: Optional[RetornoMarcadoOut] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -90,6 +139,9 @@ class DoorTvResponse(BaseModel):
     gira_nome: str
     atual: Optional[DoorTvSenha] = None  # 1º da fila que já chegou: o número grande da TV
     proximas: List[str] = []  # numero_formatado das próximas (até 3)
+    # J4 v2 · 08: as mesmas próximas com o nome reduzido ("João B."), como o número grande.
+    proximas_detalhe: List[DoorTvSenha] = []
+    casa_nome: Optional[str] = None  # nome do terreiro, no canto da TV
     ultima_chamada: Optional[DoorTvUltimaChamada] = None  # última senha chamada (número + hora)
 
 
@@ -102,10 +154,16 @@ class DoorConfigResponse(BaseModel):
 
 
 class AttendRequest(BaseModel):
-    """Request body for marking a ticket as being attended."""
+    """Request body for marking a ticket as being attended.
+
+    `retorno` (beta "Retorno do consulente na porta"): omitido → não mexe no retorno desta senha;
+    objeto → anota (ou troca) o retorno; `null` → tira o retorno desta senha se ainda estiver
+    aberto. Sem a beta ligada, o campo é ignorado.
+    """
     medium_nome: str = Field(..., min_length=1, max_length=255)
     cambone_nome: Optional[str] = Field(None, max_length=255)
     atendimento_descricao: Optional[str] = None
+    retorno: Optional[RetornoIn] = None
 
 
 def _validate_priority_category_value(v: Optional[str]) -> Optional[str]:
@@ -309,6 +367,69 @@ async def _get_tenant_config(db: AsyncSession, tenant_id: UUID) -> Optional[Tena
     return result.scalar_one_or_none()
 
 
+def _retorno_marcado_out(r: Optional[ConsulenteRetorno]) -> Optional[RetornoMarcadoOut]:
+    if r is None:
+        return None
+    return RetornoMarcadoOut(
+        id=r.id, medium_nome=r.medium_nome, entidade=r.entidade, recado=r.recado,
+        resolvido=r.resolvido_em is not None,
+    )
+
+
+async def _preencher_retornos(
+    db: AsyncSession, tenant_id: UUID, gira_id: UUID, tickets: List[Ticket], items: List[QueueItemResponse]
+) -> None:
+    """Beta "Retorno do consulente na porta": põe nos itens da fila os retornos abertos de cada
+    pessoa (giras anteriores) e o retorno anotado em cada senha. Sem a beta, não faz nada."""
+    if not await beta_ligada(db, tenant_id, BETA_RETORNO):
+        return
+    abertos = await retornos_abertos_por_consulente(db, tenant_id, [t.consulente for t in tickets], gira_id)
+    marcados = await retornos_das_senhas(db, tenant_id, [t.id for t in tickets])
+    por_ticket = {t.id: t for t in tickets}
+    for item in items:
+        t = por_ticket.get(item.id)
+        if t is None:
+            continue
+        item.retornos = [RetornoAbertoOut(**vars(r)) for r in abertos.get(t.consulente_id, [])]
+        item.retorno_marcado = _retorno_marcado_out(marcados.get(t.id))
+
+
+async def _item_com_retorno(db: AsyncSession, ticket: Ticket, tenant_id: UUID) -> QueueItemResponse:
+    """Item de uma senha só, já com os retornos (respostas das ações da Porta)."""
+    item = _ticket_to_queue_item(ticket)
+    await _preencher_retornos(db, tenant_id, ticket.gira_id, [ticket], [item])
+    return item
+
+
+async def _gravar_retorno(db: AsyncSession, ticket: Ticket, body: AttendRequest, user: User) -> None:
+    """Aplica o `retorno` do corpo do "Chamar"/"Editar atendimento" (ver AttendRequest)."""
+    if "retorno" not in body.model_fields_set:
+        return
+    if not await beta_ligada(db, user.tenant_id, BETA_RETORNO):
+        return
+    atual = await retorno_da_senha(db, user.tenant_id, ticket.id)
+    pedido = body.retorno
+    if pedido is None or pedido.vazio():
+        if atual is not None and atual.resolvido_em is None:
+            await db.delete(atual)
+        return
+    if atual is None:
+        db.add(ConsulenteRetorno(
+            tenant_id=user.tenant_id,
+            consulente_id=ticket.consulente_id,
+            ticket_id=ticket.id,
+            gira_id=ticket.gira_id,
+            medium_nome=pedido.medium_nome,
+            entidade=pedido.entidade,
+            recado=pedido.recado,
+            criado_por_id=user.id,
+        ))
+        return
+    atual.medium_nome = pedido.medium_nome
+    atual.entidade = pedido.entidade
+    atual.recado = pedido.recado
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/door/config", response_model=DoorConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
@@ -441,6 +562,7 @@ async def get_door_queue(
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
     sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
     sorted_items = _ordenar_fila(items, sponsor_mode)
+    await _preencher_retornos(db, current_user.tenant_id, gira_id, list(tickets), sorted_items)
 
     return DoorQueueResponse(items=sorted_items, total=len(sorted_items))
 
@@ -496,7 +618,8 @@ async def get_door_tv(
     # Mesma regra que a TV usava no navegador: o número grande é o primeiro da
     # fila que já chegou; as próximas são as demais que ainda esperam.
     atual = next((i for i in fila if i.checkin_em is not None), None)
-    proximas = [i.numero_formatado for i in fila if i is not atual][:TV_PROXIMAS]
+    seguintes = [i for i in fila if i is not atual][:TV_PROXIMAS]
+    proximas = [i.numero_formatado for i in seguintes]
 
     ultima = (
         await db.execute(
@@ -522,6 +645,12 @@ async def get_door_tv(
             chamado_em=atual.chamado_em,
         ) if atual else None,
         proximas=proximas,
+        proximas_detalhe=[
+            DoorTvSenha(numero_formatado=i.numero_formatado, nome=nome_para_tv(i.consulente_nome)) for i in seguintes
+        ],
+        casa_nome=(
+            await db.execute(select(Tenant.name).where(Tenant.id == current_user.tenant_id))
+        ).scalar_one_or_none(),
         ultima_chamada=DoorTvUltimaChamada(
             numero_formatado=_numero_formatado(ultima),
             chamado_em=ultima.chamado_em,
@@ -773,11 +902,12 @@ async def attend_ticket(
     ticket.medium_nome = body.medium_nome
     ticket.cambone_nome = body.cambone_nome
     ticket.atendimento_descricao = body.atendimento_descricao
+    await _gravar_retorno(db, ticket, body, current_user)
 
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    return _ticket_to_queue_item(ticket)
+    return await _item_com_retorno(db, ticket, current_user.tenant_id)
 
 
 @router.patch("/door/tickets/{ticket_id}/attend-info", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
@@ -799,11 +929,12 @@ async def edit_attend_info(
     ticket.medium_nome = body.medium_nome
     ticket.cambone_nome = body.cambone_nome
     ticket.atendimento_descricao = body.atendimento_descricao
+    await _gravar_retorno(db, ticket, body, current_user)
 
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    return _ticket_to_queue_item(ticket)
+    return await _item_com_retorno(db, ticket, current_user.tenant_id)
 
 
 @router.patch("/door/tickets/{ticket_id}/complete", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
@@ -880,6 +1011,10 @@ async def undo_ticket_action(
     ticket.medium_nome = None
     ticket.cambone_nome = None
     ticket.atendimento_descricao = None
+    # O retorno anotado neste atendimento sai junto (se ainda não foi resolvido).
+    retorno = await retorno_da_senha(db, current_user.tenant_id, ticket.id)
+    if retorno is not None and retorno.resolvido_em is None:
+        await db.delete(retorno)
 
     await db.commit()
     await db.refresh(ticket, ["consulente"])

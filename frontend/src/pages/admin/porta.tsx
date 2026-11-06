@@ -18,6 +18,9 @@
  * - Aviso sonoro quando entra alguém na fila, com botão de mudo; atualização a cada 8s.
  * - PWA (P-01): aviso "Sem conexão" no topo (offline ou 2 falhas seguidas da fila; a última fila
  *   fica na tela) + toast "Conexão de volta"; dica "Instalar a Porta na tela inicial".
+ * - Beta "Retorno do consulente na porta" (`beta_retorno_consulente`): quem tem retorno aberto de
+ *   gira anterior ganha o selo "Retorno" na fila e no Próximo; o detalhe tem "Marcar como
+ *   resolvido" (PORTA:edit, com Desfazer). No "Chamar", "Precisa voltar" anota o retorno.
  * Vocabulário: Walk-in→Sem senha, Check-in→Chegou, Atender→Chamar, Finalizar→Atendido,
  * Ausente→Não veio. Alvos de toque de 48px (`size="touch"` / `"icon-touch"`).
  */
@@ -26,14 +29,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
 import {
-  Clock,
+  ChevronDown,
   EllipsisVertical,
   LogIn,
   LogOut,
   Megaphone,
   Pencil,
   Search,
-  Star,
   Tv,
   Undo2,
   UserPlus,
@@ -64,14 +66,27 @@ import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSubscription } from '@/hooks/useSubscription';
+import {
+  BETA_RETORNO,
+  RetornoSelo,
+  RetornosSheet,
+  comQuemVolta,
+  type RetornoAberto,
+  type RetornoMarcado,
+  type RetornoPedido,
+} from '@/components/admin/porta/RetornosDoConsulente';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChamadaDaGiraButton } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
-import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
+import PortaOfflineNotice, { OFFLINE_AFTER_FAILURES } from '@/components/admin/PortaOfflineNotice';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import InstallPortaHint from '@/components/admin/InstallPortaHint';
 import DuplasDaNoiteDrawer from '@/components/admin/porta/DuplasDaNoiteDrawer';
 import { atendimentosPorMedium, type Dupla, type DuplasPainel } from '@/components/admin/porta/duplas';
 import { normalizeLegacyStatus, numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
+import { manterSeIgual, useAtualizacaoPeriodica } from '@/lib/polling';
 import { PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 const POLLING_INTERVAL_MS = 8000;
@@ -126,12 +141,25 @@ interface QueueItem {
   cambone_nome: string | null;
   atendimento_descricao: string | null;
   horario_desejado?: string | null;
+  /** Beta do retorno: retornos abertos de giras anteriores e o anotado nesta senha. */
+  retornos?: RetornoAberto[];
+  retorno_marcado?: RetornoMarcado | null;
 }
 
-type AttendData = { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string };
+type AttendData = {
+  medium_nome: string;
+  cambone_nome?: string;
+  atendimento_descricao?: string;
+  retorno?: RetornoPedido | null;
+};
 type WalkInData = { nome: string; email?: string; telefone?: string; priority_category: string | null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** "19h12" — a hora como a casa fala. */
+function horaCurta(d: Date): string {
+  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 function priorityLabel(item: QueueItem): string {
   if (!item.priority_category) return 'Preferencial';
@@ -184,34 +212,6 @@ function writeMuted(muted: boolean): void {
 
 // ── Peças visuais ─────────────────────────────────────────────────────────────
 
-function Tags({ item }: { item: QueueItem }) {
-  return (
-    <>
-      {item.is_sponsor && (
-        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-strong">
-          <Star aria-hidden /> Associado
-        </Badge>
-      )}
-      {item.is_walk_in && (
-        <Badge variant="outline" className="border-info/30 bg-info/10 text-info-strong">
-          Sem senha
-        </Badge>
-      )}
-      {item.is_acompanhante && <Badge variant="outline">Acompanhante</Badge>}
-      {item.preferencial && (
-        <Badge variant="outline" className="border-warning/40 text-warning-strong">
-          <Star aria-hidden /> {priorityLabel(item)}
-        </Badge>
-      )}
-      {item.horario_desejado && (
-        <Badge variant="outline">
-          <Clock aria-hidden /> {item.horario_desejado}
-        </Badge>
-      )}
-    </>
-  );
-}
-
 function SectionTitle({ children, count }: { children: React.ReactNode; count: number }) {
   return (
     <h2 className="mb-2 flex items-baseline gap-2 text-base font-semibold">
@@ -231,6 +231,7 @@ interface ItemActions {
   onUndo: (t: QueueItem) => void;
   onEditAttend: (t: QueueItem) => void;
   onEditWalkIn: (t: QueueItem) => void;
+  onOpenRetornos: (t: QueueItem) => void;
 }
 
 /** Menu de ações de uma senha (o que cabe em cada status). */
@@ -293,7 +294,7 @@ function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
           <EllipsisVertical aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
+      <DropdownMenuContent align="end" className="min-w-56 [&_[role=menuitem]]:min-h-12 [&_[role=menuitem]]:text-base [&_[role=menuitem]_svg]:size-5">
         {entries}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -302,31 +303,50 @@ function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
 
 function QueueRow({ item, a, isNext }: { item: QueueItem; a: ItemActions; isNext: boolean }) {
   const arrived = !!item.checkin_em;
+  // J4 v2 · 01: sob o nome, a hora e de onde a senha veio; à direita, a situação e a prioridade.
+  const detalhe = [
+    arrived && item.checkin_em ? horaCurta(new Date(item.checkin_em)) : null,
+    item.is_walk_in ? 'Sem senha' : item.is_sponsor ? 'Associado' : item.is_acompanhante ? 'Acompanhante' : 'Pelo link',
+    !arrived && item.horario_desejado ? item.horario_desejado.slice(0, 5).replace(':', 'h') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <li
       className={cn(
-        'flex min-h-14 items-center gap-3 border-b px-3 py-1.5 last:border-b-0',
+        'flex min-h-[4.5rem] items-center gap-3 border-t border-border py-2.5',
         isNext && 'bg-primary/5',
         isDone(item) && 'opacity-60',
       )}
       data-testid="fila-item"
+      aria-current={isNext ? 'true' : undefined}
     >
-      <span className="w-14 shrink-0 font-mono text-lg font-bold tabular-nums">{numeroDaSenha(item)}</span>
+      <span className="min-w-[4.25rem] shrink-0 font-display text-[2rem] leading-none tracking-[-0.03em] tabular-nums">{numeroDaSenha(item)}</span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
-        <div className="flex flex-wrap items-center gap-1">
-          {item.status === 'emitted' ? (
-            arrived ? (
-              <Badge variant="outline" className="border-success/30 bg-success/15 text-success-strong">
-                Chegou
-              </Badge>
-            ) : null
+        <p className="text-[1.0625rem] leading-snug font-semibold">{item.consulente_nome || '—'}</p>
+        <p className="text-sm text-muted-foreground">
+          {detalhe}
+          {isNext && <span className="sr-only"> · próximo a chamar</span>}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        {item.status === 'emitted' ? (
+          arrived ? (
+            <Badge variant="outline" className="border-success/30 bg-success/15 text-success-strong">
+              Chegou
+            </Badge>
           ) : (
-            <Badge variant="outline">{senhaStatusLabel(item.status)}</Badge>
-          )}
-          {isNext && <Badge>Próximo</Badge>}
-          <Tags item={item} />
-        </div>
+            <Badge variant="outline" className="bg-muted text-muted-foreground">
+              A caminho
+            </Badge>
+          )
+        ) : (
+          <Badge variant="outline">{senhaStatusLabel(item.status)}</Badge>
+        )}
+        {item.preferencial && (
+          <Badge className="border-transparent bg-[color:var(--color-ouro-300)] text-[color:var(--color-cafe-950)]">{priorityLabel(item)}</Badge>
+        )}
+        <RetornoSelo retornos={item.retornos ?? []} onOpen={() => a.onOpenRetornos(item)} />
       </div>
       <ItemMenu item={item} a={a} />
     </li>
@@ -359,6 +379,8 @@ function PortaContent() {
   const { can: canGroup } = usePermissions();
   const canInsert = canGroup('porta', 'insert');
   const canEdit = canGroup('porta', 'edit');
+  const { beta } = useSubscription();
+  const betaRetorno = beta(BETA_RETORNO);
   const giraCtx = useGiraContext({ load: false });
   const { selectedGiraId: ctxGiraId, setSelectedGiraId: setCtxGiraId } = giraCtx;
 
@@ -379,12 +401,16 @@ function PortaContent() {
   const [walkInCreateOpen, setWalkInCreateOpen] = useState(false);
   const [walkInEditTarget, setWalkInEditTarget] = useState<QueueItem | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // Beta do retorno: senha cujos retornos estão abertos no Sheet, e o retorno sendo resolvido.
+  const [retornosDeId, setRetornosDeId] = useState<string | null>(null);
+  const [resolvendoId, setResolvendoId] = useState<string | null>(null);
   const [duplas, setDuplas] = useState<Dupla[]>([]);
   const [duplasOpen, setDuplasOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   // Falhas seguidas da atualização da fila → aviso "Sem conexão" (PortaOfflineNotice).
   const [queueFailures, setQueueFailures] = useState(0);
+  const online = useOnlineStatus();
   const queueFailuresRef = useRef(0);
 
   useEffect(() => {
@@ -460,7 +486,8 @@ function PortaContent() {
     if (!selectedGiraId) return;
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/stats`);
-      setStats(res?.data ?? null);
+      const novos: DoorStats | null = res?.data ?? null;
+      setStats((atuais) => manterSeIgual(atuais, novos));
     } catch {
       /* tenta de novo no próximo ciclo */
     }
@@ -471,9 +498,13 @@ function PortaContent() {
     try {
       // Fila completa — a busca por nome e número é feita aqui no navegador.
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/queue`);
-      setQueue(Array.isArray(res?.data?.items) ? res.data.items.map(normalizeLegacyStatus) : []);
+      const fila: QueueItem[] = Array.isArray(res?.data?.items) ? res.data.items.map(normalizeLegacyStatus) : [];
+      // Fila igual à da tela = nada a redesenhar (o iPad antigo sentia cada ciclo de 8 s).
+      setQueue((atual) => manterSeIgual(atual, fila));
       setQueueGiraId(selectedGiraId);
-      setLastUpdated(new Date());
+      // "atualizado às 19h14": só muda a cada minuto, como o texto.
+      const agora = new Date();
+      setLastUpdated((antes) => (antes && horaCurta(antes) === horaCurta(agora) ? antes : agora));
       queueFailuresRef.current = 0;
       setQueueFailures(0);
     } catch {
@@ -536,11 +567,8 @@ function PortaContent() {
     void loadDuplas();
   }, [loadDuplas]);
 
-  useEffect(() => {
-    if (!selectedGiraId) return;
-    const t = setInterval(refreshAll, POLLING_INTERVAL_MS);
-    return () => clearInterval(t);
-  }, [selectedGiraId, refreshAll]);
+  // Só com a tela visível; ao voltar para a aba, atualiza na hora.
+  useAtualizacaoPeriodica(refreshAll, POLLING_INTERVAL_MS, !!selectedGiraId);
 
   const walkInEnabled = !!selectedGiraId && !!config?.enable_walk_in && canInsert;
 
@@ -630,6 +658,37 @@ function PortaContent() {
       () => apiClient.patch(`/api/v1/admin/door/tickets/${target.id}/attend-info`, data),
       'Atendimento atualizado',
     );
+  };
+
+  // Beta do retorno: "Marcar como resolvido", com Desfazer no toast (o mesmo esforço nos dois sentidos).
+  const handleResolverRetorno = async (r: RetornoAberto) => {
+    if (!canEdit) return;
+    try {
+      setResolvendoId(r.id);
+      await apiClient.patch(`/api/v1/admin/door/retornos/${r.id}/resolver`, { gira_id: selectedGiraId || null });
+      // Some da tela na hora, sem esperar a próxima atualização da fila.
+      setQueue((q) => q.map((t) => (t.retornos?.some((x) => x.id === r.id) ? { ...t, retornos: t.retornos.filter((x) => x.id !== r.id) } : t)));
+      toast.success(`Retorno resolvido: ${comQuemVolta(r)}`, {
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            try {
+              await apiClient.delete(`/api/v1/admin/door/retornos/${r.id}/resolver`);
+              toast.success('O retorno voltou a aparecer');
+            } catch (err) {
+              toast.error(extractApiErrorMessage(err, 'Não foi possível desfazer.'));
+            } finally {
+              refreshAll();
+            }
+          },
+        },
+      });
+      refreshAll();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Não foi possível marcar como resolvido.'));
+    } finally {
+      setResolvendoId(null);
+    }
   };
 
   const handleCreateWalkIn = async (data: WalkInData) => {
@@ -724,18 +783,38 @@ function PortaContent() {
     onUndo: handleUndo,
     onEditAttend: (t) => setEditTarget(t),
     onEditWalkIn: (t) => setWalkInEditTarget(t),
+    onOpenRetornos: (t) => setRetornosDeId(t.id),
   };
+  // Memo: o AttendModal recarrega os campos quando `initialValues` muda; um objeto novo a cada
+  // atualização da fila (8 s) apagava o que se estava digitando no Editar.
+  const editInitialValues = useMemo(
+    () => ({
+      medium_nome: editTarget?.medium_nome || '',
+      cambone_nome: editTarget?.cambone_nome || '',
+      atendimento_descricao: editTarget?.atendimento_descricao || '',
+    }),
+    [editTarget],
+  );
+  const retornosDe = retornosDeId ? queue.find((t) => t.id === retornosDeId) ?? null : null;
+  // As versões atuais das senhas abertas no Chamar/Editar (a fila atualiza a cada 8 s).
+  const attendAtual = attendTarget ? queue.find((t) => t.id === attendTarget.id) ?? attendTarget : null;
+  const editAtual = editTarget ? queue.find((t) => t.id === editTarget.id) ?? editTarget : null;
   const actionsFor = (t: QueueItem): ItemActions => ({ ...actions, busy: actionLoading === t.id });
 
   const selectedGira = giras.find((g) => g.id === selectedGiraId) ?? null;
+  const semConexao = !online || queueFailures >= OFFLINE_AFTER_FAILURES;
+  // "Última: 027 às 19h12" — a chamada mais recente desta gira.
+  const ultimaChamada = queue.reduce<{ item: QueueItem; quando: Date } | null>((acc, t) => {
+    const em = t.chamado_em || t.atendido_em;
+    if (!em) return acc;
+    const quando = new Date(em);
+    return !acc || quando > acc.quando ? { item: t, quando } : acc;
+  }, null);
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* ── Topo fixo: gira + Chamar próximo ── */}
-      <div
-        data-tour="porta-header"
-        className="sticky top-14 z-20 -mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pt-4 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6"
-      >
+  const tablet = useMediaQuery('(min-width: 1200px)');
+  // J4 v2 · 07: no tablet (a partir de 1200 px), duas colunas — o Próximo e as duplas à esquerda, a
+  // busca e a fila à direita, e os contadores na linha do topo. No celular, a página inteira em uma.
+  const barra = (
         <div className="flex items-center gap-2">
           <h1 className="sr-only">Porta</h1>
           <div className="min-w-0 flex-1" data-tour="porta-gira-select">
@@ -761,78 +840,106 @@ function PortaContent() {
             onPressedChange={toggleMuted}
             aria-label={muted ? 'Ligar o aviso sonoro' : 'Silenciar o aviso sonoro'}
             title={muted ? 'Som desligado' : 'Som ligado'}
-            className="size-12 shrink-0"
+            className="size-12 shrink-0 rounded-[10px] border border-border bg-card"
           >
             {muted ? <VolumeX className="size-5" aria-hidden /> : <Volume2 className="size-5" aria-hidden />}
           </Toggle>
           {/* AM-17: chamada da corrente pela porta (PORTA:edit ou ESCALAS:edit; some sem o plano). */}
-          {selectedGiraId && <ChamadaDaGiraButton giraId={selectedGiraId} variant="ghost" className="h-12 shrink-0" />}
           {selectedGiraId && (
-            <Button asChild variant="ghost" size="icon-touch" aria-label="Abrir modo TV" title="Modo TV">
+            <ChamadaDaGiraButton
+              giraId={selectedGiraId}
+              variant="outline"
+              className="h-12 shrink-0 rounded-[10px] bg-card max-sm:w-12 max-sm:px-0 max-sm:[&>span]:sr-only"
+            />
+          )}
+          {selectedGiraId && (
+            <Button asChild variant="outline" size="icon-touch" className="size-12 rounded-[10px] bg-card" aria-label="Abrir modo TV" title="Modo TV">
               <a href={`/admin/porta/kiosk?gira=${encodeURIComponent(selectedGiraId)}`} target="_blank" rel="noopener noreferrer">
                 <Tv aria-hidden />
               </a>
             </Button>
           )}
         </div>
-
-        {selectedGiraId && (
-          <div className="flex gap-2">
-            {canEdit && (
-              <Button
-                type="button"
-                size="touch"
-                // min-w-0 + quebra de linha: no celular estreito o texto quebra dentro do botão
-                // em vez de vazar para fora (antes "Chamar próximo · P008" saía pela esquerda).
-                className="h-auto min-h-12 min-w-0 flex-1 py-2 text-base leading-tight font-bold whitespace-normal sm:text-lg"
-                disabled={!next || actionLoading === next?.id}
-                onClick={() => next && setAttendTarget(next)}
-              >
-                <Megaphone aria-hidden />
-                {next ? `Chamar próximo · ${numeroDaSenha(next)}` : 'Ninguém na fila'}
-              </Button>
+  );
+  const proximo = selectedGiraId ? (
+          // ChamadaDaPorta (J4 v2): café com ouro, o próximo em Fraunces e quem vem. Sem conexão,
+          // "Chamar próximo" fica desligado até a internet voltar (decisão do Leonardo, 02/11/2026).
+          <section aria-label="Próximo da fila" className="flex flex-col gap-3 rounded-2xl bg-[color:var(--color-cafe-950)] px-[18px] pt-4 pb-[18px] text-[color:var(--color-areia-50)] [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:pt-3 [@media(max-height:600px)]:pb-3">
+            <div className="flex items-baseline justify-between gap-2 text-[color:var(--color-areia-300)]">
+              <span className="text-[0.9375rem] font-medium">Próximo</span>
+              {ultimaChamada && (
+                <span className="text-sm" data-testid="porta-ultima-chamada">
+                  Última: {numeroDaSenha(ultimaChamada.item)} às {horaCurta(ultimaChamada.quando)}
+                </span>
+              )}
+            </div>
+            {next ? (
+              <div className="flex items-center gap-4">
+                <span className="font-display text-[4rem] leading-none tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums [@media(max-height:600px)]:text-[2.5rem]">
+                  {numeroDaSenha(next)}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xl font-semibold">{next.consulente_nome || '—'}</span>
+                  <span className="block text-sm text-[color:var(--color-areia-200)]">
+                    {[
+                      next.checkin_em ? `Chegou às ${horaCurta(new Date(next.checkin_em))}` : 'Ainda não chegou',
+                      next.is_walk_in ? 'sem senha' : 'pelo link',
+                    ].join(' · ')}
+                  </span>
+                  {(next.retornos?.length ?? 0) > 0 && (
+                    <RetornoSelo
+                      retornos={next.retornos ?? []}
+                      onOpen={() => setRetornosDeId(next.id)}
+                      className="mt-1.5 border-[color:var(--color-ouro-300)]/60 bg-[color:var(--color-ouro-300)] text-[color:var(--color-cafe-950)] hover:bg-[color:var(--color-ouro-300)]/90"
+                    />
+                  )}
+                </span>
+              </div>
+            ) : (
+              <p className="font-display text-3xl leading-tight text-[color:var(--color-areia-200)]">Ninguém na fila</p>
             )}
-            {walkInEnabled && (
-              <Button
-                type="button"
-                size="touch"
-                variant="outline"
-                // No celular, só o ícone (com rótulo acessível) para o "Chamar próximo" caber.
-                className={cn(canEdit ? 'max-sm:w-12 max-sm:px-0' : 'flex-1')}
-                aria-label="Sem senha"
-                title="Atender alguém sem senha"
-                data-tour="porta-walkin"
-                onClick={() => setWalkInCreateOpen(true)}
-              >
-                <UserPlus aria-hidden /> <span className={cn(canEdit && 'max-sm:sr-only')}>Sem senha</span>
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Fica no topo fixo: quem está na porta vê na hora que a fila parou de atualizar. */}
-        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} />
-      </div>
-
-      <InstallPortaHint />
-
-      {!selectedGiraId ? (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <p className="text-muted-foreground">
-            {giras.length === 0 ? 'Não há gira hoje nem nas próximas horas.' : 'Escolha uma gira para ver a fila.'}
-          </p>
-          <Button asChild variant="outline">
-            <Link href="/admin/giras">Ver giras</Link>
-          </Button>
-        </div>
-      ) : (
-        <>
-          {/* ── Indicadores numa linha ── */}
+            <div className="flex gap-2.5">
+              {canEdit && (
+                <Button
+                  type="button"
+                  size="touch"
+                  className="h-16 [@media(max-height:600px)]:h-12 min-w-0 flex-1 rounded-[10px] bg-[color:var(--color-ouro-300)] text-lg font-bold whitespace-normal text-[color:var(--color-cafe-950)] hover:bg-[color:var(--color-ouro-300)]/90"
+                  disabled={!next || actionLoading === next?.id || semConexao}
+                  title={semConexao ? 'Sem conexão: volta quando a internet voltar' : undefined}
+                  aria-label={next ? `Chamar próximo · ${numeroDaSenha(next)}` : undefined}
+                  onClick={() => next && setAttendTarget(next)}
+                >
+                  {next ? 'Chamar próximo' : 'Ninguém na fila'}
+                  <Megaphone aria-hidden />
+                </Button>
+              )}
+              {walkInEnabled && (
+                <Button
+                  type="button"
+                  size="touch"
+                  variant="outline"
+                  // No celular, só o ícone (com rótulo acessível) para o "Chamar próximo" caber.
+                  className={cn(
+                    'h-16 [@media(max-height:600px)]:h-12 rounded-[10px] border-[1.5px] border-[color:var(--color-cafe-800)] bg-transparent text-base font-semibold text-[color:var(--color-areia-50)] hover:bg-white/10 hover:text-[color:var(--color-areia-50)]',
+                    canEdit ? 'max-sm:w-16 max-sm:px-0' : 'flex-1',
+                  )}
+                  aria-label="Sem senha"
+                  title="Atender alguém sem senha"
+                  data-tour="porta-walkin"
+                  onClick={() => setWalkInCreateOpen(true)}
+                >
+                  <UserPlus aria-hidden /> <span className={cn(canEdit && 'max-sm:sr-only')}>Sem senha</span>
+                </Button>
+              )}
+            </div>
+          </section>
+  ) : null;
+  const contadores = (
           <button
             type="button"
             data-tour="porta-stats"
             onClick={() => setSummaryOpen(true)}
-            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md text-left text-[0.9375rem] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
             aria-label={`${counts.aguardando} aguardando, ${counts.atendidos} atendidos, ${counts.naoVeio} não veio. Ver resumo`}
           >
             <span data-testid="porta-indicadores">
@@ -842,13 +949,12 @@ function PortaContent() {
             </span>
             <span className="shrink-0 text-xs text-muted-foreground">
               {lastUpdated
-                ? `atualizado ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                ? `atualizado às ${horaCurta(lastUpdated)}`
                 : 'carregando…'}
             </span>
           </button>
-
-          {/* ── Duplas da noite ── */}
-          {duplas.length > 0 ? (
+  );
+  const duplasBloco = duplas.length > 0 ? (
             <button
               type="button"
               onClick={() => canEdit && setDuplasOpen(true)}
@@ -880,8 +986,8 @@ function PortaContent() {
                 </Button>
               </div>
             )
-          )}
-
+          );
+  const busca = (
           <TextField
             data-tour="porta-busca"
             aria-label="Buscar senha por nome ou número"
@@ -891,8 +997,8 @@ function PortaContent() {
             startAdornment={<Search aria-hidden />}
             inputClassName="h-12 text-base"
           />
-
-          {!queueLoaded ? (
+  );
+  const filaBloco = !queueLoaded ? (
             <div className="flex flex-col gap-2" role="status" aria-label="Carregando a fila">
               <Skeleton className="h-28 rounded-xl" />
               <Skeleton className="h-14 rounded-xl" />
@@ -901,13 +1007,16 @@ function PortaContent() {
           ) : (
             <>
               <section data-tour="porta-fila" aria-label="Fila">
-                <SectionTitle count={waiting.length}>Fila</SectionTitle>
+                <div className="flex items-baseline justify-between gap-3">
+                  <SectionTitle count={waiting.length}>Fila</SectionTitle>
+                  <span className="text-sm text-muted-foreground">quem já chegou tem a vez</span>
+                </div>
                 {waiting.length === 0 ? (
                   <p className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">
                     {search ? 'Nenhuma senha encontrada.' : 'Fila vazia.'}
                   </p>
                 ) : (
-                  <ul className="m-0 list-none overflow-hidden rounded-xl border p-0">
+                  <ul className="m-0 list-none border-b border-border p-0">
                     {waiting.map((t) => (
                       <QueueRow key={t.id} item={t} a={actionsFor(t)} isNext={next?.id === t.id} />
                     ))}
@@ -916,13 +1025,71 @@ function PortaContent() {
               </section>
 
               {done.length > 0 && (
-                <Button type="button" variant="ghost" className="self-center" onClick={() => setSummaryOpen(true)}>
-                  Ver {done.length} finalizada{done.length !== 1 ? 's' : ''}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-12 self-center text-base font-semibold text-foreground underline underline-offset-4"
+                  onClick={() => setSummaryOpen(true)}
+                >
+                  Ver {done.length} finalizada{done.length !== 1 ? 's' : ''} <ChevronDown aria-hidden />
                 </Button>
               )}
             </>
-          )}
-        </>
+          );
+
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ── Topo fixo: gira + Chamar próximo ── */}
+      <div
+        data-tour="porta-header"
+        className="sticky top-14 z-20 -mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pt-4 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6"
+      >
+        {tablet ? (
+          <div className="flex items-center gap-4">
+            <div className="min-w-0 flex-1">{barra}</div>
+          </div>
+        ) : (
+          barra
+        )}
+        {!tablet && proximo}
+
+        {/* Fica no topo fixo: quem está na porta vê na hora que a fila parou de atualizar. */}
+        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} desde={lastUpdated} />
+      </div>
+
+      <InstallPortaHint />
+
+      {!selectedGiraId ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <p className="text-muted-foreground">
+            {giras.length === 0 ? 'Não há gira hoje nem nas próximas horas.' : 'Escolha uma gira para ver a fila.'}
+          </p>
+          <Button asChild variant="outline">
+            <Link href="/admin/giras">Ver giras</Link>
+          </Button>
+        </div>
+      ) : (
+        tablet ? (
+          <div className="grid grid-cols-[400px_minmax(0,1fr)] items-start gap-8">
+            <div className="sticky top-40 flex flex-col gap-4">
+              {proximo}
+              {duplasBloco}
+            </div>
+            <div className="flex flex-col gap-4">
+              {contadores}
+              {busca}
+              {filaBloco}
+            </div>
+          </div>
+        ) : (
+          <>
+            {contadores}
+            {duplasBloco}
+            {busca}
+            {filaBloco}
+          </>
+        )
       )}
 
       {/* ── Resumo do dia ── */}
@@ -973,6 +1140,11 @@ function PortaContent() {
         camboneOptions={camboneOptions}
         duplas={duplas}
         atendimentos={atendimentos}
+        retornoHabilitado={betaRetorno}
+        retornos={attendAtual?.retornos ?? []}
+        canResolverRetorno={canEdit}
+        resolvendoRetornoId={resolvendoId}
+        onResolverRetorno={handleResolverRetorno}
       />
       <AttendModal
         open={!!editTarget}
@@ -985,12 +1157,25 @@ function PortaContent() {
         mediumOptions={mediumOptions}
         camboneOptions={camboneOptions}
         duplas={duplas}
-        initialValues={{
-          medium_nome: editTarget?.medium_nome || '',
-          cambone_nome: editTarget?.cambone_nome || '',
-          atendimento_descricao: editTarget?.atendimento_descricao || '',
-        }}
+        initialValues={editInitialValues}
+        retornoHabilitado={betaRetorno}
+        retornos={editAtual?.retornos ?? []}
+        retornoMarcado={editTarget?.retorno_marcado ?? null}
+        canResolverRetorno={canEdit}
+        resolvendoRetornoId={resolvendoId}
+        onResolverRetorno={handleResolverRetorno}
       />
+      {betaRetorno && (
+        <RetornosSheet
+          open={!!retornosDe}
+          onClose={() => setRetornosDeId(null)}
+          titulo={retornosDe ? `${numeroDaSenha(retornosDe)} · ${retornosDe.consulente_nome || '—'}` : ''}
+          retornos={retornosDe?.retornos ?? []}
+          canEdit={canEdit}
+          busyId={resolvendoId}
+          onResolver={handleResolverRetorno}
+        />
+      )}
       {selectedGiraId && canEdit && (
         <DuplasDaNoiteDrawer
           open={duplasOpen}

@@ -13,11 +13,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { CalendarClock, Hourglass, Loader2, MapPin, SearchX, TimerOff } from 'lucide-react';
+import { Check, Loader2, SearchX, TimerOff, TriangleAlert } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Bilhete,
   PublicLoading,
@@ -137,11 +136,12 @@ export default function WaitlistConfirmPage() {
   const footer =
     state === 'decide' || state === 'confirming' ? (
       <div className="flex flex-col gap-2">
-        <Button type="button" size="touch" className="w-full" onClick={confirm} disabled={state === 'confirming'} aria-busy={state === 'confirming'}>
-          {state === 'confirming' ? <Loader2 className="animate-spin" /> : <Hourglass />}
+        <Button type="button" size="touch" className="h-[58px] w-full text-[1.1875rem] font-bold" onClick={confirm} disabled={state === 'confirming'} aria-busy={state === 'confirming'}>
+          {state === 'confirming' && <Loader2 className="animate-spin" />}
           {state === 'confirming' ? 'Confirmando…' : 'Confirmar minha senha'}
+          {state !== 'confirming' && <Check aria-hidden />}
         </Button>
-        <Button asChild variant="ghost" size="touch" className="w-full text-muted-foreground">
+        <Button asChild variant="ghost" size="touch" className="w-full text-base font-semibold">
           <Link href={`/public/ticket/${ticketId}/cancelar`}>Não vou poder ir</Link>
         </Button>
       </div>
@@ -160,49 +160,41 @@ export default function WaitlistConfirmPage() {
       {state === 'loading' && <PublicLoading label="Buscando sua senha…" />}
 
       {(state === 'decide' || state === 'confirming') && (
-        <Card className="gap-4 py-5">
-          <CardContent className="flex flex-col gap-4 px-5">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold leading-tight">Abriu uma vaga para você!</h1>
-              <p className="mt-1 text-base text-muted-foreground">
-                Confirme para transformar sua posição na fila em uma senha.
-              </p>
-            </div>
+        <section aria-labelledby="abriu-vaga" className="flex flex-col gap-4 px-1 pt-1">
+          <div>
+            <h1 id="abriu-vaga" className="font-display text-[2rem] font-normal leading-tight tracking-[-0.02em]">
+              Abriu uma vaga <em className="block text-[color:var(--color-barro-600)]">para você!</em>
+            </h1>
+            <p className="mt-2 text-[1.0625rem] leading-relaxed">Confirme para transformar sua posição na fila em uma senha.</p>
+          </div>
 
-            <div className="text-center">
-              <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Sua senha</p>
-              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-(color:--brand-text)">
-                {ticket?.ticket_number ?? info?.ticket_number}
-              </p>
-            </div>
+          <Alert variant="warning">
+            <TriangleAlert />
+            <AlertTitle>A vaga fica reservada por tempo limitado</AlertTitle>
+            <AlertDescription>
+              O prazo está no e-mail que você recebeu. Depois disso ela passa para a próxima pessoa da fila.
+            </AlertDescription>
+          </Alert>
 
-            <Alert variant="warning">
-              <TimerOff />
-              <AlertDescription>
-                A vaga fica reservada por tempo limitado — o prazo está no e-mail que você recebeu. Depois disso ela
-                passa para a próxima pessoa da fila.
-              </AlertDescription>
-            </Alert>
-
-            <div>
-              <h2 className="text-lg font-bold leading-snug [text-wrap:balance]">{ticket?.gira_name ?? info?.gira_name}</h2>
-              <p className="flex items-start gap-2 text-base">
-                <CalendarClock aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground" />
-                <span>{ticket ? formatGiraDate(ticket.gira_date_iso, ticket.gira_date) : info?.gira_date}</span>
-              </p>
-              {ticket?.horario && <p className="text-base text-muted-foreground">Seu horário de atendimento: {ticket.horario}</p>}
-              {(ticket?.gira_local || ticket?.tenant_address) && (
-                <p className="mt-1 flex items-start gap-2 text-base text-muted-foreground">
-                  <MapPin aria-hidden className="mt-1 size-4 shrink-0" />
-                  <span>{[ticket?.gira_local, ticket?.tenant_address].filter(Boolean).join(' · ')}</span>
-                </p>
-              )}
-              {(ticket?.consulente_name || info?.consulente_name) && (
-                <p className="text-base text-muted-foreground">Em nome de {ticket?.consulente_name ?? info?.consulente_name}</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          <dl className="m-0 border-b border-border">
+            {[
+              ['Gira', ticket ? formatGiraDate(ticket.gira_date_iso, ticket.gira_date) : info?.gira_date, ticket?.gira_name ?? info?.gira_name],
+              ['Nome', ticket?.consulente_name ?? info?.consulente_name],
+              ...(ticket?.horario ? [['Horário', ticket.horario]] : []),
+              ['Senha', ticket?.ticket_number ?? info?.ticket_number],
+            ]
+              .filter(([, v]) => Boolean(v))
+              .map(([k, v, extra]) => (
+                <div key={k} className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+                  <dt className="text-[0.9375rem] text-muted-foreground">{k}</dt>
+                  <dd className="m-0 text-right text-[0.9375rem] font-semibold">
+                    {extra ? <span className="block">{extra}</span> : null}
+                    <span data-testid={k === 'Senha' ? 'ticket-number' : undefined}>{v}</span>
+                  </dd>
+                </div>
+              ))}
+          </dl>
+        </section>
       )}
 
       {state === 'success' && ticket && (

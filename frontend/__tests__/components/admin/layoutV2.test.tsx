@@ -61,20 +61,58 @@ describe('AdminSidebar', () => {
     mockPlanCan.mockImplementation(() => true);
   });
 
-  it('admin vê os grupos por trabalho, a versão e o plano com "mês grátis"', () => {
+  it('barra enxuta (J1 v2): dia de gira fixo, "Da casa", "Ver os N módulos"; Conta sai da barra', () => {
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
     withSidebar(<AdminSidebar isOperator={false} />);
     const nav = screen.getByTestId('admin-sidebar');
-    for (const g of ['Hoje', 'Giras e senhas', 'Corrente', 'Casa', 'Conta']) {
+    for (const g of ['Dia de gira', 'Da casa']) {
       expect(within(nav).getByText(g)).toBeInTheDocument();
     }
-    expect(within(nav).getByRole('link', { name: /Plano e assinatura/ })).toHaveAttribute('href', '/admin/billing');
-    expect(within(nav).getByRole('link', { name: /Pessoas e acessos/ })).toHaveAttribute('href', '/admin/users');
-    expect(within(nav).getByRole('link', { name: /Ajuda/ })).toHaveAttribute('href', '/admin/suporte');
+    for (const [nome, href] of [
+      ['Início', '/admin/dashboard'],
+      ['Giras', '/admin/giras'],
+      ['Porta', '/admin/porta'],
+      ['Senhas', '/admin/tickets'],
+    ]) {
+      expect(within(nav).getByRole('link', { name: new RegExp(`^${nome}`) })).toHaveAttribute('href', href);
+    }
+    const { MODULOS } = require('@/constants/modulos');
+    expect(within(nav).getByRole('link', { name: new RegExp(`Ver os ${MODULOS.length} módulos`) })).toHaveAttribute('href', '/admin/modulos');
+    // Sem a beta do menu ajustável, "Da casa" tem tudo o que o plano e o perfil liberam.
     expect(within(nav).getByRole('link', { name: /Analytics/ })).toHaveAttribute('href', '/admin/analytics');
-    expect(within(nav).getByRole('link', { name: /Auditoria/ })).toHaveAttribute('href', '/admin/audit-trail');
+    expect(within(nav).getByRole('link', { name: /Médiuns/ })).toHaveAttribute('href', '/admin/mediuns');
+    // Conta e plano mora no menu do avatar.
+    expect(within(nav).queryByRole('link', { name: /Plano e assinatura/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Auditoria/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-version')).toHaveTextContent(APP_VERSION_LABEL);
     expect(screen.getByText('Pro · mês grátis')).toBeInTheDocument();
+  });
+
+  it('Área do Médium não tem item na barra: a configuração fica só em Configurações (Leonardo, 04/11/2026)', () => {
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator={false} />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).queryByRole('link', { name: /Área do Médium/ })).not.toBeInTheDocument();
+    const { MODULOS } = require('@/constants/modulos');
+    expect(MODULOS.some((m: { nome: string }) => m.nome === 'Área do Médium')).toBe(false);
+  });
+
+  it('montarSidebarNav: a conta inteira vai para o avatar, sem perder item', () => {
+    const { montarSidebarNav } = require('@/components/admin/layout/navConfig');
+    const L = (href: string, label: string) => ({ kind: 'link', href, label, icon: () => null });
+    const groups = [
+      { key: 'hoje', label: 'Hoje', items: [L('/admin/dashboard', 'Início'), L('/admin/porta', 'Porta')] },
+      { key: 'giras', label: 'Giras', items: [L('/admin/giras', 'Giras'), L('/admin/tickets', 'Senhas'), L('/admin/analytics', 'Analytics')] },
+      { key: 'conta', label: 'Conta', items: [L('/admin/billing', 'Plano e assinatura'), L('/admin/config', 'Configurações')] },
+    ];
+    const todos = montarSidebarNav(groups, { ajustavel: false, noMenu: () => false });
+    expect(todos.fixos.map((e: { label: string }) => e.label)).toEqual(['Início', 'Giras', 'Porta', 'Senhas']);
+    expect(todos.daCasa.map((e: { label: string }) => e.label)).toEqual(['Analytics']);
+    expect(todos.conta.map((e: { label: string }) => e.label)).toEqual(['Plano e assinatura', 'Configurações']);
+    // Com a beta, só o que a casa usa (ou a pessoa pôs) sobe para "Da casa".
+    const ajustado = montarSidebarNav(groups, { ajustavel: true, noMenu: () => false });
+    expect(ajustado.daCasa).toEqual([]);
+    expect(montarSidebarNav(groups, { ajustavel: true, noMenu: (k: string) => k === 'relatorio' }).daCasa).toHaveLength(1);
   });
 
   it('operador só com a Porta liberada não vê Giras, Senhas nem os grupos sem nada liberado', () => {
@@ -83,12 +121,42 @@ describe('AdminSidebar', () => {
     withSidebar(<AdminSidebar isOperator />);
     const nav = screen.getByTestId('admin-sidebar');
     expect(within(nav).getByRole('link', { name: /Porta/ })).toHaveAttribute('href', '/admin/porta');
-    expect(within(nav).queryByRole('link', { name: /^Giras$/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /^Giras( |$)/ })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: /Senhas/ })).not.toBeInTheDocument();
     expect(within(nav).queryByText('Giras e senhas')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Corrente')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Casa')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Plano e assinatura')).not.toBeInTheDocument();
+    // O contador da barra conta só o que a página dos módulos mostra para ele (dado real, não os 11 do catálogo).
+    expect(within(nav).getByRole('link', { name: /^Ver o módulo/ })).toHaveAttribute('href', '/admin/modulos');
+    expect(within(nav).queryByRole('link', { name: /Ver os \d+ módulos/ })).not.toBeInTheDocument();
+  });
+
+  it('dia de gira: "Gira de hoje" entra como atalho e "Senhas" continua no menu (não troca de lugar)', () => {
+    const { montarSidebarNav } = require('@/components/admin/layout/navConfig');
+    const L = (href: string, label: string) => ({ kind: 'link', href, label, icon: () => null });
+    const groups = [
+      { key: 'hoje', label: 'Hoje', items: [L('/admin/dashboard', 'Início'), L('/admin/porta', 'Porta'), L('/admin/tickets?gira=g1', 'Gira de hoje')] },
+      { key: 'giras', label: 'Giras', items: [L('/admin/giras', 'Giras'), L('/admin/tickets', 'Senhas')] },
+    ];
+    const { fixos } = montarSidebarNav(groups, { ajustavel: false, noMenu: () => false });
+    expect(fixos.map((e: { label: string }) => e.label)).toEqual(['Início', 'Giras', 'Porta', 'Senhas', 'Gira de hoje']);
+  });
+
+  it('situacaoDoModulo: fixo, liberado, fora do plano e escondido (piloto ou sem permissão)', () => {
+    const { MODULOS, situacaoDoModulo, contarModulosVisiveis } = require('@/constants/modulos');
+    const por = (k: string) => MODULOS.find((m: { key: string }) => m.key === k);
+    const nada = new Set<string>();
+    const tudo = () => true;
+    expect(situacaoDoModulo(por('giras'), nada, tudo)).toEqual({ tipo: 'fixo', entrada: por('giras').rotas[0] });
+    const fin = por('financeiro');
+    expect(situacaoDoModulo(fin, new Set([fin.rotas[0]]), tudo)).toEqual({ tipo: 'liberado', entrada: fin.rotas[0] });
+    expect(situacaoDoModulo(fin, nada, () => false)).toEqual({ tipo: 'plano', entrada: null });
+    expect(situacaoDoModulo(fin, nada, tudo)).toBeNull(); // no plano, mas sem permissão
+    const piloto = MODULOS.find((m: { piloto?: boolean }) => m.piloto);
+    expect(situacaoDoModulo(piloto, nada, () => false)).toBeNull(); // piloto sem a chave some
+    expect(contarModulosVisiveis(nada, tudo)).toBe(1);
+    expect(contarModulosVisiveis(new Set(MODULOS.flatMap((m: { rotas: string[] }) => m.rotas)), tudo)).toBe(MODULOS.length);
   });
 
   it('Analytics e Auditoria seguem plano e grupo', () => {
@@ -123,13 +191,17 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByRole('link', { name: /Lançamentos/ })).not.toBeInTheDocument();
   });
 
-  it('operador com o grupo configuracoes vê Configurações (a tela gateia por grupo)', () => {
+  it('operador com o grupo configuracoes vê Configurações no menu do avatar (a tela gateia por grupo)', () => {
     mockGroupCan.mockImplementation((feature: string, action: string) => feature === 'configuracoes' && action === 'view');
-    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
-    withSidebar(<AdminSidebar isOperator />);
-    const nav = screen.getByTestId('admin-sidebar');
-    expect(within(nav).getByRole('link', { name: /Configurações/ })).toHaveAttribute('href', '/admin/config');
-    expect(within(nav).queryByText('Perfis de acesso')).not.toBeInTheDocument();
+    const { useAdminNav, montarSidebarNav } = require('@/components/admin/layout/navConfig');
+    let conta: { label: string; href: string }[] = [];
+    function Sonda() {
+      conta = montarSidebarNav(useAdminNav({ isOperator: true }), { ajustavel: false, noMenu: () => false }).conta;
+      return null;
+    }
+    render(<Sonda />);
+    expect(conta.find((l) => l.label === 'Configurações')?.href).toBe('/admin/config');
+    expect(conta.find((l) => l.label === 'Perfis de acesso')).toBeUndefined();
   });
 
   it('"Site do terreiro" segue o grupo site e "Cursos" o grupo cursos_presenciais (T-06)', () => {
@@ -206,7 +278,7 @@ describe('CommandPalette', () => {
     );
     expect(screen.getByRole('option', { name: /Criar gira/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Abrir Porta/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('option', { name: /^Giras$/ }));
+    fireEvent.click(screen.getByRole('option', { name: /^Giras( |$)/ }));
     expect(mockRouter.push).toHaveBeenCalledWith('/admin/giras');
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

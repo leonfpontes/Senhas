@@ -5,6 +5,7 @@
  */
 'use client';
 
+import { cn } from '@/lib/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -19,7 +20,6 @@ import {
   Layers,
   Loader2,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -42,6 +42,7 @@ import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { MoneyInput, TextField } from '@/components/fields';
 import { MovimentacaoDrawer } from '@/components/estoque/MovimentacaoDrawer';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -53,7 +54,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Toggle } from '@/components/ui/toggle';
 import { formatBRL, todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
 import { useTenant } from '@/providers/ThemeProvider';
@@ -103,6 +103,23 @@ export function saldoStatus(saldo: number, minimo: number): SaldoStatus {
   return 'ok';
 }
 
+/** J8 v2 · 01: o saldo em negrito (vermelho se zerado) e a situação num selo à parte. */
+function SaldoTexto({ item }: { item: Item }) {
+  const status = saldoStatus(item.saldo, item.estoque_minimo);
+  return (
+    <span className={cn('font-semibold tabular-nums', status === 'critico' && 'text-destructive-strong')}>
+      {item.saldo} {item.unidade_medida}
+    </span>
+  );
+}
+
+function SituacaoBadge({ item }: { item: Item }) {
+  const status = saldoStatus(item.saldo, item.estoque_minimo);
+  if (status === 'critico') return <Badge className="border-transparent bg-destructive/12 text-destructive-strong">Zerado</Badge>;
+  if (status === 'atencao') return <Badge className="border-transparent bg-warning/20 text-warning-strong">Atenção</Badge>;
+  return <Badge className="border-transparent bg-success/15 text-success-strong">Em dia</Badge>;
+}
+
 function SaldoBadge({ item }: { item: Item }) {
   const status = saldoStatus(item.saldo, item.estoque_minimo);
   const label = `${item.saldo} ${item.unidade_medida}`;
@@ -137,7 +154,7 @@ function AuthImage({ src, alt, className }: { src: string; alt: string; classNam
 
 export default function AdminEstoqueItensPage() {
   return (
-    <AdminLayout title="Itens de Estoque">
+    <AdminLayout title="Itens de estoque">
       <AdminEstoqueItensContent />
     </AdminLayout>
   );
@@ -426,7 +443,6 @@ function AdminEstoqueItensContent() {
           <DropdownMenuContent align="end">
             {canEdit && (
               <DropdownMenuItem onSelect={() => openEdit(item)}>
-                <Pencil />
                 Editar
               </DropdownMenuItem>
             )}
@@ -456,17 +472,17 @@ function AdminEstoqueItensContent() {
                 <AuthImage src={`/api/v1/admin/estoque/itens/${i.id}/foto`} alt="" className="size-9 shrink-0 rounded-md object-cover" />
               )}
               <div className="flex min-w-0 flex-col">
-                <span className="truncate font-medium">{i.nome}</span>
-                {i.descricao && <span className="truncate text-xs text-muted-foreground">{i.descricao}</span>}
+                <span className="truncate font-semibold">{i.nome}</span>
+                <span className="truncate text-xs text-muted-foreground">{i.grupo_nome || 'Sem grupo'}</span>
               </div>
             </div>
           );
         },
       },
-      { accessorKey: 'grupo_nome', header: 'Grupo', cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string | null>() || '—'}</span> },
-      { accessorKey: 'saldo', header: 'Saldo', cell: ({ row }) => <SaldoBadge item={row.original} /> },
+      { accessorKey: 'saldo', header: 'Saldo', cell: ({ row }) => <SaldoTexto item={row.original} /> },
       { accessorKey: 'estoque_minimo', header: 'Mínimo', cell: ({ row }) => <span className="text-muted-foreground">{row.original.estoque_minimo} {row.original.unidade_medida}</span> },
       { accessorKey: 'custo_unitario', header: 'Custo unit.', meta: { align: 'right' }, cell: ({ getValue }) => <span className="text-muted-foreground">{formatBRL(getValue<number | null>())}</span> },
+      { id: 'situacao', header: 'Situação', enableSorting: false, cell: ({ row }) => <SituacaoBadge item={row.original} /> },
     ];
     if (showActions) {
       cols.push({ id: 'acoes', header: '', enableSorting: false, meta: { align: 'right' }, cell: ({ row }) => <RowActions item={row.original} /> });
@@ -510,13 +526,13 @@ function AdminEstoqueItensContent() {
     <div className="flex flex-col gap-4">
       <div data-tour="estoque-itens-header">
         <PageHeader
-          title="Itens de Estoque"
-          subtitle={`${items.length} ${items.length === 1 ? 'item cadastrado' : 'itens cadastrados'}`}
+          title="Itens de estoque"
+          eyebrow="Estoque"
+          subtitle="O que a casa tem, o mínimo de cada item e o que precisa repor."
           actions={
             <>
-              <Button variant="outline" onClick={loadItems} disabled={loading} aria-label="Atualizar">
+              <Button variant="ghost" size="icon" onClick={loadItems} disabled={loading} aria-label="Atualizar" title="Atualizar">
                 <RefreshCw className={loading ? 'animate-spin' : undefined} />
-                <span className="hidden sm:inline">Atualizar</span>
               </Button>
               <Button data-tour="estoque-rel-export" variant="outline" onClick={handleExportCsv} disabled={exporting || loading || items.length === 0}>
                 {exporting ? <Loader2 className="animate-spin" /> : <Download />}
@@ -543,12 +559,6 @@ function AdminEstoqueItensContent() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="estoque-rel-kpis">
-        <KpiCard label="Em dia" value={counts.ok} icon={<CheckCircle2 />} color="var(--success)" loading={loading} />
-        <KpiCard label="Atenção" value={counts.atencao} icon={<AlertTriangle />} color="var(--warning)" loading={loading} subtitle="abaixo do mínimo" />
-        <KpiCard label="Críticos" value={counts.critico} icon={<XCircle />} color="var(--destructive)" loading={loading} subtitle="zerados ou negativos" />
-      </div>
-
       <div data-tour="estoque-itens-filtro" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <TextField
           aria-label="Buscar item"
@@ -573,21 +583,24 @@ function AdminEstoqueItensContent() {
             </SelectContent>
           </Select>
         </div>
-        <Toggle
-          variant="outline"
-          size="sm"
-          pressed={somenteCriticos}
-          onPressedChange={setSomenteCriticos}
-          aria-label="Mostrar só itens críticos ou em atenção"
-          className="data-[state=on]:bg-destructive/10 data-[state=on]:text-destructive-strong"
-        >
-          <AlertTriangle />
-          Críticos
-        </Toggle>
+        {/* J8 v2 · 01: o filtro dito por extenso, numa caixa de seleção. */}
+        <label className="flex min-h-10 cursor-pointer items-center gap-2 text-[0.9375rem]">
+          <Checkbox checked={somenteCriticos} onCheckedChange={(v) => setSomenteCriticos(v === true)} />
+          Mostrar só itens críticos ou em atenção
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="estoque-rel-kpis">
+        <KpiCard label="Em dia" value={counts.ok} icon={<CheckCircle2 />} color="var(--success)" loading={loading} />
+        <KpiCard label="Atenção (abaixo do mínimo)" value={counts.atencao} icon={<AlertTriangle />} color="var(--warning)" loading={loading} />
+        <KpiCard label="Zerados ou negativos" value={counts.critico} icon={<XCircle />} color="var(--destructive)" loading={loading} />
       </div>
 
       <div data-tour="estoque-itens-tabela">
         <DataTable
+          // Clique para editar (04/11/2026): a linha abre a edição; as outras ações seguem como botões.
+          onRowClick={canEdit ? (i) => void openEdit(i) : undefined}
+          rowLabel={(i) => `Editar ${i.nome}`}
           columns={columns}
           data={rows}
           getRowId={(i) => i.id}
@@ -674,7 +687,7 @@ function AdminEstoqueItensContent() {
               </Button>
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFotoChange} aria-label="Selecionar foto" />
             </div>
-            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, máx. 2 MB.</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, até 2 MB.</p>
           </div>
         </div>
       </CrudDrawer>

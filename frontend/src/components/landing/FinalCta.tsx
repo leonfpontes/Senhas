@@ -24,7 +24,7 @@ export function FinalCta({ whatsapp = supportWhatsappLink() }: { whatsapp?: stri
           </h2>
           <p className="mt-5 text-lg text-areia-100">Crie a conta, monte a gira e mande o link no grupo. Grátis para começar.</p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button asChild size="touch" className="bg-ouro-400 text-base font-bold text-cafe-950 hover:bg-ouro-300">
+            <Button asChild size="touch" className="bg-folha-600 text-base font-bold text-white hover:bg-folha-700">
               <Link href="/cadastro">
                 Criar minha primeira gira <ChevronRight aria-hidden />
               </Link>

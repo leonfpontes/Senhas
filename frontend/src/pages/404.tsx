@@ -6,11 +6,14 @@
  * `prefers-reduced-motion: no-preference` (variante `motion-safe:`), contraste de
  * texto legível e sem piadas com entidades religiosas.
  */
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ArrowLeft, Home, Moon, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Home, MapPinOff } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { fraunces } from '@/components/landing/fonts';
+import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { Button } from '@/components/ui/button';
 
 /** Primeiro segmento de rotas da plataforma — nunca é slug de terreiro. */
@@ -57,40 +60,15 @@ export function tenantSlugFromPath(path: string | undefined): string | null {
   return candidate && SLUG_RE.test(candidate) ? candidate.toLowerCase() : null;
 }
 
-const MESSAGES = [
-  'Essa página não está aqui.',
-  'O link pode ter mudado ou expirado.',
-  'Confira o endereço ou volte para o início.',
-];
-
-const FLOATING: { Icon: typeof Star; className: string; delay: string }[] = [
-  { Icon: Sparkles, className: 'top-[10%] left-[8%] size-8', delay: '0s' },
-  { Icon: Star, className: 'top-[18%] right-[12%] size-6', delay: '0.6s' },
-  { Icon: Moon, className: 'bottom-[18%] left-[6%] size-10', delay: '1.1s' },
-  { Icon: Star, className: 'top-[40%] left-[3%] size-5', delay: '0.3s' },
-  { Icon: Sparkles, className: 'bottom-[22%] right-[8%] size-7', delay: '1.6s' },
-  { Icon: Star, className: 'bottom-[10%] right-[28%] size-5', delay: '0.9s' },
-];
-
+/** Jornada 11 v2 · 13: recado claro e o caminho de volta, sobre o areia; sem ícones decorativos. */
 export default function Custom404() {
   const router = useRouter();
-  const slug = tenantSlugFromPath(router?.asPath);
-
-  const [msgIndex, setMsgIndex] = useState(0);
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    if (reduced) return undefined; // sem troca animada de mensagem
-    const interval = setInterval(() => {
-      setVisible(false);
-      setTimeout(() => {
-        setMsgIndex((i) => (i + 1) % MESSAGES.length);
-        setVisible(true);
-      }, 400);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, []);
+  // A 404 é estática: no servidor o caminho é "/404". O slug só se lê no navegador, depois da
+  // hidratação (antes, o texto do servidor e o do cliente divergiam).
+  const [slug, setSlug] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setSlug(tenantSlugFromPath(router?.asPath));
+  }, [router?.asPath]);
 
   return (
     <>
@@ -99,61 +77,55 @@ export default function Custom404() {
         <meta name="robots" content="noindex" />
       </Head>
 
-      <main data-slot="not-found-page" className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4 text-center text-base text-foreground">
-        {/* Fundo suave com a cor da marca */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,var(--color-primary)_0%,transparent_60%)] opacity-10"
-        />
-
-        {/* Ícones flutuantes — só animam sem prefers-reduced-motion */}
-        {FLOATING.map(({ Icon, className, delay }, i) => (
-          <Icon
-            key={i}
-            aria-hidden
-            className={`absolute text-brand/40 motion-safe:animate-bounce ${className}`}
-            style={{ animationDelay: delay, animationDuration: '3.5s' }}
-          />
-        ))}
-
-        <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-4">
-          <p
-            aria-hidden
-            className="text-[7rem] leading-none font-black tracking-tighter text-brand motion-safe:animate-pulse sm:text-[10rem]"
-            style={{ animationDuration: '3s' }}
-          >
-            404
-          </p>
-          <h1 className="text-2xl font-bold">Página não encontrada</h1>
-          <p
-            aria-live="polite"
-            className="min-h-6 text-base text-muted-foreground motion-safe:transition-opacity motion-safe:duration-300"
-            style={{ opacity: visible ? 1 : 0 }}
-          >
-            {MESSAGES[msgIndex]}
-          </p>
-
-          <div className="mt-2 flex w-full flex-col gap-2">
-            {slug && (
-              <Button asChild size="touch" className="w-full">
-                <Link href={`/${encodeURIComponent(slug)}`}>
-                  <Home /> Ir para o terreiro
-                </Link>
-              </Button>
-            )}
-            <Button asChild variant={slug ? 'outline' : 'default'} size="touch" className="w-full">
-              <Link href="/">{!slug && <Home />} Voltar ao início</Link>
-            </Button>
-            <Button type="button" variant="ghost" size="touch" className="w-full text-muted-foreground" onClick={() => window.history.back()}>
-              <ArrowLeft /> Voltar
-            </Button>
-          </div>
-        </div>
-
-        <p className="absolute bottom-5 text-sm text-muted-foreground">
-          GiraHub © {new Date().getFullYear()} — a plataforma dos terreiros
+      <div className={cn(fraunces.variable, 'flex min-h-screen flex-col bg-areia-50')}>
+      {/* J11 v2 · 13: a barra café com a marca, como nas telas de conta. */}
+      <header className="flex h-16 items-center bg-cafe-950 px-4 sm:px-6">
+        <Link href="/" aria-label="GiraHub — página inicial" className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60">
+          <GiraHubLogo className="text-white" />
+        </Link>
+      </header>
+      <main
+        data-slot="not-found-page"
+        className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12 text-center text-base text-tinta"
+      >
+        <span aria-hidden className="flex size-20 items-center justify-center rounded-full bg-areia-100">
+          <MapPinOff className="size-8 text-barro-700" />
+        </span>
+        <h1 className="font-display text-4xl font-medium tracking-[-0.02em] sm:text-[2.75rem]">Página não encontrada</h1>
+        <p className="max-w-lg text-tinta-suave">
+          O endereço pode ter mudado ou a gira já passou.{slug ? ' Volte para o terreiro e procure por lá.' : ' Volte para o início e procure por lá.'}
         </p>
+        <div className="mt-2 flex flex-wrap justify-center gap-2.5">
+          {slug ? (
+            <Button asChild size="touch" className="rounded-[10px] bg-folha-600 text-white hover:bg-folha-700">
+              <Link href={`/${encodeURIComponent(slug)}`}>
+                <Home aria-hidden /> Ir para o terreiro
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild size="touch" className="rounded-[10px] bg-folha-600 text-white hover:bg-folha-700">
+              <Link href="/">
+                <Home aria-hidden /> Voltar ao início
+              </Link>
+            </Button>
+          )}
+          {slug && (
+            <Button asChild variant="outline" size="touch" className="rounded-[10px] border-areia-300 bg-white text-tinta hover:bg-areia-100">
+              <Link href="/">Voltar ao início</Link>
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="touch"
+            className="rounded-[10px] border-areia-300 bg-white text-tinta hover:bg-areia-100"
+            onClick={() => window.history.back()}
+          >
+            <ArrowLeft aria-hidden /> Voltar
+          </Button>
+        </div>
       </main>
+      </div>
     </>
   );
 }

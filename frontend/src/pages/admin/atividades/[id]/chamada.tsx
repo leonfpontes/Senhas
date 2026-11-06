@@ -125,8 +125,19 @@ function Pessoa({
       data-testid="chamada-pessoa"
       aria-label={p.nome}
     >
+      <span
+        aria-hidden
+        className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-barro-600)] text-sm font-bold text-white"
+      >
+        {p.nome
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((x) => x.charAt(0).toUpperCase())
+          .join('')}
+      </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <strong className="text-base">{p.nome}</strong>
+        <strong className="text-[1.0625rem] font-semibold">{p.nome}</strong>
         <span className="flex flex-wrap items-center gap-1.5 text-sm">
           <span className={cn('rounded-full px-2 py-0.5 font-semibold', resp.classe)}>
             {resp.texto}
@@ -182,7 +193,7 @@ function Pessoa({
         <div className="flex shrink-0 gap-1.5" role="group" aria-label={`Presença de ${p.nome}`}>
           <Button
             type="button"
-            size="sm"
+            className="h-11 px-4 text-[0.9375rem] font-semibold"
             variant={p.presenca === 'presente' ? 'default' : 'outline'}
             aria-pressed={p.presenca === 'presente'}
             disabled={ocupado}
@@ -192,7 +203,7 @@ function Pessoa({
           </Button>
           <Button
             type="button"
-            size="sm"
+            className="h-11 px-4 text-[0.9375rem] font-semibold"
             variant={p.presenca === 'ausente' ? 'destructive' : 'outline'}
             aria-pressed={p.presenca === 'ausente'}
             disabled={ocupado}
@@ -329,13 +340,26 @@ function Chamada() {
         <ArrowLeft className="size-4" aria-hidden /> {voltar.texto}
       </Link>
 
+      {/* J5 v2 · 14: "Chamada" em Fraunces, a atividade embaixo e o "Encerrar chamada" ao lado. */}
       <header className="flex flex-col gap-2">
-        <TipoChip tipo={a.tipo} size="sm" />
-        <h1 className="text-2xl font-bold">{a.titulo}</h1>
-        <p className="text-sm text-muted-foreground">
-          {formatDateTimeBr(a.inicio)}
-          {a.local ? ` · ${a.local}` : ''} · Presença: {modo}
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[0.9375rem] font-medium text-muted-foreground">Atividades e escalas</p>
+            <h1 className="font-display text-[2.5rem] leading-tight font-normal tracking-[-0.02em]">Chamada</h1>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-base text-muted-foreground">
+              <TipoChip tipo={a.tipo} size="sm" />
+              <span>
+                <strong className="font-semibold text-foreground">{a.titulo}</strong> · {formatDateTimeBr(a.inicio)}
+                {a.local ? ` · ${a.local}` : ''} · Presença: {modo}
+              </span>
+            </p>
+          </div>
+          {a.pode_encerrar && (
+            <Button type="button" className="h-11 px-4 text-[0.9375rem] font-semibold" onClick={() => setEncerrar(true)} disabled={ocupado}>
+              Encerrar chamada <ClipboardCheck aria-hidden />
+            </Button>
+          )}
+        </div>
         {a.chamada_encerrada_em && (
           <p
             className={cn('self-start rounded-md px-3 py-1.5 text-sm font-semibold', CLASSE_TOM.ok)}
@@ -363,34 +387,8 @@ function Chamada() {
         )}
       </header>
 
-      <div
-        className="flex flex-wrap gap-2"
-        aria-label="Resumo da chamada"
-        data-testid="chamada-contadores"
-      >
-        <span className={cn('rounded-full px-3 py-1 text-sm font-semibold', CLASSE_TOM.ok)}>
-          {c.presentes} presentes
-        </span>
-        <span className={cn('rounded-full px-3 py-1 text-sm font-semibold', CLASSE_TOM.bad)}>
-          {c.ausentes} ausentes
-        </span>
-        <span className={cn('rounded-full px-3 py-1 text-sm font-semibold', CLASSE_TOM.muted)}>
-          {c.sem_registro} sem marcação
-        </span>
-        <span className={cn('rounded-full px-3 py-1 text-sm font-semibold', CLASSE_TOM.brand)}>
-          {c.confirmados} vão · {c.ausencias_avisadas} não vão · {c.sem_resposta} sem resposta
-        </span>
-      </div>
-
-      {a.modo_presenca === 'qr' && podeMarcar && !a.chamada_encerrada_em && (
-        <div className="flex flex-col items-start gap-2">
-          <QrPresenca url={qrUrl} className="w-full max-w-sm" />
-          <Button type="button" variant="outline" size="sm" onClick={() => setTelaCheia(true)}>
-            <Maximize2 aria-hidden /> Mostrar o QR em tela cheia
-          </Button>
-        </div>
-      )}
-
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="flex min-w-0 flex-col gap-4">
       {podeMarcar && (
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           {confirmadosSemMarcar > 0 && (
@@ -483,14 +481,38 @@ function Chamada() {
         O motivo das faltas só aparece para quem cuida das escalas e não vai para relatório nem
         e-mail.
       </p>
-
-      {a.pode_encerrar && (
-        <div className="flex justify-end">
-          <Button type="button" onClick={() => setEncerrar(true)} disabled={ocupado}>
-            <ClipboardCheck aria-hidden /> Encerrar chamada
-          </Button>
         </div>
-      )}
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-20">
+          <section aria-label="Resumo da chamada" data-testid="chamada-contadores">
+            <h2 className="mb-1 text-base font-semibold">Resumo da chamada</h2>
+            <dl className="m-0 border-b border-border">
+              {[
+                ['Presentes', c.presentes],
+                ['Ausentes', c.ausentes],
+                ['Sem marcar', c.sem_registro],
+              ].map(([k, v]) => (
+                <div key={k as string} className="flex items-baseline justify-between gap-4 border-t border-border py-2.5">
+                  <dt className="text-[0.9375rem] text-muted-foreground">{k}</dt>
+                  <dd className="m-0 text-[0.9375rem] font-semibold tabular-nums">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {c.confirmados} vão · {c.ausencias_avisadas} não vão · {c.sem_resposta} sem resposta
+            </p>
+          </section>
+          {a.modo_presenca === 'qr' && podeMarcar && !a.chamada_encerrada_em && (
+            <div className="flex flex-col items-start gap-2">
+              <QrPresenca url={qrUrl} className="w-full max-w-sm" />
+              <Button type="button" variant="outline" size="sm" onClick={() => setTelaCheia(true)}>
+                <Maximize2 aria-hidden /> Mostrar o QR em tela cheia
+              </Button>
+            </div>
+          )}
+
+        </aside>
+      </div>
+
 
       <ConfirmDialog
         open={encerrar}

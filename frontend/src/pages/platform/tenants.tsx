@@ -39,6 +39,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BillingCategoryBadge,
@@ -638,7 +639,7 @@ const TenantsPage: React.FC = () => {
       )}
 
       <Tabs value={tab} onValueChange={(v) => router.replace({ pathname: '/platform/tenants', query: v === 'assinaturas' ? { tab: v } : {} }, undefined, { shallow: true })}>
-        <TabsList className="mb-4">
+        <TabsList variant="line" className="mb-4 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
           <TabsTrigger value="terreiros"><Building2 /> Terreiros</TabsTrigger>
           <TabsTrigger value="assinaturas"><CreditCard /> Assinaturas</TabsTrigger>
         </TabsList>
@@ -655,8 +656,31 @@ const TenantsPage: React.FC = () => {
               startAdornment={<Search className="size-4 text-muted-foreground" aria-hidden />}
             />
             <FacetSelect id="f-plan" label="Plano" value={plan} onChange={setPlan} options={[{ value: 'all', label: 'Todos' }, ...PLAN_ORDER.map((k) => ({ value: k, label: PLAN_META[k].label }))]} />
-            <FacetSelect id="f-status" label="Status" value={status} onChange={(v) => setStatus(v as StatusFilter)} options={[{ value: 'all', label: 'Todos' }, { value: 'ativo', label: 'Ativo' }, { value: 'inativo', label: 'Desativado' }]} />
-            <FacetSelect id="f-trial" label="Trial" value={trial} onChange={(v) => setTrial(v as YesNo)} options={[{ value: 'all', label: 'Todos' }, { value: 'sim', label: 'Em trial' }, { value: 'nao', label: 'Sem trial' }]} />
+            {/* J14 v2 · 03: status e trial como opções de toque, lado a lado. */}
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-label="Status"
+              value={status}
+              onValueChange={(v) => v && setStatus(v as StatusFilter)}
+              className="h-9"
+            >
+              <ToggleGroupItem value="all" className="px-3">Todos</ToggleGroupItem>
+              <ToggleGroupItem value="ativo" className="px-3">Ativo</ToggleGroupItem>
+              <ToggleGroupItem value="inativo" className="px-3">Desativado</ToggleGroupItem>
+            </ToggleGroup>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-label="Trial"
+              value={trial}
+              onValueChange={(v) => v && setTrial(v as YesNo)}
+              className="h-9"
+            >
+              <ToggleGroupItem value="all" className="px-3">Trial: todos</ToggleGroupItem>
+              <ToggleGroupItem value="sim" className="px-3">Em trial</ToggleGroupItem>
+              <ToggleGroupItem value="nao" className="px-3">Sem trial</ToggleGroupItem>
+            </ToggleGroup>
             <FacetSelect id="f-bonus" label="Bônus" value={bonus} onChange={(v) => setBonus(v as YesNo)} options={[{ value: 'all', label: 'Todos' }, { value: 'sim', label: 'Bonificados' }, { value: 'nao', label: 'Sem bônus' }]} />
             {activeFacets > 0 && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setPlan('all'); setStatus('all'); setTrial('all'); setBonus('all'); }}>
@@ -739,7 +763,7 @@ const TenantsPage: React.FC = () => {
 
           {stats && (
             <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="mr-1 font-bold tracking-wide text-muted-foreground uppercase">Planos</span>
+              <span className="mr-1 font-bold text-muted-foreground">Planos</span>
               {PLAN_ORDER.map((k) => (
                 <span key={k} className="inline-flex items-center gap-1">
                   <PlanBadge plan={k} />
@@ -853,15 +877,23 @@ const TenantsPage: React.FC = () => {
           error={touched.email_admin && !EMAIL_RE.test(createData.email_admin) ? 'E-mail inválido' : undefined}
         />
         <div className="grid gap-1.5">
-          <Label htmlFor="create-plan">Plano</Label>
-          <Select value={createData.plan} onValueChange={(v) => setCreateData({ ...createData, plan: v })}>
-            <SelectTrigger id="create-plan" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(['basic', 'pro', 'premium'] as const).map((k) => (
-                <SelectItem key={k} value={k}>{planLabel(k)} — {fmtMoney(PLAN_META[k].price)}/mês</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* J14 v2 · 04: o plano como opções lado a lado, com o preço de cada um. */}
+          <Label id="create-plan">Plano</Label>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            aria-labelledby="create-plan"
+            value={createData.plan}
+            onValueChange={(v) => v && setCreateData({ ...createData, plan: v })}
+            className="grid w-full grid-cols-3"
+          >
+            {(['basic', 'pro', 'premium'] as const).map((k) => (
+              <ToggleGroupItem key={k} value={k} className="h-auto flex-col gap-0 py-2">
+                <span>{planLabel(k)}</span>
+                <span className="text-xs font-normal opacity-80">{fmtMoney(PLAN_META[k].price)}/mês</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
       </CrudDrawer>
 

@@ -28,6 +28,7 @@ const EXEMPT_FILES = new Set([
   path.join('permission-groups', '[id].tsx'),
   path.join('tickets', '[ticketId]', 'email.tsx'), // backend email_resend.py é is_admin-only, sem RBAC de grupo (ver CLAUDE.md)
   'suporte.tsx', // chat de suporte é canal universal, checagem própria de is_admin (ver CLAUDE.md)
+  'modulos.tsx', // "Ver os módulos": lista o menu de useAdminNav, que já filtra por usePermissions; sem dado próprio
 ]);
 
 function listTsxFiles(dir, base = '') {

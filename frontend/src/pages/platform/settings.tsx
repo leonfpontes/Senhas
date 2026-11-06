@@ -14,7 +14,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Check, KeyRound, Minus, Pencil, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
+import { Check, KeyRound, Minus, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/services/api_client';
 import PlatformLayout from './layout';
@@ -108,7 +108,7 @@ function ContaTab() {
               <dt className="text-muted-foreground">Nome</dt><dd className="font-medium">{me.full_name || me.username}</dd>
               <dt className="text-muted-foreground">E-mail</dt><dd>{me.email}</dd>
               <dt className="text-muted-foreground">Usuário</dt><dd>{me.username}</dd>
-              <dt className="text-muted-foreground">Papel</dt><dd><ToneBadge tone="primary">{roleLabel(me.role)}</ToneBadge></dd>
+              <dt className="text-muted-foreground">Tipo de acesso</dt><dd><ToneBadge tone="primary">{roleLabel(me.role)}</ToneBadge></dd>
               <dt className="text-muted-foreground">Conta criada em</dt><dd>{fmtDate(me.created_at)}</dd>
             </dl>
           ) : null}
@@ -245,7 +245,7 @@ function AdminsTab() {
     () => [
       { id: 'email', accessorKey: 'email', header: 'E-mail', meta: { mobile: true }, cell: ({ row }) => <span className="font-medium">{row.original.email}</span> },
       { id: 'username', accessorKey: 'username', header: 'Usuário', meta: { mobile: true } },
-      { id: 'role', accessorKey: 'role', header: 'Papel', cell: ({ row }) => <ToneBadge tone="primary">{roleLabel(row.original.role)}</ToneBadge> },
+      { id: 'role', accessorKey: 'role', header: 'Tipo de acesso', cell: ({ row }) => <ToneBadge tone="primary">{roleLabel(row.original.role)}</ToneBadge> },
       { id: 'is_active', accessorKey: 'is_active', header: 'Status', meta: { mobile: true }, cell: ({ row }) => <TenantActiveBadge active={row.original.is_active} /> },
       { id: 'created_at', accessorKey: 'created_at', header: 'Criado em', meta: { cellClassName: 'whitespace-nowrap text-muted-foreground' }, cell: ({ row }) => fmtDate(row.original.created_at) },
       {
@@ -255,7 +255,6 @@ function AdminsTab() {
         meta: { align: 'right' },
         cell: ({ row }) => (
           <span className="inline-flex">
-            <Button variant="ghost" size="icon-sm" onClick={() => openEdit(row.original)} aria-label={`Editar ${row.original.email}`}><Pencil /></Button>
             <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => setDeleteTarget(row.original)} aria-label={`Remover ${row.original.email}`}><Trash2 /></Button>
           </span>
         ),
@@ -275,7 +274,7 @@ function AdminsTab() {
       </div>
       {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="rounded-xl border bg-card">
-        <DataTable columns={columns} data={users ?? []} getRowId={(u) => u.id} loading={users === null} emptyMessage="Nenhum administrador." emptyIcon={<Shield />} data-testid="admins-table" />
+        <DataTable columns={columns} data={users ?? []} getRowId={(u) => u.id} onRowClick={openEdit} rowLabel={(u) => `Editar ${u.email}`} loading={users === null} emptyMessage="Nenhum administrador." emptyIcon={<Shield />} data-testid="admins-table" />
       </div>
 
       <CrudDrawer
@@ -423,7 +422,7 @@ const SettingsPage: React.FC = () => {
     <PlatformLayout title="Configurações">
       <PageHeader title="Configurações" subtitle="Sua conta, administradores da plataforma e planos." />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList data-tour="settings-tabs" className="mb-4 flex h-auto w-full flex-wrap justify-start">
+        <TabsList variant="line" data-tour="settings-tabs" className="mb-4 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border [&>[data-slot=tabs-trigger]]:flex-none [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem] [&_[data-slot=tabs-trigger]_svg]:hidden">
           <TabsTrigger value="conta"><UserCog /> Conta</TabsTrigger>
           <TabsTrigger value="admins"><Shield /> Admins da plataforma</TabsTrigger>
           <TabsTrigger value="planos"><Table2 /> Planos</TabsTrigger>

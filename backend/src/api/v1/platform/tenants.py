@@ -45,6 +45,8 @@ class UpdateTenantRequest(BaseModel):
     is_active: Optional[bool] = None
     # Chave do lançamento em piloto da Área do Médium (vale junto com o plano Basic+).
     area_medium_liberada: Optional[bool] = None
+    # Laboratório: o terreiro testa as betas (a casa liga cada uma em Configurações › Laboratório).
+    beta_tester: Optional[bool] = None
 
 
 class DeleteTenantRequest(BaseModel):
@@ -75,6 +77,7 @@ class TenantResponse(BaseModel):
     deleted_at: Optional[str] = None
     self_deactivated_at: Optional[str] = None
     area_medium_liberada: bool = False
+    beta_tester: bool = False
     # Tolerância do cartão (migração 094): cartão recusado, plano ainda ativo enquanto a Stripe
     # tenta de novo — badge "Pagamento pendente" na lista e no Tenant 360.
     payment_pending_since: Optional[str] = None
@@ -179,6 +182,7 @@ async def get_tenant(
                 tenant.self_deactivated_at.isoformat() if tenant.self_deactivated_at else None
             ),
             area_medium_liberada=bool(tenant.area_medium_liberada),
+            beta_tester=bool(getattr(tenant, "beta_tester", False)),
             payment_pending_since=_payment_pending_since(sub),
         )
     except HTTPException:
@@ -202,7 +206,7 @@ async def update_tenant(
     
     try:
         update_data = request.model_dump(exclude_unset=True)
-        for field in ("name", "is_active", "area_medium_liberada"):
+        for field in ("name", "is_active", "area_medium_liberada", "beta_tester"):
             if field in update_data and update_data[field] is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

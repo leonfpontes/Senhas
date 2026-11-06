@@ -246,14 +246,15 @@ function Shell({
       >
         Pular para o conteúdo
       </a>
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+      {/* J6 v2 · CabecalhoDaCasa: a faixa na cor da casa, com as iniciais (ou o logo) em círculo. */}
+      <header className="sticky top-0 z-30 bg-primary text-primary-foreground">
         <div className="mx-auto flex h-16 max-w-xl items-center gap-3 px-4">
-          <TerreiroEmblem nome={terreiro} logoUrl={logoUrl} className="size-9" />
+          <TerreiroEmblem nome={terreiro} logoUrl={logoUrl} className="size-9 ring-0" naFaixa />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base leading-tight font-semibold">
               {terreiro || 'Área do Médium'}
             </p>
-            {terreiro && <p className="truncate text-xs text-muted-foreground">Área do Médium</p>}
+            {terreiro && <p className="truncate text-xs opacity-90">Área do Médium</p>}
           </div>
           {menu}
         </div>
@@ -344,7 +345,7 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
           type="button"
           variant="ghost"
           size="touch"
-          className="-mr-2 shrink-0 gap-2 px-3 font-semibold"
+          className="-mr-2 shrink-0 gap-2 px-3 font-semibold text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
           data-testid="medium-menu"
         >
           <Menu aria-hidden />

@@ -59,7 +59,12 @@ async def test_tv_mostra_so_numero_nome_reduzido_proximas_e_ultima_chamada(clien
     assert data["ultima_chamada"]["numero_formatado"] == "0001"
     assert data["ultima_chamada"]["nome"] is None
     assert data["ultima_chamada"]["chamado_em"] is not None
-    assert set(data) == {"gira_nome", "atual", "proximas", "ultima_chamada"}
+    assert set(data) == {"gira_nome", "atual", "proximas", "proximas_detalhe", "casa_nome", "ultima_chamada"}
+    # J4 v2 · 08: as próximas também com o nome reduzido, e o nome da casa no canto.
+    assert [p["numero_formatado"] for p in data["proximas_detalhe"]] == ["0002", "0004", "0005"]
+    assert data["proximas_detalhe"][0]["nome"] == "Carlos R."
+    assert data["casa_nome"] == tenant.name
+    assert "Carlos Eduardo Ramos" not in resp.text and "Eduardo" not in resp.text
 
     # Nada de PII nem ids no payload: e-mail, telefone, nome completo, ids de consulente/ticket.
     texto = resp.text

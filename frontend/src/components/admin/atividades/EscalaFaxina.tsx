@@ -30,6 +30,7 @@ import {
   Repeat,
   Send,
   Users,
+  TriangleAlert,
 } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -41,7 +42,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { TextField } from '@/components/fields';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { GrupoChip, GrupoDot } from '@/components/grupos/GrupoChip';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -354,7 +355,7 @@ function Planejador({
           <Button variant="ghost" size="icon-sm" onClick={() => irParaMes(addMonthsYm(mes, -1))} aria-label="Mês anterior">
             <ChevronLeft />
           </Button>
-          <span className="min-w-40 text-center font-semibold first-letter:uppercase" data-testid="escala-mes">
+          <span className="min-w-40 text-center font-display text-2xl font-normal tracking-[-0.01em] first-letter:uppercase" data-testid="escala-mes">
             {rotuloMes}
           </span>
           <Button variant="ghost" size="icon-sm" onClick={() => irParaMes(addMonthsYm(mes, 1))} aria-label="Próximo mês">
@@ -493,18 +494,18 @@ function Planejador({
           {canEdit && (
             <div className="flex flex-wrap gap-2" aria-label="Atalhos">
               {plano.mes_anterior_dias > 0 && (
-                <Button variant="outline" size="sm" onClick={() => void copiar()} disabled={ocupadoAlgo}>
-                  <Copy aria-hidden />
+                <Button variant="outline" className="h-11 px-4 font-semibold" onClick={() => void copiar()} disabled={ocupadoAlgo}>
                   Copiar do mês anterior
+                  <Copy aria-hidden />
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => void girar()} disabled={ocupadoAlgo || semDias || gruposAtivos.length < 2}>
-                <Repeat aria-hidden />
-                Girar grupos
-              </Button>
-              <Button variant="outline" size="sm" onClick={abrirDistribuir} disabled={ocupadoAlgo || gruposAtivos.length === 0}>
-                <CalendarRange aria-hidden />
+              <Button variant="outline" className="h-11 px-4 font-semibold" onClick={abrirDistribuir} disabled={ocupadoAlgo || gruposAtivos.length === 0}>
                 Distribuir…
+                <CalendarRange aria-hidden />
+              </Button>
+              <Button variant="outline" className="h-11 px-4 font-semibold" onClick={() => void girar()} disabled={ocupadoAlgo || semDias || gruposAtivos.length < 2}>
+                Girar grupos
+                <Repeat aria-hidden />
               </Button>
             </div>
           )}
@@ -556,16 +557,16 @@ function Planejador({
           )}
 
           {(canEdit || canPublicar) && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
               {canEdit && (
-                <Button variant="outline" onClick={() => void salvar()} disabled={ocupadoAlgo || !sujo}>
+                <Button variant="outline" className="h-11 px-5 font-semibold" onClick={() => void salvar()} disabled={ocupadoAlgo || !sujo}>
                   Salvar rascunho
                 </Button>
               )}
               {canPublicar && (
-                <Button onClick={() => void abrirPublicar()} disabled={ocupadoAlgo || (!pendente && (publicado || semDias))}>
-                  <Send aria-hidden />
+                <Button className="h-11 px-5 font-semibold" onClick={() => void abrirPublicar()} disabled={ocupadoAlgo || (!pendente && (publicado || semDias))}>
                   {publicado ? 'Publicar as mudanças' : 'Publicar'}
+                  <Send aria-hidden />
                 </Button>
               )}
               {canPublicar && publicado && plano.proximas_publicadas > 0 && (
@@ -697,11 +698,13 @@ function StatusDoPlano({ plano, pendente }: { plano: PlanoEscala; pendente: bool
     );
   }
   return (
-    <Alert variant="info">
+    // J5 v2 · 12: o rascunho em aviso âmbar, com o título e o que acontece ao publicar.
+    <Alert variant="warning">
+      <TriangleAlert aria-hidden />
+      <AlertTitle>Rascunho</AlertTitle>
       <AlertDescription>
-        <span>
-          <b>Rascunho.</b> Os médiuns só veem depois de publicar.
-        </span>
+        Os médiuns só veem depois de publicar. Ao publicar, os grupos passam a ver as faxinas na Agenda, com &quot;Vou&quot; e
+        &quot;Não vou&quot;.
       </AlertDescription>
     </Alert>
   );

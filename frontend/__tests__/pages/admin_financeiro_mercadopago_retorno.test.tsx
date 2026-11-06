@@ -79,7 +79,7 @@ describe('volta do Mercado Pago', () => {
     mockPost.mockClear();
     mockEdit = false;
     render(<MercadoPagoRetornoPage />);
-    expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
+    expect(await screen.findByText(/não tem permissão/i)).toBeInTheDocument();
     expect(mockPost).not.toHaveBeenCalled();
   });
 });

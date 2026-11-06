@@ -67,10 +67,10 @@ describe('Cancelar minha senha', () => {
     mockLoad();
     render(<Page />);
 
-    expect(await screen.findByRole('heading', { name: 'Cancelar sua senha?' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cancelar a sua senha?' })).toBeInTheDocument();
     expect(screen.getByTestId('ticket-number')).toHaveTextContent('0042');
-    expect(screen.getByText('Quinta-feira, 8 de outubro às 19h')).toBeInTheDocument();
-    expect(screen.getByText(/0043 \(João\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Quinta-feira, 8 de outubro às 19h/)).toBeInTheDocument();
+    expect(screen.getByText(/0043 · João/)).toBeInTheDocument();
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
@@ -142,6 +142,6 @@ describe('Cancelar minha senha', () => {
     expect(await screen.findByRole('heading', { name: 'Não foi possível carregar' })).toBeInTheDocument();
     mockLoad();
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
-    expect(await screen.findByRole('heading', { name: 'Cancelar sua senha?' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cancelar a sua senha?' })).toBeInTheDocument();
   });
 });

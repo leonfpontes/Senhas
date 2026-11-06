@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSnackbar } from '@/contexts/SnackbarContext';
@@ -43,11 +44,17 @@ export function ChamadaDaGiraButton({
   className,
   variant = 'outline',
   size = 'default',
+  icone = true,
+  comoItemDeMenu = false,
 }: {
   giraId: string;
   className?: string;
   variant?: 'outline' | 'default' | 'ghost';
   size?: 'default' | 'sm';
+  /** Sem ícone na agenda (J2 v2): só o texto, como no desenho. */
+  icone?: boolean;
+  /** Item do "Mais ações" (celular, J2 v2 · 08), no lugar do botão. */
+  comoItemDeMenu?: boolean;
 }) {
   const router = useRouter();
   const { showError } = useSnackbar();
@@ -69,6 +76,13 @@ export function ChamadaDaGiraButton({
     }
   };
 
+  if (comoItemDeMenu) {
+    return (
+      <DropdownMenuItem className={className} onSelect={() => void abrir()} disabled={abrindo}>
+        {abrindo ? <Loader2 className="animate-spin" aria-hidden /> : <ClipboardCheck aria-hidden />} Chamada
+      </DropdownMenuItem>
+    );
+  }
   return (
     <Button
       type="button"
@@ -78,8 +92,8 @@ export function ChamadaDaGiraButton({
       onClick={() => void abrir()}
       disabled={abrindo}
     >
-      {abrindo ? <Loader2 className="animate-spin" aria-hidden /> : <ClipboardCheck aria-hidden />}
-      Chamada
+      {abrindo ? <Loader2 className="animate-spin" aria-hidden /> : icone ? <ClipboardCheck aria-hidden /> : null}
+      <span>Chamada</span>
     </Button>
   );
 }

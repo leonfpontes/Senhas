@@ -54,7 +54,7 @@ describe('FirstGiraChecklist', () => {
   it('mostra o checklist para um terreiro novo, no passo 1', () => {
     renderChecklist();
     expect(screen.getByTestId('first-gira-checklist')).toBeInTheDocument();
-    expect(screen.getByText('0 de 4')).toBeInTheDocument();
+    expect(screen.getByText('0 de 5')).toBeInTheDocument();
     expect(screen.getByTestId('checklist-step-gira')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: 'Criar gira' })).toHaveAttribute('href', '/admin/giras?nova=1');
   });
@@ -73,7 +73,7 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('checklist-step-share')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByText(LINK)).toBeInTheDocument();
     openShare();
-    const wa = screen.getByRole('link', { name: /Enviar no WhatsApp/ });
+    const wa = screen.getByRole('link', { name: /Mandar no WhatsApp/ });
     expect(wa).toHaveAttribute('href', buildWhatsAppShareUrl(LINK, 'Casa Nova'));
     expect(wa).toHaveAttribute('target', '_blank');
   });
@@ -81,7 +81,7 @@ describe('FirstGiraChecklist', () => {
   it('clicar no WhatsApp marca o passo como feito, persiste e registra evento', () => {
     renderChecklist({ has_gira: true });
     openShare();
-    fireEvent.click(screen.getByRole('link', { name: /Enviar no WhatsApp/ }));
+    fireEvent.click(screen.getByRole('link', { name: /Mandar no WhatsApp/ }));
     expect(stepDone('share')).toBe('true');
     expect(window.localStorage.getItem('girahub:first-gira-checklist:shared:tenant-1')).toBe('1');
     expect(trackEvent).toHaveBeenCalledWith('onboarding_share_whatsapp');
@@ -95,11 +95,11 @@ describe('FirstGiraChecklist', () => {
     renderChecklist({ has_gira: true });
     openShare();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Copiar link/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Copiar/ }));
     });
     expect(writeText).toHaveBeenCalledWith(LINK);
     expect(stepDone('share')).toBe('true');
-    expect(screen.getAllByText('Link copiado!').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Copiado!').length).toBeGreaterThan(0);
     expect(trackEvent).toHaveBeenCalledWith('onboarding_copy_link');
   });
 
@@ -111,9 +111,9 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('checklist-step-share')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('testar o link oferece "Já compartilhei", que marca o passo ao confirmar', () => {
+  it('o passo da vez traz Testar o link, Compartilhar e "Já compartilhei", que marca o passo (J1 v2 · 07)', () => {
     renderChecklist({ has_gira: true });
-    expect(screen.queryByRole('button', { name: /Já compartilhei/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Já compartilhei/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: /Testar o link/ }));
     expect(trackEvent).toHaveBeenCalledWith('onboarding_test_link');
     expect(stepDone('share')).toBe('false');
@@ -128,7 +128,7 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('checklist-step-tickets')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: /Testar o link/ })).toHaveAttribute('href', LINK);
     openShare();
-    expect(screen.getByRole('link', { name: /Enviar no WhatsApp/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Mandar no WhatsApp/ })).toBeInTheDocument();
     expect(screen.getByTestId('checklist-qr')).toHaveAttribute('data-value', LINK);
   });
 
@@ -136,7 +136,7 @@ describe('FirstGiraChecklist', () => {
     renderChecklist({ has_gira: true, public_tickets: 3 });
     expect(stepDone('share')).toBe('true');
     expect(stepDone('tickets')).toBe('true');
-    expect(screen.getByText('3 de 4')).toBeInTheDocument();
+    expect(screen.getByText('4 de 5')).toBeInTheDocument();
     expect(screen.getByTestId('checklist-step-porta')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: 'Abrir a Porta' })).toHaveAttribute('href', '/admin/porta');
   });

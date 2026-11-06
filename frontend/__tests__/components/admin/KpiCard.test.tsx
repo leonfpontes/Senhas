@@ -17,8 +17,10 @@ describe('KpiCard', () => {
     expect(screen.getByText('Ativo')).toBeInTheDocument();
   });
 
-  it('renders icon', () => {
-    render(<KpiCard label="Test" value={0} icon={<MockIcon />} color="#f59e0b" />);
+  it('sem destaque, não mostra o ícone (CartaoKpi v2); com destaque, mostra', () => {
+    const { rerender } = render(<KpiCard label="Test" value={0} icon={<MockIcon />} color="#f59e0b" />);
+    expect(screen.queryByTestId('mock-icon')).not.toBeInTheDocument();
+    rerender(<KpiCard label="Test" value={0} icon={<MockIcon />} color="#f59e0b" highlight />);
     expect(screen.getByTestId('mock-icon')).toBeInTheDocument();
   });
 

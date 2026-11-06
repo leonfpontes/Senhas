@@ -196,7 +196,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
           autoComplete="off"
           inputMode="text"
           placeholder="Ex.: K7P2QX"
-          className="h-12 text-center font-mono text-xl tracking-[0.3em] uppercase"
+          className="h-12 text-center font-mono text-xl"
         />
         {erro && (
           <p

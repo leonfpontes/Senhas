@@ -2,8 +2,8 @@
  * AuthShell — moldura das telas de conta (login, cadastro, esqueci/redefinir senha, reativar
  * conta) com a identidade da landing: cabeçalho escuro com a marca do GiraHub (volta para `/`),
  * fundo areia, títulos em Fraunces (`font-display`) e cartão branco arredondado. No desktop (md+)
- * a tela se divide: painel da marca à esquerda (foto real de gira com véu café, promessa, provas
- * e o depoimento mais recente) e o formulário à direita. No celular, uma coluna só, sem foto.
+ * a tela se divide: painel da marca à esquerda (foto real de gira com véu café, promessa e provas)
+ * e o formulário à direita. No celular, uma coluna só, sem foto.
  *
  * A classe `auth-terra` (globals.css) faz o kit — Button, Checkbox, foco, `text-brand` — usar a
  * paleta terra, independentemente da cor do último terreiro aplicada no :root. Sempre claro.
@@ -12,8 +12,7 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Check, Quote } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ultimaPassagem } from '@/lib/passagem';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
@@ -21,13 +20,14 @@ import { Photo } from '@/components/landing/Photo';
 import { fraunces, MARKETING_RESET } from '@/components/landing/fonts';
 import { AUTH_PANEL } from '@/constants/landingCopy';
 import type { PhotoKey } from '@/constants/landingPhotos';
-import { latestTestimonial, testimonialExcerpt } from '@/constants/testimonials';
 
 export interface AuthShellProps {
   /** `<title>` da aba. Omita quando a tela monta o próprio `<Head>` (ex.: cadastro, com SEO). */
   headTitle?: string;
   title: string;
   subtitle?: React.ReactNode;
+  /** Linha curta acima do título, em barro ("Convite da casa", "Passo 2 de 2" — J11 v2). */
+  eyebrow?: React.ReactNode;
   /** Largura da coluna do formulário: `xs` (448px) para login e afins, `sm` (576px) para o cadastro. */
   size?: 'xs' | 'sm';
   /** Bloco abaixo do formulário, dentro do cartão, separado por uma linha. */
@@ -41,7 +41,6 @@ export interface AuthShellProps {
 }
 
 function BrandPanel({ photo }: { photo: PhotoKey }) {
-  const depoimento = latestTestimonial();
   return (
     <aside aria-label="Sobre o GiraHub" className="relative z-20 hidden overflow-clip bg-cafe-950 text-white md:block">
       {/* Caixa da altura da tela que acompanha a rolagem (cadastro longo): foto, véu e texto
@@ -65,7 +64,7 @@ function BrandPanel({ photo }: { photo: PhotoKey }) {
           className="absolute inset-0 -z-10 bg-gradient-to-b from-cafe-950/80 via-cafe-950/60 via-50% to-transparent to-75%"
         />
         <div className="passagem-surge">
-          <p className="text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase">{AUTH_PANEL.eyebrow}</p>
+          <p className="text-xs font-bold text-ouro-300">{AUTH_PANEL.eyebrow}</p>
           <p className="mt-4 font-display text-4xl leading-[1.1] font-bold tracking-tight lg:text-5xl">
             {AUTH_PANEL.promise}
           </p>
@@ -80,32 +79,6 @@ function BrandPanel({ photo }: { photo: PhotoKey }) {
             ))}
           </ul>
         </div>
-
-        {depoimento && (
-          // Telas baixas (notebook com zoom): o depoimento sai para a promessa não ser cortada.
-          <figure className="passagem-surge rounded-2xl border border-white/10 bg-cafe-950/70 p-6 backdrop-blur-sm [@media(max-height:44rem)]:hidden">
-            <Quote className="size-6 text-ouro-300" aria-hidden />
-            <blockquote className="mt-3 text-lg leading-relaxed text-areia-100">
-              “{testimonialExcerpt(depoimento)}”
-            </blockquote>
-            <figcaption className="mt-5 flex items-center gap-3">
-              {depoimento.foto && (
-                <Image
-                  src={depoimento.foto}
-                  alt=""
-                  width={44}
-                  height={44}
-                  unoptimized
-                  className="size-11 rounded-full border border-white/20 object-cover object-top"
-                />
-              )}
-              <span className="text-sm">
-                <span className="block font-bold text-white">{depoimento.nome}</span>
-                <span className="block text-areia-200">{depoimento.casa}</span>
-              </span>
-            </figcaption>
-          </figure>
-        )}
       </div>
     </aside>
   );
@@ -115,6 +88,7 @@ export function AuthShell({
   headTitle,
   title,
   subtitle,
+  eyebrow,
   size = 'xs',
   footer,
   headerAction,
@@ -181,14 +155,15 @@ export function AuthShell({
             className="flex flex-1 flex-col items-center px-4 pt-8 pb-10 sm:px-6 sm:pt-12 md:justify-center md:py-14"
           >
             <div className={cn('passagem-porta w-full', size === 'xs' ? 'max-w-md' : 'max-w-xl', className)}>
-              <div className="mb-6 sm:mb-8">
-                <h1 className="font-display text-3xl leading-tight font-bold tracking-tight text-tinta sm:text-4xl">
-                  {title}
-                </h1>
-                {subtitle && <p className="mt-2 text-base text-tinta-suave">{subtitle}</p>}
-              </div>
-
+              {/* J11 v2: o título mora dentro do cartão, em Fraunces regular. */}
               <div className="rounded-3xl border border-areia-200 bg-white p-5 shadow-xl shadow-cafe-900/5 sm:p-8">
+                <div className="mb-6">
+                  {eyebrow && <p className="mb-2 text-xs font-bold text-barro-700">{eyebrow}</p>}
+                  <h1 className="font-display text-3xl leading-tight font-normal tracking-tight text-tinta sm:text-[2rem]">
+                    {title}
+                  </h1>
+                  {subtitle && <p className="mt-2 text-sm text-tinta-suave">{subtitle}</p>}
+                </div>
                 {children}
 
                 {footer && (

@@ -69,7 +69,7 @@ function fillRequired() {
   fireEvent.change(screen.getByLabelText(/E-mail/i), { target: { value: 'maria@example.com' } });
 }
 
-const submitButton = () => screen.getByRole('button', { name: /Pegar minha senha/i });
+const submitButton = () => screen.getByRole('button', { name: /Pegar a senha/i });
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -82,7 +82,8 @@ describe('Emissão pública — formulário', () => {
     await renderOpenForm();
 
     expect(screen.getByRole('heading', { name: 'Gira de Caboclos', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText('Quinta-feira, 8 de outubro às 19h')).toBeInTheDocument();
+    expect(screen.getByText('Qui, 8/10 · 19h')).toBeInTheDocument(); // J3 v2: data curta ao lado de "Ainda tem senha"
+    expect(screen.getByText('Ainda tem senha')).toBeInTheDocument();
     expect(screen.getByLabelText(/E-mail/i)).toHaveAttribute('type', 'email');
     const celular = screen.getByLabelText(/Celular/i);
     expect(celular).toHaveAttribute('inputMode', 'tel');
@@ -142,7 +143,7 @@ describe('Emissão pública — formulário', () => {
     fillRequired();
     fireEvent.click(submitButton());
 
-    expect(await screen.findByText('Senha emitida!')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Senha emitida/ })).toBeInTheDocument();
     expect(screen.getByTestId('ticket-number')).toHaveTextContent(/^0042$/);
     expect(screen.getByText('Rua A, 1')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /cancelar minha senha/i })).toHaveAttribute('href', '/public/ticket/t-9/cancelar');
@@ -154,15 +155,15 @@ describe('Emissão pública — formulário', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/api/v1/public/terreiro-teste/ticket/t-9');
   });
 
-  it('409: alerta persistente com "Reenviar meu e-mail"', async () => {
+  it('409: tela "Você já tem senha" com "Reenviar meu e-mail" e "Usar outro e-mail"', async () => {
     await renderOpenForm();
     apiClient.post.mockRejectedValueOnce({ status: 409, detail: 'Você já possui uma senha para esta gira' });
 
     fillRequired();
     fireEvent.click(submitButton());
 
-    expect(await screen.findByText('Você já tem senha para esta gira')).toBeInTheDocument();
-    expect(screen.getByText('Você já possui uma senha para esta gira')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Você já tem senha/ })).toBeInTheDocument();
+    expect(screen.getByText(/maria@example.com já pegou senha para esta gira/)).toBeInTheDocument();
 
     apiClient.post.mockResolvedValueOnce({ data: { tickets_count: 1, email_sent: true, message: 'ok' } });
     fireEvent.click(screen.getByRole('button', { name: 'Reenviar meu e-mail' }));
@@ -174,7 +175,10 @@ describe('Emissão pública — formulário', () => {
       ),
     );
     expect(toast.success).toHaveBeenCalled();
-    expect(screen.queryByText('Senha emitida!')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Senha emitida/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Usar outro e-mail' }));
+    expect(screen.getByLabelText(/E-mail/i)).toBeInTheDocument();
   });
 
   it('falha de rede no envio oferece "Tentar de novo" e reenvia', async () => {
@@ -190,7 +194,7 @@ describe('Emissão pública — formulário', () => {
     apiClient.post.mockResolvedValueOnce({ data: { numero: 7, waitlisted: false, acompanhantes: [] } });
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
 
-    expect(await screen.findByText('Senha emitida!')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Senha emitida/ })).toBeInTheDocument();
     expect(screen.getByTestId('ticket-number')).toHaveTextContent('7');
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
@@ -260,9 +264,9 @@ describe('Emissão pública — estados da gira', () => {
     apiClient.get.mockResolvedValue({ data: makeGira({ is_exhausted: true, tickets_available: 0 }) });
     render(<Page />);
 
-    expect(await screen.findByText('Senhas esgotadas')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /As senhas acabaram/ })).toBeInTheDocument();
     expect(screen.queryByLabelText(/Nome completo/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /ver próximas giras do terreiro/i })).toHaveAttribute('href', '/terreiro-teste');
+    expect(screen.getByRole('link', { name: /ver próximas giras/i })).toHaveAttribute('href', '/terreiro-teste');
   });
 
   it('emissão ainda não aberta mostra a contagem regressiva', async () => {
@@ -274,19 +278,28 @@ describe('Emissão pública — estados da gira', () => {
     });
     render(<Page />);
 
-    expect(await screen.findByText('Emissão abre em')).toBeInTheDocument();
+    expect(await screen.findByText('As senhas abrem em')).toBeInTheDocument();
     expect(screen.getByRole('timer')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Nome completo/i)).not.toBeInTheDocument();
   });
 
   it('esgotada com fila: formulário vira "Entrar na fila de espera"', async () => {
-    await renderOpenForm({ is_exhausted: true, waitlist_available: true, tickets_available: 0 });
+    await renderOpenForm({
+      is_exhausted: true,
+      waitlist_available: true,
+      tickets_available: 0,
+      waitlist_count: 2,
+      waitlist_confirmation_minutes: 120,
+    });
+    // J3 v2: a posição e o prazo aparecem antes de entrar.
+    expect(screen.getByTestId('fila-antes-de-entrar')).toHaveTextContent('2 pessoas · você seria a 3ª');
+    expect(screen.getByTestId('fila-antes-de-entrar')).toHaveTextContent('você tem 2 horas para confirmar');
     apiClient.post.mockResolvedValue({ data: { ticket_number: 'F003', waitlisted: true, waitlist_position: 3 } });
 
     fillRequired();
     fireEvent.click(screen.getByRole('button', { name: /Entrar na fila de espera/i }));
 
-    expect(await screen.findByText('Você está na fila de espera!')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Você está na fila/ })).toBeInTheDocument();
     expect(screen.getByText('3º')).toBeInTheDocument();
   });
 });

@@ -300,7 +300,7 @@ export function ParceiroForm() {
         type="submit"
         size="touch"
         disabled={enviando}
-        className="bg-ouro-400 text-base font-bold text-cafe-950 hover:bg-ouro-300"
+        className="bg-folha-600 text-base font-bold text-white hover:bg-folha-700"
       >
         {enviando ? <Loader2 className="animate-spin" aria-hidden /> : <Send aria-hidden />}
         {enviando ? 'Enviando…' : 'Quero ser parceiro'}

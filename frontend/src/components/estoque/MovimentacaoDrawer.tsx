@@ -152,8 +152,8 @@ export function MovimentacaoDrawer({ open, onClose, items, initial, editId, lock
     <CrudDrawer
       open={open}
       onClose={onClose}
-      title={mode === 'edit' ? 'Editar movimentação' : 'Registrar movimentação'}
-      subtitle={item ? `${item.nome} — saldo atual ${item.saldo} ${item.unidade_medida}` : 'Entrada ou saída de material'}
+      title={mode === 'edit' ? 'Editar movimentação' : 'Movimentar'}
+      subtitle={item ? `${item.nome} · saldo ${item.saldo} ${item.unidade_medida}` : 'Entrada ou saída de material'}
       icon={form.tipo === 'entrada' ? <ArrowDownToLine /> : <ArrowUpFromLine />}
       onSave={handleSave}
       saving={saving}

@@ -8,7 +8,8 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Wallet } from 'lucide-react';
+import { SlidersHorizontal, Wallet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import AdminLayout from '../admin_layout';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
@@ -336,8 +337,18 @@ function MensalidadesContent() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Mensalidades"
-        subtitle="Cobrança mensal de médiuns e associados"
-        actions={<MonthNavigator value={mes} onChange={setMes} onRefresh={reloadAll} refreshing={refreshing} />}
+        subtitle="Cobrança mensal de médiuns e associados."
+        eyebrow="Financeiro"
+        actions={
+          <>
+            <MonthNavigator value={mes} onChange={setMes} onRefresh={reloadAll} refreshing={refreshing} />
+            <Button asChild variant="outline">
+              <Link href="/admin/financeiro/config">
+                Configuração <SlidersHorizontal aria-hidden />
+              </Link>
+            </Button>
+          </>
+        }
       />
 
       {configLoaded && !config && (
@@ -357,7 +368,7 @@ function MensalidadesContent() {
       <ComprovantesParaConferir enabled={conferencia} refreshKey={filaKey} onConferir={setAlvo} />
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full sm:w-auto">
+        <TabsList variant="line" className="gap-5 border-b border-border [&>[data-slot=tabs-trigger]]:px-0 [&>[data-slot=tabs-trigger]]:text-[0.9375rem]">
           {showMediuns && <TabsTrigger value="mediuns">Médiuns</TabsTrigger>}
           {showAssoc && <TabsTrigger value="associados">Associados</TabsTrigger>}
           <TabsTrigger value="historico">Histórico</TabsTrigger>

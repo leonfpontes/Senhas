@@ -17,7 +17,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { buttonVariants } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export interface DeleteTenantTarget {
@@ -63,13 +62,18 @@ export function DeleteTenantDialog({ tenant, onClose, onDeleted }: DeleteTenantD
     <AlertDialog open={tenant !== null} onOpenChange={(o) => !o && !deleting && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-destructive">Excluir terreiro permanentemente</AlertDialogTitle>
+          <AlertDialogTitle className="font-display text-2xl font-normal">Excluir terreiro permanentemente</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
                 Esta ação <strong>não pode ser desfeita</strong>. Usuários, giras, senhas, médiuns, estoque e dados de{' '}
                 <strong className="text-foreground">{tenant?.name}</strong> serão removidos.
               </p>
+              {/* J14 v2 · 10: primeiro a caixa (desmarcada), depois o slug que libera o botão. */}
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} disabled={deleting} className="mt-0.5" />
+                Entendo que todos os dados serão removidos permanentemente.
+              </label>
               <TextField
                 label={`Digite o slug "${tenant?.slug ?? ''}" para confirmar`}
                 value={slug}
@@ -77,11 +81,8 @@ export function DeleteTenantDialog({ tenant, onClose, onDeleted }: DeleteTenantD
                 disabled={deleting}
                 autoComplete="off"
                 error={slug.length > 0 && slug !== tenant?.slug ? 'Slug não corresponde' : undefined}
+                helperText="O botão só libera quando o slug bate."
               />
-              <label className="flex items-start gap-2 text-sm text-foreground">
-                <Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} disabled={deleting} className="mt-0.5" />
-                Entendo que todos os dados serão removidos permanentemente.
-              </label>
               {error && (
                 <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
               )}
@@ -91,7 +92,7 @@ export function DeleteTenantDialog({ tenant, onClose, onDeleted }: DeleteTenantD
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            className={buttonVariants({ variant: 'destructive' })}
+            variant="destructive"
             disabled={deleting || !confirmed || slug !== tenant?.slug}
             onClick={(e) => { e.preventDefault(); confirm(); }}
           >

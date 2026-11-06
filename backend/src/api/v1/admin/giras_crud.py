@@ -424,15 +424,22 @@ async def delete_gira(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    avisar: bool = Query(False, description="Beta: avisar por e-mail quem tem senha ativa"),
 ):
     """Delete (soft delete) gira.
     
-    Requires admin role.
+    Requires admin role. Com `avisar=true` e a beta "Avisar quem tem senha" ligada na casa,
+    cada pessoa com senha ativa recebe um e-mail dizendo que a gira foi cancelada.
     """
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
+    if avisar is True:
+        from src.services.laboratorio import beta_ligada
+
+        if await beta_ligada(db, current_user.tenant_id, "beta_avisar_exclusao_gira"):
+            await _avisar_exclusao(db, current_user.tenant_id, gira_id)
     deleted = await repo.delete_soft(gira_id, current_user.tenant_id)
     
     if not deleted:
@@ -448,6 +455,58 @@ async def delete_gira(
     )
     
     await db.commit()
+
+
+async def _avisar_exclusao(db: AsyncSession, tenant_id: UUID, gira_id: UUID) -> int:
+    """Beta: enfileira o aviso para cada senha ativa (titular, sem acompanhantes) da gira."""
+    from sqlalchemy.orm import selectinload
+
+    from src.models.tickets import Ticket, TicketStatus, email_de_aviso
+    from src.services.email.base import EmailMessage
+    from src.services.email.email_queue import EmailQueueItem, email_queue
+    from src.services.email.templates.gira_excluida import gerar_gira_excluida_html, gerar_gira_excluida_texto
+
+    gira = await GiraRepository(db).get_by_id(gira_id, tenant_id)
+    if not gira:
+        return 0
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+    config = (await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant_id))).scalar_one_or_none()
+    tickets = (
+        await db.execute(
+            select(Ticket)
+            .where(
+                and_(
+                    Ticket.tenant_id == tenant_id,
+                    Ticket.gira_id == gira_id,
+                    Ticket.status.in_([TicketStatus.EMITTED, TicketStatus.WAITLISTED]),
+                    Ticket.is_acompanhante.is_(False),
+                    Ticket.deleted_at.is_(None),
+                )
+            )
+            .options(selectinload(Ticket.consulente))
+        )
+    ).scalars().all()
+    data = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
+    nome_casa = tenant.name if tenant else ""
+    enviados = 0
+    for ticket in tickets:
+        destino = email_de_aviso(ticket)
+        if not destino:
+            continue
+        nome = ticket.consulente.nome if ticket.consulente else ""
+        email_queue.enqueue(
+            EmailQueueItem(
+                message=EmailMessage(
+                    to_email=destino,
+                    subject=f"A gira foi cancelada - {gira.nome} - {nome_casa}",
+                    html_body=gerar_gira_excluida_html(nome, gira.nome, data, nome_casa, config.primary_color if config else ""),
+                    text_body=gerar_gira_excluida_texto(nome, gira.nome, data, nome_casa),
+                ),
+                ticket_id=str(ticket.id),
+            )
+        )
+        enviados += 1
+    return enviados
 
 
 # ========== SENHA CONFIGURATION ENDPOINTS ==========

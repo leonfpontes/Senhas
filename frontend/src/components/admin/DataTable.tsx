@@ -100,13 +100,59 @@ export interface DataTableProps<T> {
 
   /** Modo cartão (< 640px). */
   renderCard?: (row: T, ctx: { selected: boolean; toggleSelected: () => void }) => React.ReactNode;
+  /**
+   * Clique na linha (ou no cartão, no celular) — o padrão "clique para editar" (decisão do Leonardo,
+   * 04/11/2026): a linha que abre a gaveta de edição não tem lápis. A linha recebe foco (Tab), abre com
+   * Enter ou Espaço, tem fundo suave no hover e cursor de mão. Clique em botão, link, caixa ou menu dentro
+   * da linha não dispara (as outras ações continuam como botões). Sem permissão de editar, não passe a prop.
+   */
   onRowClick?: (row: T) => void;
+  /** Nome acessível da linha clicável, ex.: (aviso) => `Editar ${aviso.titulo}`. */
+  rowLabel?: (row: T) => string;
+  /** Só estas linhas são clicáveis (ex.: a regra de quem pode editar quem). Padrão: todas. */
+  isRowClickable?: (row: T) => boolean;
   dense?: boolean;
   className?: string;
   'data-testid'?: string;
 }
 
 /** Texto "1–20 de 50" do rodapé. */
+/** O clique veio de um controle dentro da linha (botão, link, caixa, menu)? Então não é "abrir a linha". */
+export function cliqueEmControle(e: React.SyntheticEvent): boolean {
+  const alvo = e.target as HTMLElement | null;
+  const linha = e.currentTarget as HTMLElement;
+  // Menus e diálogos abrem em portal (fora da linha no DOM), mas o evento do React sobe até a linha:
+  // clique que não aconteceu dentro da linha não é "abrir a linha".
+  if (!alvo || !linha.contains(alvo)) return true;
+  const controle = alvo?.closest?.('button, a, input, select, textarea, label, [role="menuitem"], [role="checkbox"], [data-no-row-click]');
+  return Boolean(controle && controle !== linha && linha.contains(controle));
+}
+
+/** Aparência da linha clicável fora do DataTable (fundo suave por token, mão e foco visível). */
+export const CLASSE_LINHA_CLICAVEL =
+  'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50';
+
+/** Props da linha/cartão clicável (foco, Enter/Espaço, nome e o filtro de controles), para listas fora do DataTable. */
+export function propsDaLinhaClicavel<T>(row: T, onRowClick?: (row: T) => void, rowLabel?: (row: T) => string, role?: 'button') {
+  if (!onRowClick) return {};
+  return {
+    ...(role ? { role } : {}),
+    tabIndex: 0,
+    'aria-label': rowLabel?.(row),
+    'data-clicavel': '',
+    onClick: (e: React.MouseEvent) => {
+      if (!cliqueEmControle(e)) onRowClick(row);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.target !== e.currentTarget) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onRowClick(row);
+      }
+    },
+  };
+}
+
 export function pageRangeLabel(pageIndex: number, pageSize: number, total: number): string {
   if (total <= 0) return '0 de 0';
   const from = pageIndex * pageSize + 1;
@@ -140,6 +186,8 @@ export function DataTable<T>({
   onRowSelectionChange,
   renderCard,
   onRowClick,
+  rowLabel,
+  isRowClickable,
   dense = false,
   className,
   'data-testid': testId,
@@ -243,10 +291,11 @@ export function DataTable<T>({
                 data-slot="data-table-card"
                 data-state={row.getIsSelected() ? 'selected' : undefined}
                 className={cn(
-                  'rounded-xl border bg-card p-4 text-card-foreground shadow-sm data-[state=selected]:border-primary/50',
-                  onRowClick && 'cursor-pointer active:bg-accent',
+                  'rounded-xl border bg-card p-4 text-card-foreground shadow-sm data-[state=selected]:border-2 data-[state=selected]:border-primary data-[state=selected]:bg-primary/8',
+                  onRowClick &&
+                    'cursor-pointer outline-none transition-[border-color,box-shadow] active:bg-accent hover:border-primary/60 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50',
                 )}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                {...propsDaLinhaClicavel(row.original, onRowClick && (!isRowClickable || isRowClickable(row.original)) ? onRowClick : undefined, rowLabel)}
               >
                 {renderCard ? (
                   renderCard(row.original, {
@@ -283,7 +332,7 @@ export function DataTable<T>({
                     style={meta?.width !== undefined ? { width: meta.width } : undefined}
                     aria-sort={sorted ? (sorted === 'asc' ? 'ascending' : 'descending') : undefined}
                     className={cn(
-                      'h-11 text-[0.72rem] font-bold tracking-[0.06em] text-muted-foreground uppercase',
+                      'h-11 text-[0.8125rem] font-semibold text-muted-foreground',
                       cellPad,
                       ALIGN_CLASS[meta?.align ?? 'left'],
                       meta?.headerClassName,
@@ -294,7 +343,7 @@ export function DataTable<T>({
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
                         className={cn(
-                          'inline-flex items-center gap-1 rounded-sm uppercase hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                          'inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                           sorted && 'text-foreground',
                         )}
                       >
@@ -343,8 +392,8 @@ export function DataTable<T>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() ? 'selected' : undefined}
-                className={cn(onRowClick && 'cursor-pointer')}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                className={cn(onRowClick && (!isRowClickable || isRowClickable(row.original)) && 'cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50')}
+                {...propsDaLinhaClicavel(row.original, onRowClick && (!isRowClickable || isRowClickable(row.original)) ? onRowClick : undefined, rowLabel)}
               >
                 {row.getVisibleCells().map((cell) => {
                   const meta = cell.column.columnDef.meta;
@@ -383,7 +432,7 @@ function StackedCard<T>({ row }: { row: Row<T> }) {
           const label = typeof header === 'string' ? header : cell.column.id;
           return (
             <React.Fragment key={cell.id}>
-              <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</dt>
+              <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
               <dd className="min-w-0 break-words">{flexRender(cell.column.columnDef.cell, cell.getContext())}</dd>
             </React.Fragment>
           );

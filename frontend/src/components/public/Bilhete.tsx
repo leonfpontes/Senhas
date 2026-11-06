@@ -11,23 +11,32 @@
  */
 import React from 'react';
 import Link from 'next/link';
-import { CalendarPlus, MapPin, MessageCircle, Users, XCircle } from 'lucide-react';
+import { CalendarPlus, MapPin, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   buildIcs,
   buildShareText,
   downloadIcs,
   formatGiraDate,
+  formatGiraDateShort,
   isTicketDone,
   tenantAgendaPath,
   ticketPagePath,
   whatsappShareUrl,
   type PublicTicket,
 } from './bilhete-utils';
+
+/** Rótulo curto do selo "Preferencial" do bilhete (J3 v2), pela categoria do produto. */
+const SELO_PREFERENCIAL: Record<string, string> = {
+  ELDERLY: '60+',
+  DISABILITY_OR_AUTISM: 'PcD / TEA',
+  PREGNANT_LACTATING_OR_INFANT: 'Gestante ou colo',
+  REDUCED_MOBILITY: 'Mobilidade',
+};
 
 export interface BilheteProps {
   ticket: PublicTicket;
@@ -77,41 +86,80 @@ export function Bilhete({
   const waUrl = whatsappShareUrl(buildShareText(ticket, link));
 
   return (
-    <Card className={cn('gap-5 py-5', className)}>
-      <CardContent className="flex flex-col gap-5 px-5">
+    // Jornada 3 v2 · 04: só o bilhete é cartão; o resto fica sobre a página, em lista com filetes.
+    <Card className={cn('gap-5 border-0 bg-transparent py-2 shadow-none ring-0', className)}>
+      <CardContent className="flex flex-col gap-4 px-1">
         {(heading || intro) && (
-          <div className="text-center">
-            {heading && <h1 className="text-2xl font-bold leading-tight">{heading}</h1>}
+          <div>
+            {heading && <h1 className="font-display text-[2rem] leading-tight font-normal tracking-[-0.02em]">{heading}</h1>}
             {intro && <p className="mt-1 text-base text-muted-foreground">{intro}</p>}
           </div>
         )}
 
-        <div className="text-center">
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Sua senha</p>
-          <p
-            data-testid="ticket-number"
-            aria-label={`Senha ${ticket.ticket_number}`}
-            style={cancelled ? { textDecoration: 'line-through' } : undefined}
-            className={cn(
-              'text-[4rem] leading-none font-extrabold tabular-nums tracking-tight sm:text-[5rem]',
-              done ? 'text-muted-foreground' : 'text-(color:--brand-text)',
-            )}
-          >
-            {ticket.ticket_number}
-          </p>
-          {ticket.status !== 'emitted' && (
-            <Badge
-              variant={done ? 'outline' : 'secondary'}
+        {/* O Bilhete do design system: faixa na cor da casa com a gira, "Sua senha", o número em Fraunces,
+            quem vai e, no rodapé do bilhete, o acompanhante e o número para dizer na entrada. */}
+        <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-[22px] bg-card shadow-lg ring-1 ring-border">
+          <div className="bg-primary px-5 py-3 text-left text-primary-foreground">
+            <p className="truncate text-[0.9375rem] font-semibold">{ticket.tenant_name}</p>
+            <p className="truncate text-[0.8125rem] opacity-90">
+              {[ticket.gira_name, formatGiraDateShort(ticket.gira_date_iso)].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <div className="px-5 pt-4 pb-4 text-center">
+            <p className="text-sm font-medium text-muted-foreground">Sua senha</p>
+            <p
+              data-testid="ticket-number"
+              aria-label={`Senha ${ticket.ticket_number}`}
+              style={cancelled ? { textDecoration: 'line-through' } : undefined}
               className={cn(
-                'mt-3 text-sm font-semibold',
-                !done && ticket.waitlisted && 'bg-warning/15 text-warning-strong',
-                !done && !ticket.waitlisted && 'bg-info/15 text-info-strong',
+                'font-display text-[5.25rem] leading-none font-semibold tabular-nums tracking-[-0.03em]',
+                done ? 'text-muted-foreground' : 'text-[color:var(--color-barro-700)]',
               )}
             >
-              {ticket.status_label}
-            </Badge>
-          )}
+              {ticket.ticket_number}
+            </p>
+            {ticket.consulente_name && <p className="mt-2 text-lg font-semibold">{ticket.consulente_name.split(' ').slice(0, 2).join(' ')}</p>}
+            {ticket.priority_category && SELO_PREFERENCIAL[ticket.priority_category] && (
+              <span className="mt-2 inline-flex rounded-full bg-[color:var(--color-ouro-300)] px-2.5 py-0.5 text-[0.8125rem] font-semibold text-foreground">
+                Preferencial · {SELO_PREFERENCIAL[ticket.priority_category]}
+              </span>
+            )}
+            {ticket.status !== 'emitted' && (
+              <Badge
+                variant={done ? 'outline' : 'secondary'}
+                className={cn(
+                  'mt-2 text-sm font-semibold',
+                  !done && ticket.waitlisted && 'bg-warning/15 text-warning-strong',
+                  !done && !ticket.waitlisted && 'bg-info/15 text-info-strong',
+                )}
+              >
+                {ticket.status_label}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-end justify-between gap-3 border-t border-dashed border-border px-5 py-3 text-left">
+            <div className="min-w-0">
+              {ticket.acompanhantes.length > 0 && (
+                <>
+                  <p className="text-xs text-muted-foreground">{ticket.acompanhantes.length === 1 ? 'Acompanhante' : 'Acompanhantes'}</p>
+                  <p className="truncate font-semibold">
+                    {ticket.acompanhantes.map((a) => `${a.ticket_number} · ${a.name.split(' ')[0]}`).join(', ')}
+                  </p>
+                </>
+              )}
+            </div>
+            {!done && (
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Na entrada, informe</p>
+                <p className="font-semibold tabular-nums">{ticket.ticket_number}</p>
+              </div>
+            )}
+          </div>
         </div>
+
+        {!done && (
+          <p className="text-center text-base">Na entrada, informe o número {ticket.ticket_number}.</p>
+        )}
 
         {notice}
 
@@ -123,89 +171,90 @@ export function Bilhete({
           </Alert>
         )}
 
-        <div>
-          <h2 className="text-lg font-bold leading-snug [text-wrap:balance]">{ticket.gira_name}</h2>
-          <p className="text-base">{formatGiraDate(ticket.gira_date_iso, ticket.gira_date)}</p>
-          {ticket.horario && (
-            <p className="text-base text-muted-foreground">Seu horário de atendimento: {ticket.horario}</p>
-          )}
-          {ticket.consulente_name && (
-            <p className="text-base text-muted-foreground">Em nome de {ticket.consulente_name}</p>
-          )}
-        </div>
+        {/* ListaDeDetalhes: rótulo à esquerda, valor à direita, filete entre as linhas. */}
+        <dl className="m-0 border-b border-border" data-testid="bilhete-detalhes">
+          {[
+            ['Gira', ticket.gira_name],
+            ['Dia', formatGiraDate(ticket.gira_date_iso, ticket.gira_date)],
+            ['Horário', ticket.horario ? `Seu horário de atendimento: ${ticket.horario}` : null],
+            ['Em nome de', ticket.consulente_name ? `Em nome de ${ticket.consulente_name}` : null],
+            ['Acompanhante', ticket.acompanhantes.length ? ticket.acompanhantes.map((a) => a.name).join(', ') : null],
+            ['Local', ticket.gira_local || ticket.tenant_address ? 'local' : null],
+          ]
+            .filter(([, v]) => v)
+            .map(([k, v]) => (
+              <div key={k as string} className="flex items-baseline justify-between gap-4 border-t border-border py-3">
+                <dt className="shrink-0 text-[0.9375rem] text-muted-foreground">{k}</dt>
+                <dd className="m-0 text-right text-[0.9375rem] font-semibold">
+                  {k === 'Local' ? (
+                    <>
+                      {ticket.gira_local && <span className="block">{ticket.gira_local}</span>}
+                      {ticket.tenant_address && <span className="block font-normal text-muted-foreground">{ticket.tenant_address}</span>}
+                    </>
+                  ) : (
+                    (v as string).replace(/^Seu horário de atendimento: |^Em nome de /, '')
+                  )}
+                </dd>
+              </div>
+            ))}
+        </dl>
+        {/* Os textos completos continuam para leitores de tela e para quem copia o bilhete. */}
+        <p className="sr-only">
+          {ticket.horario && <>Seu horário de atendimento: {ticket.horario}. </>}
+          {ticket.consulente_name && <>Em nome de {ticket.consulente_name}.</>}
+        </p>
 
-        {(ticket.tenant_address || ticket.gira_local) && (
-          <div className="flex items-start gap-2">
-            <MapPin aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0">
-              {ticket.gira_local && <p className="text-base">{ticket.gira_local}</p>}
-              {ticket.tenant_address && <p className="text-base text-muted-foreground">{ticket.tenant_address}</p>}
-              {ticket.maps_url && (
-                <a
-                  href={ticket.maps_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block py-1 text-base font-semibold text-(color:--brand-text) underline-offset-4 hover:underline"
-                >
-                  Como chegar
-                </a>
-              )}
-            </div>
-          </div>
+        {ticket.maps_url && (
+          <a
+            href={ticket.maps_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 self-start text-[1.0625rem] font-semibold text-foreground underline underline-offset-4"
+          >
+            Como chegar <MapPin aria-hidden className="size-4" />
+          </a>
         )}
 
         {ticket.recados && (
-          <Alert variant="info">
-            <AlertTitle>Recados do terreiro</AlertTitle>
-            <AlertDescription className="whitespace-pre-line text-base">{ticket.recados}</AlertDescription>
-          </Alert>
-        )}
-
-        {ticket.acompanhantes.length > 0 && (
           <div>
-            <h3 className="flex items-center gap-2 text-base font-bold">
-              <Users aria-hidden className="size-4 text-muted-foreground" /> Acompanhantes
-            </h3>
-            <ul className="mt-1 flex flex-col gap-0.5">
-              {ticket.acompanhantes.map((a) => (
-                <li key={a.ticket_number} className="text-base text-muted-foreground">
-                  {a.ticket_number} · {a.name}
-                </li>
-              ))}
-            </ul>
+            <p className="text-base font-semibold">Recados da casa</p>
+            <p className="mt-1 text-base whitespace-pre-line text-muted-foreground">{ticket.recados}</p>
           </div>
         )}
 
         {!done && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {ics && (
-              <Button type="button" size="touch" className="w-full" onClick={handleIcs}>
-                <CalendarPlus /> Adicionar à agenda
+              <Button type="button" variant="outline" size="touch" className="w-full border-foreground/80 text-base font-semibold" onClick={handleIcs}>
+                Adicionar à agenda <CalendarPlus />
               </Button>
             )}
-            <Button asChild variant="outline" size="touch" className="w-full">
+            <Button asChild variant="outline" size="touch" className="w-full border-foreground/80 text-base font-semibold">
               <a href={waUrl} target="_blank" rel="noopener noreferrer">
-                <MessageCircle /> Enviar no WhatsApp
+                Enviar no WhatsApp <MessageCircle />
               </a>
             </Button>
-            {ticket.cancellable && ticketId && (
-              <Button asChild variant="ghost" size="touch" className="w-full text-muted-foreground">
-                <Link href={`/public/ticket/${ticketId}/cancelar`}>
-                  <XCircle /> Cancelar minha senha
-                </Link>
-              </Button>
-            )}
           </div>
         )}
 
-        <p className="text-center text-sm text-muted-foreground">
-          {!done && <>Na entrada, informe o número {ticket.ticket_number} à equipe. </>}
+        <div className="flex flex-col items-start gap-1">
+          {!done && ticket.cancellable && ticketId && (
+            <Link
+              href={`/public/ticket/${ticketId}/cancelar`}
+              className="inline-flex min-h-11 items-center text-[1.0625rem] font-semibold text-foreground underline underline-offset-4"
+            >
+              Cancelar minha senha
+            </Link>
+          )}
           {showNextGiras && (
-            <Link href={tenantAgendaPath(ticket.tenant_slug)} className="font-semibold text-(color:--brand-text) underline-offset-4 hover:underline">
+            <Link
+              href={tenantAgendaPath(ticket.tenant_slug)}
+              className="inline-flex min-h-11 items-center text-[1.0625rem] font-semibold text-foreground underline underline-offset-4"
+            >
               Ver próximas giras
             </Link>
           )}
-        </p>
+        </div>
       </CardContent>
     </Card>
   );

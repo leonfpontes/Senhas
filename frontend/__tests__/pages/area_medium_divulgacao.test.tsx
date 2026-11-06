@@ -123,7 +123,8 @@ describe('AM-24 com a chave ligada', () => {
   it('o FAQ tem "Os médiuns têm acesso?", igual no JSON-LD', () => {
     const { container } = render(<HomePage />);
     const faq = screen.getByRole('region', { name: /perguntas que todo terreiro faz/i });
-    expect(within(faq).getByRole('button', { name: 'Os médiuns têm acesso?' })).toBeInTheDocument();
+    expect(within(faq).getByText('Os médiuns têm acesso?').closest('summary')).not.toBeNull();
+    expect(within(faq).getByText(FAQ_AREA_MEDIUM.a)).toBeInTheDocument();
     const ld = faqLd(container);
     expect(ld.mainEntity).toHaveLength(LANDING_FAQ.length + 1);
     const item = ld.mainEntity.find((q: { name: string }) => q.name === FAQ_AREA_MEDIUM.q);
