@@ -156,7 +156,7 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
                     onChange={(v) => patch({ gradient_dir: v })}
                   />
                   <ColorField label="De" value={String(config.gradient_from || '#2E6A4E')} onChange={(v) => patch({ gradient_from: v })} />
-                  <ColorField label="Para" value={String(config.gradient_to || '#ec4899')} onChange={(v) => patch({ gradient_to: v })} />
+                  <ColorField label="Para" value={String(config.gradient_to || '#E9B04A')} onChange={(v) => patch({ gradient_to: v })} />
                 </>
               )}
               {bgType === 'solid' && <ColorField label="Cor" value={String(config.bg_color || '#2E6A4E')} onChange={(v) => patch({ bg_color: v })} />}

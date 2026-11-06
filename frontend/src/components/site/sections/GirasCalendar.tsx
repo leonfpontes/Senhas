@@ -9,7 +9,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { fraunces } from '@/components/landing/fonts';
-import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Ticket } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { pickForeground } from '@/lib/brand';
 import { buttonVariants } from '@/components/ui/button';
@@ -58,8 +58,8 @@ function GiraActions({ gira, config, isPreview, brand, compact }: Omit<GiraCardP
           )}
           style={{ '--brand': brand, '--brand-fg': pickForeground(brand) } as React.CSSProperties}
         >
-          Ver a gira
-          <ArrowRight aria-hidden />
+          <Ticket aria-hidden />
+          Retire sua senha
         </a>
       )}
       {showSponsor && (

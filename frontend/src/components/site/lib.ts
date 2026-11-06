@@ -183,10 +183,15 @@ export function heroForeground(config: SectionConfig): string {
   return minContrast('#000000') >= minContrast('#ffffff') ? '#000000' : '#ffffff';
 }
 
-/** Cor de marca do site: a do Hero (primeira seção HERO) ou o índigo padrão. */
+/**
+ * Cor de marca do site: a do Hero (primeira seção HERO). Site sem Hero usa `site_brand_color`, que a
+ * migração 106 gravou nos sites anteriores à 3.0.0 (o índigo #4f46e5 de antes); sem nada, o verde do GiraHub.
+ */
 export function siteBrandColor(sections: SiteSection[]): string {
   const hero = sections.find((s) => s.section_type === 'HERO');
-  return hero ? heroBackground(hero.config).brandColor : '#2E6A4E';
+  if (hero) return heroBackground(hero.config).brandColor;
+  const gravada = sections.map((s) => String(s.config?.site_brand_color || '')).find((c) => parseColor(c));
+  return gravada || '#2E6A4E';
 }
 
 // ── Fontes / layout ───────────────────────────────────────────────────────────

@@ -60,7 +60,7 @@ describe('Site público no celular', () => {
     expect(cards[0]).toHaveTextContent('Gira de Caboclos');
     expect(cards[0]).toHaveTextContent('Próxima gira');
     expect(cards[1]).toHaveTextContent('Gira de Pretos-Velhos');
-    const btn = within(cards[0]).getByRole('link', { name: /Ver a gira/ });
+    const btn = within(cards[0]).getByRole('link', { name: /Retire sua senha/ });
     expect(btn).toHaveAttribute('href', '/public/gira/g1');
     expect(btn.className).toMatch(/h-12/);
   });
