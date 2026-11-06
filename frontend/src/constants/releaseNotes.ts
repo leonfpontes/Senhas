@@ -22,6 +22,22 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '3.0.0',
+    date: '2026-11-07',
+    title: 'GiraHub de cara nova: menu enxuto e tudo a um clique',
+    highlights: [
+      'O painel ganhou cara nova, com as cores da casa. Nada saiu do lugar sem deixar caminho: toda tela que existia continua lá, com o mesmo endereço.',
+      'O menu lateral ficou enxuto. Em cima, sempre, o dia de gira: Início, Giras, Porta e Senhas. Embaixo, em "Da casa", os módulos que a casa usa. Os outros estão em "Ver os módulos", no fim do menu, com o plano de cada um.',
+      'Para achar qualquer tela ou ação, use a busca no alto da tela (ou as teclas Ctrl K). Digite "fluxo", "médiuns" ou "nova gira" e vá direto.',
+      'Plano e assinatura, Pessoas e acessos, Perfis de acesso (o antigo "Grupos de permissão"), Configurações, Auditoria e Ajuda agora ficam no menu do seu nome: o círculo com a sua inicial, no alto à direita. No celular, no fim do Menu.',
+      'A configuração da Área do Médium fica em Configurações › Área do Médium.',
+      'Para editar uma gira, um médium, um lançamento ou qualquer item de lista, é só clicar ou tocar nele: a edição abre na hora, sem procurar o lápis. Excluir, arquivar e as outras ações continuam nos seus botões.',
+      'No site do GiraHub, quem já está logado vê "Abrir o <nome do terreiro>" para voltar ao painel, e o "Sair" fica à vista. Quem tem mais de um terreiro escolhe onde entrar.',
+      'A página onde o consulente pega a senha e o bilhete ganharam cara nova, com o selo de atendimento preferencial e os acompanhantes no bilhete.',
+      'Porta e Modo TV ficaram mais leves em iPad e celular antigos, e a janela de chamar cabe em tela pequena com o teclado aberto.',
+    ],
+  },
+  {
     version: '2.11.0',
     date: '2026-10-29',
     title: 'Avisos para médiuns escolhidos, lista do que repor e mais',
