@@ -322,7 +322,10 @@ export function montarSidebarNav(
   const todos = groups.flatMap((g) => g.items);
   const fixos: NavEntry[] = [];
   for (const rota of ROTAS_FIXAS) {
-    const e = todos.find((x) => x.kind === 'link' && pathOf(x.href) === rota && !x.action);
+    // O endereço exato primeiro: num dia de gira, "Gira de hoje" (/admin/tickets?gira=…) tem o mesmo
+    // caminho de Senhas e, achada antes, tirava "Senhas" do menu. Ela entra logo abaixo, como atalho do dia.
+    const ehLink = (x: NavEntry) => x.kind === 'link' && !x.action;
+    const e = todos.find((x) => ehLink(x) && x.kind === 'link' && x.href === rota) ?? todos.find((x) => ehLink(x) && x.kind === 'link' && pathOf(x.href) === rota);
     if (e) fixos.push(e);
   }
   // Atalhos do dia que já ficavam em "Hoje" (Gira de hoje, Primeiros passos).

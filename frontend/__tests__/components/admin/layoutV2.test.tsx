@@ -132,6 +132,17 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByRole('link', { name: /Ver os \d+ módulos/ })).not.toBeInTheDocument();
   });
 
+  it('dia de gira: "Gira de hoje" entra como atalho e "Senhas" continua no menu (não troca de lugar)', () => {
+    const { montarSidebarNav } = require('@/components/admin/layout/navConfig');
+    const L = (href: string, label: string) => ({ kind: 'link', href, label, icon: () => null });
+    const groups = [
+      { key: 'hoje', label: 'Hoje', items: [L('/admin/dashboard', 'Início'), L('/admin/porta', 'Porta'), L('/admin/tickets?gira=g1', 'Gira de hoje')] },
+      { key: 'giras', label: 'Giras', items: [L('/admin/giras', 'Giras'), L('/admin/tickets', 'Senhas')] },
+    ];
+    const { fixos } = montarSidebarNav(groups, { ajustavel: false, noMenu: () => false });
+    expect(fixos.map((e: { label: string }) => e.label)).toEqual(['Início', 'Giras', 'Porta', 'Senhas', 'Gira de hoje']);
+  });
+
   it('situacaoDoModulo: fixo, liberado, fora do plano e escondido (piloto ou sem permissão)', () => {
     const { MODULOS, situacaoDoModulo, contarModulosVisiveis } = require('@/constants/modulos');
     const por = (k: string) => MODULOS.find((m: { key: string }) => m.key === k);
