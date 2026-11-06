@@ -1988,7 +1988,13 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
 - **Navegador mínimo: Safari/WebKit do iOS 15** (iPad de terreiro preso no 15.8; todo navegador de iOS usa o WebKit do
   sistema). O Next não rebaixa a sintaxe de `node_modules`: pacote que publica ES2022+ (ex.: `static {}` do
   `@radix-ui/react-collection`) entra em `transpilePackages` no `next.config.js`. O CI roda
-  `scripts/audit-legacy-syntax.js` depois do build (bloco estático de classe, regex com lookbehind ou flag `v`).
+  `scripts/audit-legacy-syntax.js` depois do build (bloco estático de classe, regex com lookbehind ou flag `v`;
+  chamadas `x.toSorted/toReversed/toSpliced()`, `Object.groupBy`, `Map.groupBy`, `Promise.withResolvers`,
+  `Array.fromAsync`; e no CSS do build `color-mix()`/`light-dark()`/cor relativa fora de `@supports` sem fallback
+  antes, ou CSS aninhado). Aparelho antigo também tem que ser LEVE: sem `color-mix` = WebKit < 16.2 → o `globals.css`
+  desliga `backdrop-filter` e o `instrumentation-client.ts` desliga o Replay do Sentry (que grava toda mudança de
+  tela); telas com atualização periódica usam `useAtualizacaoPeriodica` + `manterSeIgual` (`lib/polling.ts`):
+  não buscam com a aba escondida e não redesenham quando a resposta veio igual.
   CSS: o iOS 15 não tem `color-mix()`, e o fallback do Tailwind v4 para `bg-X/NN` é a cor CHEIA. O
   `postcss/colorMixFallback.js` (depois do Tailwind no `postcss.config.mjs`) declara `--X-rgb` ao lado de cada token
   opaco e troca o fallback por `rgb(var(--X-rgb) / NN%)`; token translúcido fica sem canal (fallback transparente).

@@ -718,3 +718,16 @@ html:is([data-passagem='fechar-documento'], [data-passagem='folhear-tras'])::vie
     }
   }
 }
+
+/* Aparelho antigo (WebKit < 16.2, o iPad da casa no iOS 15): sem o desfoque atrás das barras fixas
+ * (topo, abas de baixo, cabeçalho da Porta). O `backdrop-filter` redesenha o desfoque a cada quadro
+ * de rolagem e travava a GPU do iPad; as barras já têm fundo 95% opaco, então quase nada muda.
+ * O teste é o mesmo do colorMixFallback: quem não tem color-mix é o WebKit antigo. */
+@supports not (color: color-mix(in srgb, red, red)) {
+  *,
+  ::before,
+  ::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}

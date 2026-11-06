@@ -73,6 +73,7 @@ import InstallPortaHint from '@/components/admin/InstallPortaHint';
 import DuplasDaNoiteDrawer from '@/components/admin/porta/DuplasDaNoiteDrawer';
 import { atendimentosPorMedium, type Dupla, type DuplasPainel } from '@/components/admin/porta/duplas';
 import { normalizeLegacyStatus, numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
+import { manterSeIgual, useAtualizacaoPeriodica } from '@/lib/polling';
 import { PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 const POLLING_INTERVAL_MS = 8000;
@@ -457,7 +458,8 @@ function PortaContent() {
     if (!selectedGiraId) return;
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/stats`);
-      setStats(res?.data ?? null);
+      const novos: DoorStats | null = res?.data ?? null;
+      setStats((atuais) => manterSeIgual(atuais, novos));
     } catch {
       /* tenta de novo no próximo ciclo */
     }
@@ -468,9 +470,13 @@ function PortaContent() {
     try {
       // Fila completa — a busca por nome e número é feita aqui no navegador.
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/queue`);
-      setQueue(Array.isArray(res?.data?.items) ? res.data.items.map(normalizeLegacyStatus) : []);
+      const fila: QueueItem[] = Array.isArray(res?.data?.items) ? res.data.items.map(normalizeLegacyStatus) : [];
+      // Fila igual à da tela = nada a redesenhar (o iPad antigo sentia cada ciclo de 8 s).
+      setQueue((atual) => manterSeIgual(atual, fila));
       setQueueGiraId(selectedGiraId);
-      setLastUpdated(new Date());
+      // "atualizado às 19h14": só muda a cada minuto, como o texto.
+      const agora = new Date();
+      setLastUpdated((antes) => (antes && horaCurta(antes) === horaCurta(agora) ? antes : agora));
       queueFailuresRef.current = 0;
       setQueueFailures(0);
     } catch {
@@ -533,11 +539,8 @@ function PortaContent() {
     void loadDuplas();
   }, [loadDuplas]);
 
-  useEffect(() => {
-    if (!selectedGiraId) return;
-    const t = setInterval(refreshAll, POLLING_INTERVAL_MS);
-    return () => clearInterval(t);
-  }, [selectedGiraId, refreshAll]);
+  // Só com a tela visível; ao voltar para a aba, atualiza na hora.
+  useAtualizacaoPeriodica(refreshAll, POLLING_INTERVAL_MS, !!selectedGiraId);
 
   const walkInEnabled = !!selectedGiraId && !!config?.enable_walk_in && canInsert;
 

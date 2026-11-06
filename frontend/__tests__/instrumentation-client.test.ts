@@ -35,6 +35,21 @@ describe('instrumentation-client', () => {
     ]);
   });
 
+  it('no aparelho antigo (sem color-mix, iPad no iOS 15) desliga o Replay', async () => {
+    const original = (globalThis as { CSS?: unknown }).CSS;
+    (globalThis as { CSS?: unknown }).CSS = { supports: () => false };
+    try {
+      await import('@/instrumentation-client');
+      const SentryMock = await import('@sentry/nextjs');
+      const options = (SentryMock.init as jest.Mock).mock.calls[0][0];
+      expect(options.replaysOnErrorSampleRate).toBe(0);
+      expect(options.integrations).toEqual([]);
+      expect(options.sendDefaultPii).toBe(false);
+    } finally {
+      (globalThis as { CSS?: unknown }).CSS = original;
+    }
+  });
+
   it('exporta onRouterTransitionStart = Sentry.captureRouterTransitionStart', async () => {
     const mod = await import('@/instrumentation-client');
     const SentryMock = await import('@sentry/nextjs');

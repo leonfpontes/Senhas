@@ -7,7 +7,7 @@
  * transpilado pelo Next.
  */
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { findIssues } = require('../scripts/audit-legacy-syntax');
+const { findIssues, findCssIssues } = require('../scripts/audit-legacy-syntax');
 const nextConfig = require('../next.config');
 
 describe('audit-legacy-syntax', () => {
@@ -24,6 +24,31 @@ describe('audit-legacy-syntax', () => {
   it('aceita o que o iOS 15 entende: campos privados, ?? e ?.', () => {
     const src = 'class A{#x=1;static y=2;get(o){return o?.z??this.#x}}var r=/(?<nome>a)/;';
     expect(findIssues(src)).toEqual([]);
+  });
+
+  it('acusa método que o iOS 15 não tem (toSorted, Object.groupBy, Promise.withResolvers)', () => {
+    expect(findIssues('a.toSorted((x,y)=>x-y)')).toEqual([expect.stringContaining('.toSorted()')]);
+    expect(findIssues('Object.groupBy(l,f);Promise.withResolvers()')).toHaveLength(2);
+  });
+
+  it('aceita toSorted de classe própria (o OrderedDict do Radix) e groupBy de lodash', () => {
+    const src = 'class D extends Map{toSorted(c){return new D([...this].sort(c))}};d.toSorted(c);_.groupBy(l,f)';
+    expect(findIssues(src)).toEqual([]);
+  });
+
+  it('acusa color-mix sem fallback, em variável e CSS aninhado', () => {
+    expect(findCssIssues('a{border-color:color-mix(in srgb,red 50%,#fff)}')).toEqual([
+      expect.stringContaining('sem fallback'),
+    ]);
+    expect(findCssIssues('b{--input:color-mix(in srgb,red 50%,#fff)}')).toEqual([expect.stringContaining('variável')]);
+    expect(findCssIssues('c{d{color:red}}')).toEqual([expect.stringContaining('aninhado')]);
+  });
+
+  it('aceita color-mix com fallback antes ou dentro de @supports', () => {
+    const css =
+      'a{color:#888;color:color-mix(in srgb,red,blue)}' +
+      '@supports (color:color-mix(in lab,red,red)){b{--input:color-mix(in srgb,red,#fff)}}';
+    expect(findCssIssues(css)).toEqual([]);
   });
 
   it('o Next transpila o @radix-ui/react-collection', () => {
