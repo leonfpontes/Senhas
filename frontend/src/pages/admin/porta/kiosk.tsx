@@ -27,6 +27,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useSubscription } from '@/hooks/useSubscription';
 import { QrPresenca } from '@/components/admin/presenca/QrPresenca';
 import { cn } from '@/lib/utils';
+import { manterSeIgual, useAtualizacaoPeriodica } from '@/lib/polling';
 
 const POLLING_INTERVAL_MS = 8000;
 
@@ -127,7 +128,8 @@ function KioskContent({ canView }: { canView: boolean }) {
     if (!giraId || !canView) return;
     try {
       const res = await apiClient.get<DoorTv>(`/api/v1/admin/giras/${giraId}/door/tv`);
-      setTv(res.data ?? null);
+      const novo: DoorTv | null = res.data ?? null;
+      setTv((atual) => manterSeIgual(atual, novo));
       if (res.data?.gira_nome) setGiraNome(res.data.gira_nome);
     } catch {
       /* tenta de novo no próximo ciclo */
@@ -142,11 +144,8 @@ function KioskContent({ canView }: { canView: boolean }) {
   useEffect(() => {
     if (giraId) loadQueue();
   }, [giraId, loadQueue]);
-  useEffect(() => {
-    if (!giraId) return;
-    const t = setInterval(loadQueue, POLLING_INTERVAL_MS);
-    return () => clearInterval(t);
-  }, [giraId, loadQueue]);
+  // Só com a tela visível; ao voltar, atualiza na hora.
+  useAtualizacaoPeriodica(loadQueue, POLLING_INTERVAL_MS, !!giraId);
 
   useEffect(() => {
     // "19h14", como a casa fala (J4 v2 · 08).
