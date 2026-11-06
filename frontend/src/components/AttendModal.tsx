@@ -10,10 +10,21 @@
  * Layout: cabeçalho e botões fixos e só o meio rola, limitado à altura da tela — com uma noite
  * cheia de duplas o "Atendido" nunca sai do alcance (iPad em pé). Com duplas a janela alarga
  * para 3 colunas de cartões a partir do `sm`.
+ *
+ * Beta "Retorno do consulente na porta" (`retornoHabilitado`): no topo, os retornos que a pessoa
+ * tem de giras anteriores (com "Marcar como resolvido"); embaixo, "Precisa voltar" (desmarcada)
+ * para anotar com qual médium e/ou entidade ela volta e o recado.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  RetornoCartao,
+  type RetornoAberto,
+  type RetornoMarcado,
+  type RetornoPedido,
+} from '@/components/admin/porta/RetornosDoConsulente';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +50,13 @@ interface AttendModalProps {
   open: boolean;
   ticketNumero: number;
   consulenteNome: string;
-  onConfirm: (data: { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string }) => void;
+  onConfirm: (data: {
+    medium_nome: string;
+    cambone_nome?: string;
+    atendimento_descricao?: string;
+    /** Beta do retorno: omitido não mexe; objeto anota; null tira. */
+    retorno?: RetornoPedido | null;
+  }) => void;
   onClose: () => void;
   loading?: boolean;
   /** Pré-preenche os campos no modo de edição. */
@@ -58,6 +75,16 @@ interface AttendModalProps {
   duplas?: { medium_nome: string; cambone_nome: string | null }[];
   /** Senhas atendidas na noite por médium (nome normalizado → total e último). */
   atendimentos?: Map<string, AtendimentosDoMedium>;
+  /** Beta "Retorno do consulente na porta" ligada. */
+  retornoHabilitado?: boolean;
+  /** Retornos abertos desta pessoa (giras anteriores). */
+  retornos?: RetornoAberto[];
+  /** Retorno já anotado nesta senha (Editar atendimento). */
+  retornoMarcado?: RetornoMarcado | null;
+  /** Pode marcar retorno como resolvido (PORTA:edit). */
+  canResolverRetorno?: boolean;
+  resolvendoRetornoId?: string | null;
+  onResolverRetorno?: (r: RetornoAberto) => void;
 }
 
 const OUTRO = '__outro__';
@@ -136,12 +163,24 @@ export default function AttendModal({
   camboneOptions = [],
   duplas = [],
   atendimentos,
+  retornoHabilitado = false,
+  retornos = [],
+  retornoMarcado = null,
+  canResolverRetorno = false,
+  resolvendoRetornoId = null,
+  onResolverRetorno,
 }: AttendModalProps) {
   const [mediumNome, setMediumNome] = useState('');
   const [camboneNome, setCamboneNome] = useState('');
   const [descricao, setDescricao] = useState('');
   // Com duplas: "Outro médium…" escolhido (ou edição de uma senha com médium fora das duplas).
   const [outroMedium, setOutroMedium] = useState(false);
+  // "Precisa voltar" (beta do retorno). Começa desmarcada; no Editar, vem do retorno desta senha.
+  const [precisaVoltar, setPrecisaVoltar] = useState(false);
+  const [voltaMedium, setVoltaMedium] = useState('');
+  const [voltaEntidade, setVoltaEntidade] = useState('');
+  const [voltaRecado, setVoltaRecado] = useState('');
+  const retornoResolvido = Boolean(retornoMarcado?.resolvido);
 
   const comDuplas = duplas.length > 0;
   const duplaEscolhida = comDuplas && !outroMedium
@@ -157,6 +196,11 @@ export default function AttendModal({
       setOutroMedium(
         Boolean(medium) && !duplas.some((d) => normalizarNome(d.medium_nome) === normalizarNome(medium)),
       );
+      const marcado = retornoMarcado && !retornoMarcado.resolvido ? retornoMarcado : null;
+      setPrecisaVoltar(Boolean(marcado));
+      setVoltaMedium(marcado?.medium_nome || '');
+      setVoltaEntidade(marcado?.entidade || '');
+      setVoltaRecado(marcado?.recado || '');
     }
     // `duplas` fica de fora: a Porta recarrega as duplas sem querer apagar o que se escolheu aqui.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,13 +218,33 @@ export default function AttendModal({
     setCamboneNome('');
   };
 
+  const alternarPrecisaVoltar = (marcar: boolean) => {
+    setPrecisaVoltar(marcar);
+    // Sugere o médium deste atendimento; dá para trocar.
+    if (marcar && !voltaMedium.trim()) setVoltaMedium(mediumNome.trim());
+  };
+
+  const retornoVazio = precisaVoltar && !voltaMedium.trim() && !voltaEntidade.trim() && !voltaRecado.trim();
+
   const handleConfirm = () => {
-    if (!mediumNome.trim()) return;
-    onConfirm({
+    if (!mediumNome.trim() || retornoVazio) return;
+    const data: Parameters<AttendModalProps['onConfirm']>[0] = {
       medium_nome: mediumNome.trim(),
       cambone_nome: camboneNome.trim() || undefined,
       atendimento_descricao: descricao.trim() || undefined,
-    });
+    };
+    if (retornoHabilitado && !retornoResolvido) {
+      if (precisaVoltar) {
+        data.retorno = {
+          medium_nome: voltaMedium.trim() || undefined,
+          entidade: voltaEntidade.trim() || undefined,
+          recado: voltaRecado.trim() || undefined,
+        };
+      } else if (retornoMarcado) {
+        data.retorno = null;
+      }
+    }
+    onConfirm(data);
   };
 
   const numero = String(ticketNumero).padStart(4, '0');
@@ -212,6 +276,22 @@ export default function AttendModal({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-6 py-4" data-testid="attend-modal-body">
+          {retornoHabilitado && retornos.length > 0 && (
+            <section aria-label="Retorno desta pessoa" className="flex flex-col gap-2">
+              <span className="text-base font-semibold">Esta pessoa tem retorno</span>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {retornos.map((r) => (
+                  <RetornoCartao
+                    key={r.id}
+                    retorno={r}
+                    canEdit={canResolverRetorno && !!onResolverRetorno}
+                    busy={resolvendoRetornoId === r.id || loading}
+                    onResolver={(x) => onResolverRetorno?.(x)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
           {comDuplas && (
             <div role="radiogroup" aria-label="Médium da noite" className="flex flex-col gap-1.5">
               <span className="text-base font-semibold">Quem atende</span>
@@ -285,6 +365,60 @@ export default function AttendModal({
             onChange={(e) => setDescricao(e.target.value)}
             disabled={loading}
           />
+          {retornoHabilitado && (
+            retornoResolvido ? (
+              <p className="text-sm text-muted-foreground">O retorno anotado nesta senha já foi resolvido.</p>
+            ) : (
+              <div className="flex flex-col gap-3 rounded-[10px] border p-3" data-testid="attend-retorno">
+                <label className="flex min-h-10 cursor-pointer items-start gap-3">
+                  <Checkbox
+                    checked={precisaVoltar}
+                    onCheckedChange={(v) => alternarPrecisaVoltar(v === true)}
+                    disabled={loading}
+                    className="mt-0.5 size-5"
+                    aria-describedby="attend-retorno-ajuda"
+                  />
+                  <span className="flex flex-col">
+                    <span className="text-base font-semibold">Precisa voltar</span>
+                    <span id="attend-retorno-ajuda" className="text-sm text-muted-foreground">
+                      A Porta mostra este recado na senha da pessoa nas próximas giras, até alguém marcar como resolvido.
+                    </span>
+                  </span>
+                </label>
+                {precisaVoltar && (
+                  <>
+                    <NameField
+                      label="Volta com o médium"
+                      options={mediumOptions}
+                      value={voltaMedium}
+                      onChange={setVoltaMedium}
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Com a entidade (opcional)"
+                      placeholder="Ex.: Pai Joaquim, Cabocla Jurema"
+                      value={voltaEntidade}
+                      onChange={(e) => setVoltaEntidade(e.target.value)}
+                      disabled={loading}
+                      maxLength={255}
+                    />
+                    <TextField
+                      label="Recado para a porta (opcional)"
+                      multiline
+                      rows={2}
+                      value={voltaRecado}
+                      onChange={(e) => setVoltaRecado(e.target.value)}
+                      disabled={loading}
+                      maxLength={1000}
+                    />
+                    {retornoVazio && (
+                      <span className="text-sm text-warning-strong">Diga com quem a pessoa volta ou escreva o recado.</span>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          )}
         </div>
 
         <DialogFooter className="shrink-0 flex-col gap-1.5 px-6 pt-3 pb-5 sm:flex-row sm:justify-end">
@@ -293,7 +427,7 @@ export default function AttendModal({
             size="touch"
             className="h-14 w-full text-[1.0625rem] font-semibold sm:order-2 sm:w-auto"
             onClick={handleConfirm}
-            disabled={!mediumNome.trim() || loading}
+            disabled={!mediumNome.trim() || retornoVazio || loading}
           >
             {loading ? 'Salvando…' : editMode ? 'Salvar' : 'Atendido'}
             {!loading && !editMode && <Check aria-hidden />}

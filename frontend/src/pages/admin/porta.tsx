@@ -18,6 +18,9 @@
  * - Aviso sonoro quando entra alguém na fila, com botão de mudo; atualização a cada 8s.
  * - PWA (P-01): aviso "Sem conexão" no topo (offline ou 2 falhas seguidas da fila; a última fila
  *   fica na tela) + toast "Conexão de volta"; dica "Instalar a Porta na tela inicial".
+ * - Beta "Retorno do consulente na porta" (`beta_retorno_consulente`): quem tem retorno aberto de
+ *   gira anterior ganha o selo "Retorno" na fila e no Próximo; o detalhe tem "Marcar como
+ *   resolvido" (PORTA:edit, com Desfazer). No "Chamar", "Precisa voltar" anota o retorno.
  * Vocabulário: Walk-in→Sem senha, Check-in→Chegou, Atender→Chamar, Finalizar→Atendido,
  * Ausente→Não veio. Alvos de toque de 48px (`size="touch"` / `"icon-touch"`).
  */
@@ -63,6 +66,16 @@ import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSubscription } from '@/hooks/useSubscription';
+import {
+  BETA_RETORNO,
+  RetornoSelo,
+  RetornosSheet,
+  comQuemVolta,
+  type RetornoAberto,
+  type RetornoMarcado,
+  type RetornoPedido,
+} from '@/components/admin/porta/RetornosDoConsulente';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChamadaDaGiraButton } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
@@ -127,9 +140,17 @@ interface QueueItem {
   cambone_nome: string | null;
   atendimento_descricao: string | null;
   horario_desejado?: string | null;
+  /** Beta do retorno: retornos abertos de giras anteriores e o anotado nesta senha. */
+  retornos?: RetornoAberto[];
+  retorno_marcado?: RetornoMarcado | null;
 }
 
-type AttendData = { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string };
+type AttendData = {
+  medium_nome: string;
+  cambone_nome?: string;
+  atendimento_descricao?: string;
+  retorno?: RetornoPedido | null;
+};
 type WalkInData = { nome: string; email?: string; telefone?: string; priority_category: string | null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -209,6 +230,7 @@ interface ItemActions {
   onUndo: (t: QueueItem) => void;
   onEditAttend: (t: QueueItem) => void;
   onEditWalkIn: (t: QueueItem) => void;
+  onOpenRetornos: (t: QueueItem) => void;
 }
 
 /** Menu de ações de uma senha (o que cabe em cada status). */
@@ -323,6 +345,7 @@ function QueueRow({ item, a, isNext }: { item: QueueItem; a: ItemActions; isNext
         {item.preferencial && (
           <Badge className="border-transparent bg-[color:var(--color-ouro-300)] text-[color:var(--color-cafe-950)]">{priorityLabel(item)}</Badge>
         )}
+        <RetornoSelo retornos={item.retornos ?? []} onOpen={() => a.onOpenRetornos(item)} />
       </div>
       <ItemMenu item={item} a={a} />
     </li>
@@ -355,6 +378,8 @@ function PortaContent() {
   const { can: canGroup } = usePermissions();
   const canInsert = canGroup('porta', 'insert');
   const canEdit = canGroup('porta', 'edit');
+  const { beta } = useSubscription();
+  const betaRetorno = beta(BETA_RETORNO);
   const giraCtx = useGiraContext({ load: false });
   const { selectedGiraId: ctxGiraId, setSelectedGiraId: setCtxGiraId } = giraCtx;
 
@@ -375,6 +400,9 @@ function PortaContent() {
   const [walkInCreateOpen, setWalkInCreateOpen] = useState(false);
   const [walkInEditTarget, setWalkInEditTarget] = useState<QueueItem | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // Beta do retorno: senha cujos retornos estão abertos no Sheet, e o retorno sendo resolvido.
+  const [retornosDeId, setRetornosDeId] = useState<string | null>(null);
+  const [resolvendoId, setResolvendoId] = useState<string | null>(null);
   const [duplas, setDuplas] = useState<Dupla[]>([]);
   const [duplasOpen, setDuplasOpen] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -629,6 +657,37 @@ function PortaContent() {
     );
   };
 
+  // Beta do retorno: "Marcar como resolvido", com Desfazer no toast (o mesmo esforço nos dois sentidos).
+  const handleResolverRetorno = async (r: RetornoAberto) => {
+    if (!canEdit) return;
+    try {
+      setResolvendoId(r.id);
+      await apiClient.patch(`/api/v1/admin/door/retornos/${r.id}/resolver`, { gira_id: selectedGiraId || null });
+      // Some da tela na hora, sem esperar a próxima atualização da fila.
+      setQueue((q) => q.map((t) => (t.retornos?.some((x) => x.id === r.id) ? { ...t, retornos: t.retornos.filter((x) => x.id !== r.id) } : t)));
+      toast.success(`Retorno resolvido: ${comQuemVolta(r)}`, {
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            try {
+              await apiClient.delete(`/api/v1/admin/door/retornos/${r.id}/resolver`);
+              toast.success('O retorno voltou a aparecer');
+            } catch (err) {
+              toast.error(extractApiErrorMessage(err, 'Não foi possível desfazer.'));
+            } finally {
+              refreshAll();
+            }
+          },
+        },
+      });
+      refreshAll();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Não foi possível marcar como resolvido.'));
+    } finally {
+      setResolvendoId(null);
+    }
+  };
+
   const handleCreateWalkIn = async (data: WalkInData) => {
     if (!selectedGiraId || !canInsert) return;
     try {
@@ -721,7 +780,22 @@ function PortaContent() {
     onUndo: handleUndo,
     onEditAttend: (t) => setEditTarget(t),
     onEditWalkIn: (t) => setWalkInEditTarget(t),
+    onOpenRetornos: (t) => setRetornosDeId(t.id),
   };
+  // Memo: o AttendModal recarrega os campos quando `initialValues` muda; um objeto novo a cada
+  // atualização da fila (8 s) apagava o que se estava digitando no Editar.
+  const editInitialValues = useMemo(
+    () => ({
+      medium_nome: editTarget?.medium_nome || '',
+      cambone_nome: editTarget?.cambone_nome || '',
+      atendimento_descricao: editTarget?.atendimento_descricao || '',
+    }),
+    [editTarget],
+  );
+  const retornosDe = retornosDeId ? queue.find((t) => t.id === retornosDeId) ?? null : null;
+  // As versões atuais das senhas abertas no Chamar/Editar (a fila atualiza a cada 8 s).
+  const attendAtual = attendTarget ? queue.find((t) => t.id === attendTarget.id) ?? attendTarget : null;
+  const editAtual = editTarget ? queue.find((t) => t.id === editTarget.id) ?? editTarget : null;
   const actionsFor = (t: QueueItem): ItemActions => ({ ...actions, busy: actionLoading === t.id });
 
   const selectedGira = giras.find((g) => g.id === selectedGiraId) ?? null;
@@ -809,6 +883,13 @@ function PortaContent() {
                       next.is_walk_in ? 'sem senha' : 'pelo link',
                     ].join(' · ')}
                   </span>
+                  {(next.retornos?.length ?? 0) > 0 && (
+                    <RetornoSelo
+                      retornos={next.retornos ?? []}
+                      onOpen={() => setRetornosDeId(next.id)}
+                      className="mt-1.5 border-[color:var(--color-ouro-300)]/60 bg-[color:var(--color-ouro-300)] text-[color:var(--color-cafe-950)] hover:bg-[color:var(--color-ouro-300)]/90"
+                    />
+                  )}
                 </span>
               </div>
             ) : (
@@ -1056,6 +1137,11 @@ function PortaContent() {
         camboneOptions={camboneOptions}
         duplas={duplas}
         atendimentos={atendimentos}
+        retornoHabilitado={betaRetorno}
+        retornos={attendAtual?.retornos ?? []}
+        canResolverRetorno={canEdit}
+        resolvendoRetornoId={resolvendoId}
+        onResolverRetorno={handleResolverRetorno}
       />
       <AttendModal
         open={!!editTarget}
@@ -1068,12 +1154,25 @@ function PortaContent() {
         mediumOptions={mediumOptions}
         camboneOptions={camboneOptions}
         duplas={duplas}
-        initialValues={{
-          medium_nome: editTarget?.medium_nome || '',
-          cambone_nome: editTarget?.cambone_nome || '',
-          atendimento_descricao: editTarget?.atendimento_descricao || '',
-        }}
+        initialValues={editInitialValues}
+        retornoHabilitado={betaRetorno}
+        retornos={editAtual?.retornos ?? []}
+        retornoMarcado={editTarget?.retorno_marcado ?? null}
+        canResolverRetorno={canEdit}
+        resolvendoRetornoId={resolvendoId}
+        onResolverRetorno={handleResolverRetorno}
       />
+      {betaRetorno && (
+        <RetornosSheet
+          open={!!retornosDe}
+          onClose={() => setRetornosDeId(null)}
+          titulo={retornosDe ? `${numeroDaSenha(retornosDe)} · ${retornosDe.consulente_nome || '—'}` : ''}
+          retornos={retornosDe?.retornos ?? []}
+          canEdit={canEdit}
+          busyId={resolvendoId}
+          onResolver={handleResolverRetorno}
+        />
+      )}
       {selectedGiraId && canEdit && (
         <DuplasDaNoiteDrawer
           open={duplasOpen}

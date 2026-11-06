@@ -388,6 +388,7 @@ export interface BetaReleaseNote {
 }
 
 export const BETA_RELEASE_NOTES: BetaReleaseNote[] = [
+  { chave: 'beta_retorno_consulente', date: '2026-11-06', title: 'Retorno do consulente na porta', text: 'Quem chama a senha marca "Precisa voltar" com o médium ou a entidade. Nas próximas giras, a senha da pessoa aparece com o selo Retorno até alguém marcar como resolvido.' },
   { chave: 'beta_receber_senha_de_novo', date: '2026-11-02', title: 'Receber a senha de novo', text: 'O consulente pede o bilhete de novo no link da gira, e ele chega só no e-mail.' },
   { chave: 'beta_bilhete_offline', date: '2026-11-02', title: 'Bilhete sem internet', text: 'O bilhete fica guardado no celular e abre no portão sem sinal.' },
   { chave: 'beta_senha_para_outra_pessoa', date: '2026-11-02', title: 'Senha para outra pessoa', text: 'Quem preenche pega a senha de quem vai, e a senha chega no e-mail de quem preencheu.' },
