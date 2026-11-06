@@ -861,7 +861,7 @@ function PortaContent() {
   const proximo = selectedGiraId ? (
           // ChamadaDaPorta (J4 v2): café com ouro, o próximo em Fraunces e quem vem. Sem conexão,
           // "Chamar próximo" fica desligado até a internet voltar (decisão do Leonardo, 02/11/2026).
-          <section aria-label="Próximo da fila" className="flex flex-col gap-3 rounded-2xl bg-[color:var(--color-cafe-950)] px-[18px] pt-4 pb-[18px] text-[color:var(--color-areia-50)]">
+          <section aria-label="Próximo da fila" className="flex flex-col gap-3 rounded-2xl bg-[color:var(--color-cafe-950)] px-[18px] pt-4 pb-[18px] text-[color:var(--color-areia-50)] [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:pt-3 [@media(max-height:600px)]:pb-3">
             <div className="flex items-baseline justify-between gap-2 text-[color:var(--color-areia-300)]">
               <span className="text-[0.9375rem] font-medium">Próximo</span>
               {ultimaChamada && (
@@ -872,7 +872,7 @@ function PortaContent() {
             </div>
             {next ? (
               <div className="flex items-center gap-4">
-                <span className="font-display text-[4rem] leading-none tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums">
+                <span className="font-display text-[4rem] leading-none tracking-[-0.03em] text-[color:var(--color-ouro-300)] tabular-nums [@media(max-height:600px)]:text-[2.5rem]">
                   {numeroDaSenha(next)}
                 </span>
                 <span className="min-w-0">
@@ -900,7 +900,7 @@ function PortaContent() {
                 <Button
                   type="button"
                   size="touch"
-                  className="h-16 min-w-0 flex-1 rounded-[10px] bg-[color:var(--color-ouro-300)] text-lg font-bold whitespace-normal text-[color:var(--color-cafe-950)] hover:bg-[color:var(--color-ouro-300)]/90"
+                  className="h-16 [@media(max-height:600px)]:h-12 min-w-0 flex-1 rounded-[10px] bg-[color:var(--color-ouro-300)] text-lg font-bold whitespace-normal text-[color:var(--color-cafe-950)] hover:bg-[color:var(--color-ouro-300)]/90"
                   disabled={!next || actionLoading === next?.id || semConexao}
                   title={semConexao ? 'Sem conexão: volta quando a internet voltar' : undefined}
                   aria-label={next ? `Chamar próximo · ${numeroDaSenha(next)}` : undefined}
@@ -917,7 +917,7 @@ function PortaContent() {
                   variant="outline"
                   // No celular, só o ícone (com rótulo acessível) para o "Chamar próximo" caber.
                   className={cn(
-                    'h-16 rounded-[10px] border-[1.5px] border-[color:var(--color-cafe-800)] bg-transparent text-base font-semibold text-[color:var(--color-areia-50)] hover:bg-white/10 hover:text-[color:var(--color-areia-50)]',
+                    'h-16 [@media(max-height:600px)]:h-12 rounded-[10px] border-[1.5px] border-[color:var(--color-cafe-800)] bg-transparent text-base font-semibold text-[color:var(--color-areia-50)] hover:bg-white/10 hover:text-[color:var(--color-areia-50)]',
                     canEdit ? 'max-sm:w-16 max-sm:px-0' : 'flex-1',
                   )}
                   aria-label="Sem senha"

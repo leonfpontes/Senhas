@@ -9,7 +9,9 @@
  *
  * Layout: cabeçalho e botões fixos e só o meio rola, limitado à altura da tela — com uma noite
  * cheia de duplas o "Atendido" nunca sai do alcance (iPad em pé). Com duplas a janela alarga
- * para 3 colunas de cartões a partir do `sm`.
+ * para 3 colunas de cartões a partir do `sm`. Em tela baixa (até 600 px de altura: celular pequeno
+ * ou com o teclado aberto), o título vira uma linha e os botões ficam lado a lado, para sobrar
+ * espaço no meio que rola.
  *
  * Beta "Retorno do consulente na porta" (`retornoHabilitado`): no topo, os retornos que a pessoa
  * tem de giras anteriores (com "Marcar como resolvido"); embaixo, "Precisa voltar" (desmarcada)
@@ -262,11 +264,11 @@ export default function AttendModal({
         )}
         data-testid="attend-modal"
       >
-        <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12 text-left">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12 text-left [@media(max-height:600px)]:pt-3 [@media(max-height:600px)]:pb-1 [@media(max-height:600px)]:gap-0">
           <p aria-hidden className="text-sm font-medium text-muted-foreground">
             {editMode ? 'Editar atendimento' : 'Chamar senha'}
           </p>
-          <DialogTitle className="font-display text-[1.75rem] leading-tight font-normal tracking-[-0.02em]">
+          <DialogTitle className="font-display text-[1.75rem] leading-tight font-normal tracking-[-0.02em] [@media(max-height:600px)]:truncate [@media(max-height:600px)]:text-xl">
             <span className="sr-only">{editMode ? 'Editar atendimento · ' : `Chamar senha ${numero} · `}</span>
             <span className="tabular-nums">{numero}</span> {consulenteNome}
           </DialogTitle>
@@ -421,18 +423,18 @@ export default function AttendModal({
           )}
         </div>
 
-        <DialogFooter className="shrink-0 flex-col gap-1.5 px-6 pt-3 pb-5 sm:flex-row sm:justify-end">
+        <DialogFooter className="shrink-0 flex-col gap-1.5 px-6 pt-3 pb-5 sm:flex-row sm:justify-end [@media(max-height:600px)]:flex-row [@media(max-height:600px)]:pt-2 [@media(max-height:600px)]:pb-3">
           <Button
             type="button"
             size="touch"
-            className="h-14 w-full text-[1.0625rem] font-semibold sm:order-2 sm:w-auto"
+            className="h-14 w-full text-[1.0625rem] font-semibold sm:order-2 sm:w-auto [@media(max-height:600px)]:order-2 [@media(max-height:600px)]:h-12 [@media(max-height:600px)]:w-auto [@media(max-height:600px)]:flex-1"
             onClick={handleConfirm}
             disabled={!mediumNome.trim() || retornoVazio || loading}
           >
             {loading ? 'Salvando…' : editMode ? 'Salvar' : 'Atendido'}
             {!loading && !editMode && <Check aria-hidden />}
           </Button>
-          <Button type="button" variant="ghost" size="touch" className="w-full text-base font-semibold sm:order-1 sm:w-auto" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="ghost" size="touch" className="w-full text-base font-semibold sm:order-1 sm:w-auto [@media(max-height:600px)]:order-1 [@media(max-height:600px)]:w-auto" onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
         </DialogFooter>
