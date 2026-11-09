@@ -193,6 +193,21 @@ O push (Web Push com VAPID, sem serviço pago) fica **desligado** enquanto as tr
 **Estado:** ligado em produção em 2026-10-09 (par gerado direto na VPS e gravado no `.env`, `chmod 600`; backup
 `.env.bak-vapid-*`).
 
+### Rota só de leitura do bot Crescimento (`GIRAHUB_READ_TOKEN`)
+
+`GET /api/v1/bots/crescimento/resumo` (`backend/src/api/v1/bots/crescimento.py`) entrega o funil de terreiros
+(plano, status, teste, último acesso, giras do mês) e o MRR estimado pelos preços vigentes, sem dado pessoal. Fica
+**desligada (401)** enquanto `GIRAHUB_READ_TOKEN` estiver vazio ou com menos de 32 caracteres; login de usuário,
+inclusive SUPER_ADMIN, não abre a rota.
+
+1. Gerar o token uma vez: `openssl rand -hex 32`.
+2. Gravar `GIRAHUB_READ_TOKEN=<token>` no `/opt/senhas/.env` da VPS (`chmod 600`) e recriar só o backend:
+   `docker compose -f docker-compose.prod.yml up -d --no-deps backend`.
+3. Pôr o mesmo valor no ambiente na nuvem das rotinas (claude.ai/code) que leem a rota, e conferir:
+   `curl -s -H "Authorization: Bearer $GIRAHUB_READ_TOKEN" https://girahub.com.br/api/v1/bots/crescimento/resumo`.
+
+Trocar o token = gravar o novo nos dois lugares; o antigo para de valer no restart do backend.
+
 Cuidados: a chave privada é segredo (só no `.env` da VPS, `chmod 600`). **Não troque o par depois de ligado** —
 as inscrições ficam presas à chave pública e param de receber (o médium precisa ligar de novo). Para desligar o
 push, esvazie as três variáveis e recrie o backend.

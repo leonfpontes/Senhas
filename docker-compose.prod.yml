@@ -126,6 +126,8 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Bot Crescimento (GET /api/v1/bots/crescimento/resumo). Vazio = rota desligada (401).
+      GIRAHUB_READ_TOKEN: ${GIRAHUB_READ_TOKEN:-}
 
       # Stripe
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}

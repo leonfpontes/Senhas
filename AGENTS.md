@@ -73,6 +73,12 @@ Heuristica AST com limites documentados no docstring do script. Acesso cross-ten
 entrada na lista de excecoes certa com justificativa de uma linha, apos ler o codigo e os
 chamadores; para reload de objeto recem-criado ou filho de pai ja validado, preferir um filtro de
 tenant redundante (barato) a uma excecao.
+Rotas `src/api/v1/platform/`, `auth/` e `bots/` nao sao auditadas: sao cross-tenant por design.
+`bots/` (hoje so `GET /api/v1/bots/crescimento/resumo`) e so leitura, protegida por
+`GIRAHUB_READ_TOKEN` (Bearer, `hmac.compare_digest`; vazio/curto = 401) e pulada pelo
+`jwt_middleware` — nenhum login abre a rota. Nunca devolve dado pessoal (nome/e-mail/telefone/CPF de
+usuario, medium ou consulente), conteudo de gira nem financeiro do terreiro; rota nova ali segue a
+mesma regra (so `GET`, so agregado/funil).
 
 ### 3.2 Auth e autorizacao
 
