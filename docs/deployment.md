@@ -206,6 +206,12 @@ inclusive SUPER_ADMIN, não abre a rota.
 3. Pôr o mesmo valor no ambiente na nuvem das rotinas (claude.ai/code) que leem a rota, e conferir:
    `curl -s -H "Authorization: Bearer $GIRAHUB_READ_TOKEN" https://girahub.com.br/api/v1/bots/crescimento/resumo`.
 
+Atalho sem SSH manual para o passo 2: cadastrar o token no secret `GIRAHUB_READ_TOKEN` do ambiente **Hostinger**
+(Settings → Environments → Hostinger) e rodar **Actions → "Gravar GIRAHUB_READ_TOKEN na VPS" → Run workflow**
+(`.github/workflows/gravar-girahub-token.yml`) com o início do SHA-256 do token. Ele recusa secret com menos de 32
+caracteres, com aspas/espaço ou com impressão diferente; faz backup do `.env` (`.env.bak-girahub-*`, `chmod 600`),
+grava a linha (substitui a antiga), recria só o backend e confere a impressão dentro do container, sem imprimir o valor.
+
 Trocar o token = gravar o novo nos dois lugares; o antigo para de valer no restart do backend.
 
 Rota dando 401 com o token certo? Rode **Actions → "Diagnóstico → GIRAHUB_READ_TOKEN na VPS" → Run workflow**
