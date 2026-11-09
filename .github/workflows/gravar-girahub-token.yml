@@ -1,0 +1,94 @@
+name: Gravar GIRAHUB_READ_TOKEN na VPS
+
+# Manual (Actions → este workflow → Run workflow). Copia o secret GIRAHUB_READ_TOKEN
+# (ambiente Hostinger) para o /opt/senhas/.env, recria só o backend e confere a
+# impressão digital (início do SHA-256) dentro do container. O valor nunca é
+# impresso: o GitHub mascara o secret e o script só mostra tamanho e impressão.
+# Backup do .env antes de mexer (.env.bak-girahub-<data>, chmod 600).
+on:
+  workflow_dispatch:
+    inputs:
+      esperado:
+        description: "Início do SHA-256 esperado do token (12 caracteres)"
+        required: true
+        default: "cb68bc35d4e9"
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  gravar:
+    name: Gravar token e recriar backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Hostinger
+    steps:
+      - name: Conferir o secret antes de entrar na VPS
+        env:
+          NOVO_TOKEN: ${{ secrets.GIRAHUB_READ_TOKEN }}
+          ESPERADO: ${{ inputs.esperado }}
+        run: |
+          set -eu
+          tamanho=$(printf %s "$NOVO_TOKEN" | wc -c)
+          impressao=$(printf %s "$NOVO_TOKEN" | sha256sum | cut -c1-12)
+          echo "secret: tamanho $tamanho, sha256 (início) $impressao (esperado $ESPERADO)"
+          if [ "$tamanho" -lt 32 ]; then
+            echo "::error::Secret GIRAHUB_READ_TOKEN vazio ou com menos de 32 caracteres (a rota exige 32+)."; exit 1
+          fi
+          if printf %s "$NOVO_TOKEN" | grep -q '[^A-Za-z0-9_-]'; then
+            echo "::error::O secret tem caractere fora de [A-Za-z0-9_-] (aspas, espaço ou quebra de linha?)."; exit 1
+          fi
+          if [ "$impressao" != "$ESPERADO" ]; then
+            echo "::error::A impressão do secret não bate com a esperada: é outro token."; exit 1
+          fi
+
+      - name: Gravar no .env e recriar o backend (SSH)
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          NOVO_TOKEN: ${{ secrets.GIRAHUB_READ_TOKEN }}
+          ESPERADO: ${{ inputs.esperado }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: NOVO_TOKEN,ESPERADO
+          script: |
+            set -eu
+            cd /opt/senhas
+            impressao() { printf %s "$1" | sha256sum | cut -c1-12; }
+
+            echo "==> [1/4] Backup do .env"
+            [ -s .env ] || { echo "  ⚠ /opt/senhas/.env não existe ou está vazio: nada foi alterado"; exit 1; }
+            bak=".env.bak-girahub-$(date +%Y%m%d%H%M%S)"
+            cp -p .env "$bak"
+            chmod 600 "$bak"
+            echo "  $bak"
+
+            echo "==> [2/4] Gravar GIRAHUB_READ_TOKEN (substitui linha antiga, se houver)"
+            antes=$(grep -c '^GIRAHUB_READ_TOKEN=' .env || true)
+            umask 077
+            { grep -v '^GIRAHUB_READ_TOKEN=' .env || true; printf 'GIRAHUB_READ_TOKEN=%s\n' "$NOVO_TOKEN"; } > .env.girahub.tmp
+            cat .env.girahub.tmp > .env   # mantém dono e inode do .env
+            rm -f .env.girahub.tmp
+            chmod 600 .env
+            echo "  linhas antes: $antes; depois: $(grep -c '^GIRAHUB_READ_TOKEN=' .env)"
+            echo "  .env: tamanho $(grep '^GIRAHUB_READ_TOKEN=' .env | cut -d= -f2- | tr -d '\n' | wc -c), sha256 (início) $(impressao "$(grep '^GIRAHUB_READ_TOKEN=' .env | cut -d= -f2-)")"
+
+            echo "==> [3/4] Recriar só o backend"
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend
+            for i in $(seq 1 30); do
+              estado=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' senhas-backend)
+              [ "$estado" = "healthy" ] && break
+              sleep 3
+            done
+            echo "  backend: $estado"
+            [ "$estado" = "healthy" ] || { docker compose -f docker-compose.prod.yml logs --tail=40 backend; exit 1; }
+
+            echo "==> [4/4] Conferir dentro do container"
+            v=$(docker compose -f docker-compose.prod.yml exec -T backend printenv GIRAHUB_READ_TOKEN || true)
+            echo "  container: tamanho $(printf %s "$v" | wc -c), sha256 (início) $(impressao "$v") (esperado $ESPERADO)"
+            [ "$(impressao "$v")" = "$ESPERADO" ] || { echo "  ⚠ o container não recebeu o token esperado"; exit 1; }
+            echo "  ✅ token no ar"
