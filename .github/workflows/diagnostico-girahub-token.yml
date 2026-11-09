@@ -1,0 +1,70 @@
+name: Diagnóstico → GIRAHUB_READ_TOKEN na VPS
+
+# Só leitura e só manual (Actions → este workflow → Run workflow). Compara o
+# GIRAHUB_READ_TOKEN do /opt/senhas/.env e o que chegou ao container do backend
+# com a impressão digital esperada (12 primeiros caracteres do SHA-256 do token
+# do ambiente na nuvem das rotinas). NUNCA imprime o valor: só tamanho, início do
+# SHA-256 e se há aspas, espaço ou \r. Não muda .env, container nem banco.
+on:
+  workflow_dispatch:
+    inputs:
+      esperado:
+        description: "Início do SHA-256 esperado (12 caracteres)"
+        required: true
+        default: "cb68bc35d4e9"
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  diagnostico:
+    name: Conferir GIRAHUB_READ_TOKEN
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: Hostinger
+    steps:
+      - name: Diagnóstico via SSH (só leitura)
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ESPERADO: ${{ inputs.esperado }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: ESPERADO
+          script: |
+            set -eu
+            cd /opt/senhas
+            impressao() { printf %s "$1" | sha256sum | cut -c1-12; }
+            # Sem o valor: tamanho, impressão e problemas de formato.
+            relatar() {
+              v="$1"
+              echo "  tamanho: $(printf %s "$v" | wc -c)"
+              echo "  sha256 (início): $(impressao "$v")"
+              case "$v" in \"*|\'*) echo "  ⚠ começa com aspas";; esac
+              case "$v" in *\"|*\') echo "  ⚠ termina com aspas";; esac
+              case "$v" in *"$(printf '\r')"*) echo "  ⚠ contém CR (fim de linha do Windows)";; esac
+              case "$v" in " "*|*" ") echo "  ⚠ espaço no começo ou no fim";; esac
+              limpo=$(printf %s "$v" | tr -d '\r"'"'"' ')
+              if [ "$limpo" != "$v" ]; then
+                echo "  sem aspas/espaços/CR: tamanho $(printf %s "$limpo" | wc -c), sha256 (início) $(impressao "$limpo")"
+              fi
+            }
+            echo "Esperado: sha256 (início) $ESPERADO, tamanho 64"
+
+            echo "==> /opt/senhas/.env"
+            n=$(grep -c '^GIRAHUB_READ_TOKEN=' .env || true)
+            echo "  linhas GIRAHUB_READ_TOKEN=: $n"
+            if [ "$n" -gt 0 ]; then
+              relatar "$(grep '^GIRAHUB_READ_TOKEN=' .env | tail -1 | cut -d= -f2-)"
+            fi
+            grep -n 'GIRAHUB_READ_TOKEN' .env | cut -d= -f1 | sed 's/^/  ocorrência na linha /'
+
+            echo "==> docker-compose.prod.yml repassa a variável?"
+            grep -n 'GIRAHUB_READ_TOKEN' docker-compose.prod.yml || echo "  ⚠ não repassa"
+
+            echo "==> Container do backend"
+            docker inspect -f '  criado em: {{.Created}}' senhas-backend
+            relatar "$(docker compose -f docker-compose.prod.yml exec -T backend printenv GIRAHUB_READ_TOKEN 2>/dev/null || true)"

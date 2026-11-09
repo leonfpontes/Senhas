@@ -208,6 +208,11 @@ inclusive SUPER_ADMIN, não abre a rota.
 
 Trocar o token = gravar o novo nos dois lugares; o antigo para de valer no restart do backend.
 
+Rota dando 401 com o token certo? Rode **Actions → "Diagnóstico → GIRAHUB_READ_TOKEN na VPS" → Run workflow**
+(`.github/workflows/diagnostico-girahub-token.yml`, só leitura e só manual) com o início do SHA-256 do token da nuvem
+(`printf %s "$GIRAHUB_READ_TOKEN" | sha256sum | cut -c1-12`). Ele compara o `.env` e o container do backend sem
+imprimir o valor: tamanho, impressão digital e aviso de aspas, espaço ou CR (fim de linha do Windows).
+
 Cuidados: a chave privada é segredo (só no `.env` da VPS, `chmod 600`). **Não troque o par depois de ligado** —
 as inscrições ficam presas à chave pública e param de receber (o médium precisa ligar de novo). Para desligar o
 push, esvazie as três variáveis e recrie o backend.
