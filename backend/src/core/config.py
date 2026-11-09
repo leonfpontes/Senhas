@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = ""  # "mailto:contato@girahub.com.br"
 
+    # Bot Crescimento — rota só de leitura GET /api/v1/bots/crescimento/resumo (api/v1/bots/).
+    # Vazio (ou com menos de 32 caracteres) = rota desligada, sempre 401. Gerar com
+    # `openssl rand -hex 32`. Nunca commitar o valor.
+    GIRAHUB_READ_TOKEN: str = ""
+
     # Sentry
     SENTRY_DSN: str = ""
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1   # 10% das transações em prod

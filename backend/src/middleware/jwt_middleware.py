@@ -49,6 +49,11 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     # leaving cookies and the session row uncleaned.
     if request.url.path in public_paths or request.url.path.startswith("/api/v1/public"):
         return await call_next(request)
+
+    # Bots internos (api/v1/bots/): o Bearer é o GIRAHUB_READ_TOKEN, não um JWT — conferido na
+    # própria rota. Sem este desvio o middleware tentaria decodificá-lo e devolveria 401.
+    if request.url.path.startswith("/api/v1/bots/"):
+        return await call_next(request)
     
     # Extract token — Authorization header (impersonation) first, then HttpOnly cookie
     auth_header = request.headers.get("Authorization")

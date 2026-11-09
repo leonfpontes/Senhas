@@ -106,8 +106,9 @@ Limites conhecidos (o auditor é rede de segurança, não prova)
   o id e um valor de tenant é aceita como validação, sem conferir o que ela faz (o que ela faz
   é coberto pelas checagens 1/2 se estiver em admin/repositories/services); callee de escrita
   não resolvido só é sink por keyword/``**``, não por posição.
-- SQL textual (``text("...")``) não é analisado. Rotas ``platform/`` e ``auth/`` não são
-  auditadas (são cross-tenant por design ou operam sobre o próprio usuário).
+- SQL textual (``text("...")``) não é analisado. Rotas ``platform/``, ``bots/`` e ``auth/`` não
+  são auditadas (são cross-tenant por design — ``bots/`` é só leitura com token próprio — ou operam
+  sobre o próprio usuário).
 """
 
 import ast
