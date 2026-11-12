@@ -106,6 +106,76 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
   const itemDaPessoa =
     'flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left text-[0.9375rem] text-sidebar-foreground hover:bg-sidebar-accent outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:size-[18px] [&_svg]:shrink-0';
 
+  const rodape = (
+    <>
+      {/* J1 v2 · 11: quem está no painel, com o "sair" ao lado; o plano mora no topo, sob a casa. */}
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 shrink-0">
+          <AvatarFallback className="bg-[color:var(--color-barro-600)] text-[0.75rem] font-bold text-white">
+            {iniciaisDe(profile?.full_name || profile?.username || '')}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+          <p className="truncate text-sm font-semibold text-sidebar-foreground">{profile?.full_name || profile?.username}</p>
+          <p className="truncate text-[0.75rem] text-sidebar-foreground/70">{PAPEL[profile?.role ?? ''] ?? 'Equipe'}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
+          aria-label="Sair"
+          onClick={() => void adminLogout(router.push, profile?.id)}
+        >
+          <LogOut aria-hidden />
+        </Button>
+      </div>
+      {/* J12 v2 · 08: no celular, o menu da pessoa (o mesmo do avatar) fecha a lista. */}
+      {isMobile && (
+        <nav aria-label="Você" className="flex flex-col">
+          <p className="-mt-1 mb-1 truncate pl-[2.625rem] text-[0.75rem] text-sidebar-foreground/70">{profile?.email}</p>
+          <button type="button" className={itemDaPessoa} onClick={() => irPara('/admin/profile')}>
+            <User aria-hidden /> Perfil
+          </button>
+          <button type="button" className={itemDaPessoa} onClick={() => pedir('primeiros-passos')}>
+            <BookOpen aria-hidden /> Mostrar primeiros passos
+          </button>
+          {profile?.tenant_id && (
+            <button type="button" className={itemDaPessoa} onClick={() => pedir('suporte')}>
+              <MessageCircle aria-hidden /> Falar com o suporte
+            </button>
+          )}
+          <button type="button" className={itemDaPessoa} onClick={() => pedir('novidades')}>
+            <Newspaper aria-hidden /> Novidades da versão
+          </button>
+          {profile?.areas?.medium && (
+            <button type="button" className={itemDaPessoa} onClick={() => irPara(switchArea('medium'))}>
+              <ArrowLeftRight aria-hidden /> Trocar de área
+            </button>
+          )}
+          {outrasContas.length > 0 && (
+            <button type="button" className={itemDaPessoa} onClick={() => pedir('trocar-terreiro')}>
+              <Building2 aria-hidden /> Trocar de terreiro
+            </button>
+          )}
+          <button type="button" className={itemDaPessoa} onClick={toggleMode}>
+            {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />} {isDark ? 'Modo claro' : 'Modo escuro'}
+          </button>
+          <button
+            type="button"
+            className={itemDaPessoa}
+            onClick={() => void adminLogout(router.push, profile?.id)}
+          >
+            <LogOut aria-hidden className="text-[color:var(--color-barro-500)]" /> Sair
+          </button>
+        </nav>
+      )}
+      <p className="text-[0.65rem] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden" data-testid="sidebar-version">
+        {APP_VERSION_LABEL}
+      </p>
+    </>
+  );
+
   return (
     <Sidebar collapsible="icon" aria-label="Navegação principal" data-testid="admin-sidebar">
       <SidebarHeader className="p-0">
@@ -148,75 +218,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
             {totalDeModulos === 1 ? 'Ver o módulo' : `Ver os ${totalDeModulos} módulos`} <ArrowRight className="size-3.5" aria-hidden />
           </Link>
         </div>
-      </SidebarContent>
-      <SidebarSeparator />
-      <SidebarFooter className="gap-1 px-3 py-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">
-        {/* J1 v2 · 11: quem está no painel, com o "sair" ao lado; o plano mora no topo, sob a casa. */}
-        <div className="flex items-center gap-2.5">
-          <Avatar className="size-8 shrink-0">
-            <AvatarFallback className="bg-[color:var(--color-barro-600)] text-[0.75rem] font-bold text-white">
-              {iniciaisDe(profile?.full_name || profile?.username || '')}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <p className="truncate text-sm font-semibold text-sidebar-foreground">{profile?.full_name || profile?.username}</p>
-            <p className="truncate text-[0.75rem] text-sidebar-foreground/70">{PAPEL[profile?.role ?? ''] ?? 'Equipe'}</p>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
-            aria-label="Sair"
-            onClick={() => void adminLogout(router.push, profile?.id)}
-          >
-            <LogOut aria-hidden />
-          </Button>
-        </div>
-        {/* J12 v2 · 08: no celular, o menu da pessoa (o mesmo do avatar) fecha a lista. */}
+        {/* No celular a pessoa e as ações dela rolam junto com a lista: presas embaixo, ocupavam
+            quase a tela toda e a navegação ficava espremida em ~4 itens. */}
         {isMobile && (
-          <nav aria-label="Você" className="flex flex-col">
-            <p className="-mt-1 mb-1 truncate pl-[2.625rem] text-[0.75rem] text-sidebar-foreground/70">{profile?.email}</p>
-            <button type="button" className={itemDaPessoa} onClick={() => irPara('/admin/profile')}>
-              <User aria-hidden /> Perfil
-            </button>
-            <button type="button" className={itemDaPessoa} onClick={() => pedir('primeiros-passos')}>
-              <BookOpen aria-hidden /> Mostrar primeiros passos
-            </button>
-            {profile?.tenant_id && (
-              <button type="button" className={itemDaPessoa} onClick={() => pedir('suporte')}>
-                <MessageCircle aria-hidden /> Falar com o suporte
-              </button>
-            )}
-            <button type="button" className={itemDaPessoa} onClick={() => pedir('novidades')}>
-              <Newspaper aria-hidden /> Novidades da versão
-            </button>
-            {profile?.areas?.medium && (
-              <button type="button" className={itemDaPessoa} onClick={() => irPara(switchArea('medium'))}>
-                <ArrowLeftRight aria-hidden /> Trocar de área
-              </button>
-            )}
-            {outrasContas.length > 0 && (
-              <button type="button" className={itemDaPessoa} onClick={() => pedir('trocar-terreiro')}>
-                <Building2 aria-hidden /> Trocar de terreiro
-              </button>
-            )}
-            <button type="button" className={itemDaPessoa} onClick={toggleMode}>
-              {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />} {isDark ? 'Modo claro' : 'Modo escuro'}
-            </button>
-            <button
-              type="button"
-              className={itemDaPessoa}
-              onClick={() => void adminLogout(router.push, profile?.id)}
-            >
-              <LogOut aria-hidden className="text-[color:var(--color-barro-500)]" /> Sair
-            </button>
-          </nav>
+          <>
+            <SidebarSeparator className="mt-auto" />
+            <SidebarFooter className="shrink-0 gap-1 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</SidebarFooter>
+          </>
         )}
-        <p className="text-[0.65rem] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden" data-testid="sidebar-version">
-          {APP_VERSION_LABEL}
-        </p>
-      </SidebarFooter>
+      </SidebarContent>
+      {/* No computador o rodapé fica preso embaixo; no celular ele entra no fim da lista (acima). */}
+      {!isMobile && (
+        <>
+          <SidebarSeparator />
+          <SidebarFooter className="gap-1 px-3 py-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">{rodape}</SidebarFooter>
+        </>
+      )}
       <SidebarRail />
     </Sidebar>
   );

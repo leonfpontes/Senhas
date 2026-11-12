@@ -88,4 +88,14 @@ describe('AdminSidebar no celular', () => {
     expect(ouvinte).toHaveBeenCalledWith(expect.objectContaining({ detail: 'novidades' }));
     window.removeEventListener(MENU_DA_PESSOA_EVENT, ouvinte);
   });
+
+  it('o menu da pessoa rola junto com a lista, sem espremer a navegação', () => {
+    abrirMenu();
+    const voce = screen.getByRole('navigation', { name: 'Você' });
+    const conteudo = voce.closest('[data-sidebar="content"]');
+    expect(conteudo).not.toBeNull();
+    // A área que rola tem a navegação e o menu da pessoa juntos; nada fica preso embaixo.
+    expect(within(conteudo as HTMLElement).getByRole('link', { name: /Ver o(s \d+)? módulos?/ })).toBeInTheDocument();
+    expect(document.querySelector('[data-sidebar="footer"]')?.closest('[data-sidebar="content"]')).toBe(conteudo);
+  });
 });
