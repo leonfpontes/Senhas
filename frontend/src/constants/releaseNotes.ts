@@ -404,7 +404,7 @@ export interface BetaReleaseNote {
 }
 
 export const BETA_RELEASE_NOTES: BetaReleaseNote[] = [
-  { chave: 'beta_novo_construtor_site', date: '2026-11-17', title: 'Novo construtor do site', text: 'O site da casa nasce de 5 perguntas e já sai montado, com 3 estilos para escolher. Depois é só clicar no site para mudar um texto, uma foto ou a ordem das seções, com desfazer. Tem seções novas (fotos, linhas de trabalho, rotina da casa, perguntas frequentes, redes sociais e como ajudar) e uma conferência antes de publicar.' },
+  { chave: 'beta_novo_construtor_site', date: '2026-11-17', title: 'Novo construtor do site', text: 'O Meu Site virou um estúdio em tela cheia. Comece respondendo algumas perguntas, escolhendo um modelo pronto ou do zero. Depois é só clicar no site para mudar um texto, arrastar as seções para mudar a ordem, trocar cores e fontes do site inteiro e ver como fica no computador, no tablet e no celular, com desfazer. Uma lista de próximos passos mostra o que falta, e há seções novas (fotos, linhas de trabalho, rotina da casa, perguntas frequentes, redes sociais e como ajudar) e uma conferência antes de publicar.' },
   { chave: 'beta_retorno_consulente', date: '2026-11-06', title: 'Retorno do consulente na porta', text: 'Quem chama a senha marca "Precisa voltar" com o médium ou a entidade. Nas próximas giras, a senha da pessoa aparece com o selo Retorno até alguém marcar como resolvido.' },
   { chave: 'beta_receber_senha_de_novo', date: '2026-11-02', title: 'Receber a senha de novo', text: 'O consulente pede o bilhete de novo no link da gira, e ele chega só no e-mail.' },
   { chave: 'beta_bilhete_offline', date: '2026-11-02', title: 'Bilhete sem internet', text: 'O bilhete fica guardado no celular e abre no portão sem sinal.' },

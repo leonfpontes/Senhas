@@ -16,7 +16,6 @@ import type { PublicSiteData } from '../types';
 import { siteBrandColor } from '../lib';
 import { PublicSite } from '../PublicSite';
 import { MobileCtaBar } from '../MobileCtaBar';
-import type { SiteEditing } from '../EditableFrame';
 
 export type PreviewViewport = 'mobile' | 'desktop';
 
@@ -27,10 +26,6 @@ export interface SitePreviewProps {
   viewport: PreviewViewport;
   onViewportChange: (v: PreviewViewport) => void;
   className?: string;
-  /** Edição direto na prévia (beta "Novo construtor do site"). */
-  editing?: SiteEditing;
-  /** Botões extras na barra da prévia (desfazer, estilo…). */
-  toolbar?: React.ReactNode;
 }
 
 function useElementSize<T extends HTMLElement>() {
@@ -49,7 +44,7 @@ function useElementSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-export function SitePreview({ site, viewport, onViewportChange, className, editing, toolbar }: SitePreviewProps) {
+export function SitePreview({ site, viewport, onViewportChange, className }: SitePreviewProps) {
   const [hostRef, host] = useElementSize<HTMLDivElement>();
   const [contentRef, content] = useElementSize<HTMLDivElement>();
   const frameWidth = FRAME_WIDTH[viewport];
@@ -63,9 +58,7 @@ export function SitePreview({ site, viewport, onViewportChange, className, editi
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <p className="text-sm font-medium">
           Prévia <span className="text-muted-foreground">· {isMobile ? 'celular' : 'computador'}</span>
-          {editing?.canEdit && <span className="ml-2 hidden text-xs text-muted-foreground xl:inline">Clique no site para editar</span>}
         </p>
-        {toolbar}
         <ToggleGroup type="single" variant="outline" size="sm" value={viewport} onValueChange={(v) => v && onViewportChange(v as PreviewViewport)} aria-label="Tamanho da prévia">
           <ToggleGroupItem value="mobile" aria-label="Celular">
             <Smartphone />
@@ -88,9 +81,9 @@ export function SitePreview({ site, viewport, onViewportChange, className, editi
             <div style={{ height: Math.ceil(content.height * scale), position: 'relative' }}>
               <div
                 ref={contentRef}
-                style={{ width: frameWidth, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, '--ui-scale': String(scale > 0 ? Math.min(2.5, 1 / scale) : 1) } as React.CSSProperties}
+                style={{ width: frameWidth, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}
               >
-                <PublicSite site={site} mode="preview" editing={editing} className={cn('min-h-0', isMobile && 'pb-20')} />
+                <PublicSite site={site} mode="preview" className={cn('min-h-0', isMobile && 'pb-20')} />
               </div>
             </div>
           </div>

@@ -251,6 +251,40 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     [mutate],
   );
 
+  /** Leva a seção para a posição `index` (arrastar na lista de seções). */
+  const moveSectionTo = useCallback(
+    (id: string, index: number) => {
+      mutate((prev) => {
+        const from = prev.findIndex((s) => s.id === id);
+        if (from < 0) return prev;
+        const next = [...prev];
+        const [item] = next.splice(from, 1);
+        next.splice(Math.max(0, Math.min(index, next.length)), 0, item);
+        return next;
+      });
+    },
+    [mutate],
+  );
+
+  /** Copia a seção logo abaixo dela. Seções que só existem uma vez por site não duplicam. */
+  const duplicateSection = useCallback(
+    (id: string): string | null => {
+      const src = sectionsRef.current.find((s) => s.id === id);
+      if (!src || catalogEntry(src.section_type)?.single) return null;
+      const copyId = tempId();
+      mutate((prev) => {
+        const idx = prev.findIndex((s) => s.id === id);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        next.splice(idx + 1, 0, { id: copyId, _tempId: copyId, section_type: src.section_type, order_index: idx + 1, config: JSON.parse(JSON.stringify(src.config)) });
+        return next;
+      });
+      setSelectedId(copyId);
+      return copyId;
+    },
+    [mutate],
+  );
+
   const removeSection = useCallback(
     (id: string) => {
       mutate((prev) => prev.filter((s) => s.id !== id));
@@ -360,14 +394,21 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     return () => clearTimeout(t);
   }, [sections, dirty, saving, uploading, errorCount, conflict, canEdit, site, siteStatus]);
 
-  // Aviso ao sair com alterações pendentes.
+  // Aviso ao sair com alterações pendentes. `releaseLeaveGuard` desliga o aviso quando a própria
+  // tela já perguntou (estúdio) ou acabou de salvar.
+  const leaveGuardOffRef = useRef(false);
+  const releaseLeaveGuard = useCallback(() => {
+    leaveGuardOffRef.current = true;
+  }, []);
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (leaveGuardOffRef.current) return;
       e.preventDefault();
       e.returnValue = '';
     };
     const onRouteChange = () => {
+      if (leaveGuardOffRef.current) return;
       if (typeof window !== 'undefined' && !window.confirm(UNSAVED_MESSAGE)) {
         router.events?.emit?.('routeChangeError');
         throw 'Navegação cancelada: alterações não publicadas.';
@@ -528,6 +569,8 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     canRedo,
     replaceAll,
     moveSection,
+    moveSectionTo,
+    duplicateSection,
     removeSection,
     updateConfig,
     toggleHidden,
@@ -537,6 +580,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     restore,
     saveSettings,
     uploadImage,
+    releaseLeaveGuard,
   };
 }
 

@@ -47,23 +47,22 @@ function ToolButton({ label, onClick, children, danger }: { label: string; onCli
   );
 }
 
-export function InsertButton({ onClick, label = 'Adicionar seção aqui' }: { onClick: () => void; label?: string }) {
+export function InsertButton({ onClick, label = 'Adicionar seção aqui', className }: { onClick: () => void; label?: string; className?: string }) {
   return (
-    <div className="relative z-20 h-0">
-      <div className="pointer-events-none absolute inset-x-0 -top-4 flex h-8 items-center justify-center">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick();
-          }}
-          className="pointer-events-auto relative inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-white opacity-75 shadow-md transition-opacity hover:opacity-100 focus-visible:opacity-100"
-          style={{ background: BRAND, transform: 'scale(var(--ui-scale, 1))' }}
-        >
-          <Plus className="size-4" aria-hidden /> {label}
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium whitespace-nowrap text-white shadow-md focus-visible:outline-2 focus-visible:outline-white',
+        className,
+      )}
+      style={{ background: BRAND, transform: 'scale(var(--ui-scale, 1))' }}
+    >
+      <Plus className="size-4" aria-hidden /> {label}
+    </button>
   );
 }
 
@@ -95,6 +94,21 @@ export function EditableFrame({
       }}
     >
       {children}
+      {editing.canEdit && (
+        <>
+          {/* "+" nas bordas da seção: aparece ao passar o mouse ou com a seção escolhida (como no Squarespace). */}
+          <div className={cn('pointer-events-none absolute inset-x-0 z-30 flex justify-center', index === 0 ? 'top-2' : 'top-0 -translate-y-1/2')}>
+            <span className={cn('pointer-events-auto', selected ? 'visible' : 'invisible group-hover/frame:visible')}>
+              <InsertButton onClick={() => editing.onInsert(index)} label={index === 0 ? 'Adicionar seção no topo' : 'Adicionar seção aqui'} />
+            </span>
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex translate-y-1/2 justify-center">
+            <span className={cn('pointer-events-auto', selected || index === total - 1 ? 'visible' : 'invisible group-hover/frame:visible')}>
+              <InsertButton onClick={() => editing.onInsert(index + 1)} />
+            </span>
+          </div>
+        </>
+      )}
       <div
         aria-hidden
         className={cn(

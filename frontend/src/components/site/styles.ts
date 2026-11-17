@@ -114,3 +114,48 @@ export function applySiteStyle(sections: SiteSection[], style: SiteStyle): SiteS
     return { ...s, config: { ...rest, bg_color: bg, bg_opacity: 100, font_family: style.bodyFont, title_font_family: style.titleFont } };
   });
 }
+
+// ── Ajuste fino (painel Estilo do estúdio) ─────────────────────────────────────
+
+/** Fontes de título e de texto atuais do site (lidas da capa e da primeira seção comum). */
+export function siteFonts(sections: SiteSection[]): { title: string; body: string } {
+  const hero = sections.find((s) => s.section_type === 'HERO');
+  const other = sections.find((s) => s.section_type !== 'HERO');
+  const title = String(hero?.config.font_family || other?.config.title_font_family || 'system-ui, sans-serif');
+  const body = String(other?.config.font_family || 'system-ui, sans-serif');
+  return { title, body };
+}
+
+/** Troca as fontes do site todo. Deixa de valer o "estilo pronto" (vira personalizado). */
+export function setSiteFonts(sections: SiteSection[], fonts: { title?: string; body?: string }): SiteSection[] {
+  return sections.map((s) => {
+    const { site_style: _st, ...config } = s.config;
+    if (s.section_type === 'HERO') return { ...s, config: fonts.title ? { ...config, font_family: fonts.title } : config };
+    return {
+      ...s,
+      config: {
+        ...config,
+        ...(fonts.title ? { title_font_family: fonts.title } : {}),
+        ...(fonts.body ? { font_family: fonts.body } : {}),
+      },
+    };
+  });
+}
+
+/**
+ * Troca a cor principal do site: fundo da capa (início do gradiente ou cor sólida), botões e
+ * destaque do calendário. Capa com foto guarda a cor só para os botões. A cor do texto da capa é
+ * recalculada para manter o contraste.
+ */
+export function setSiteColor(sections: SiteSection[], color: string): SiteSection[] {
+  return sections.map((s) => {
+    const { site_style: _st, ...config } = s.config;
+    if (s.section_type === 'HERO') {
+      const solid = String(config.bg_type || 'gradient') === 'solid';
+      const next = solid ? { ...config, bg_color: color, gradient_from: color } : { ...config, gradient_from: color };
+      return { ...s, config: { ...next, font_color: heroForeground({ ...next, font_color: undefined }) } };
+    }
+    if (s.section_type === 'GIRAS_CALENDAR') return { ...s, config: { ...config, calendar_highlight_color: color } };
+    return s;
+  });
+}

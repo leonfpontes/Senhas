@@ -23,16 +23,24 @@ jest.mock('@/components/admin/ShareLinkDialog', () => ({
   ShareLinkDialog: ({ open, title }: { open: boolean; title?: string }) => (open ? <div role="dialog">{title}</div> : null),
 }));
 
-import { SiteEditor } from '@/components/site/editor/SiteEditor';
+import { SiteStudio } from '@/components/site/editor/studio/SiteStudio';
+import { STUDIO_TEMPLATES, blankSite, buildTemplate } from '@/components/site/editor/studio/templates';
+import { buildNextSteps } from '@/components/site/editor/studio/panels';
 import { buildChecklist } from '@/components/site/editor/PublishCheck';
 import { buildGuidedSections, sobreDasRespostas } from '@/components/site/editor/GuidedSetup';
 import { faqJsonLd } from '@/components/site/sections/Faq';
 import { socialLinks } from '@/components/site/sections/Social';
-import { SITE_STYLES, applySiteStyle } from '@/components/site/styles';
+import { SITE_STYLES, applySiteStyle, setSiteColor, setSiteFonts, siteFonts } from '@/components/site/styles';
 import { sectionCatalog } from '@/components/site/lib';
 import type { SiteSection } from '@/components/site/types';
 
 const SITE = { id: 's1', slug: 'casa-de-oxala', status: 'DRAFT', template: 'moderno', meta_title: null, meta_description: null, updated_at: '2026-11-17T10:00:00' };
+
+const SECOES: SiteSection[] = [
+  { id: 'h', section_type: 'HERO', order_index: 0, config: { title: 'Casa de Oxalá' } },
+  { id: 'a', section_type: 'ABOUT', order_index: 1, config: { title: 'Sobre', body: '' } },
+  { id: 'g', section_type: 'GIRAS_CALENDAR', order_index: 2, config: { title: 'Próximas giras' } },
+];
 
 function mockApi(sections: unknown[]) {
   const { apiClient } = require('@/services/api_client');
@@ -122,30 +130,76 @@ describe('funções do novo construtor', () => {
   });
 });
 
-describe('SiteEditor com a beta ligada', () => {
+describe('estúdio do site: funções', () => {
+  it('modelos usam só o que a casa cadastrou e aplicam o estilo', () => {
+    const facts = { nome: 'Casa de Oxalá', logoUrl: null, primary: '#2E6A4E', secondary: '#E9B04A', fontColor: null, endereco: 'Rua A, 10', email: null, girasCount: 0 };
+    for (const t of STUDIO_TEMPLATES) {
+      const drafts = buildTemplate(t, facts);
+      expect(drafts[0].section_type).toBe('HERO');
+      expect(drafts[0].config.title).toBe('Casa de Oxalá');
+      expect(drafts[0].config.site_style).toBe(t.styleId);
+      // Nenhum texto sobre a casa é inventado: "Sobre" vem vazio.
+      drafts.filter((d) => d.section_type === 'ABOUT').forEach((d) => expect(d.config.body).toBe(''));
+    }
+    const loc = buildTemplate(STUDIO_TEMPLATES[0], facts).find((d) => d.section_type === 'LOCATION');
+    expect(loc?.config.address).toBe('Rua A, 10');
+    expect(blankSite(facts)).toHaveLength(1);
+  });
+
+  it('cor principal e fontes valem para o site inteiro e viram "personalizado"', () => {
+    const base = applySiteStyle(SECOES, SITE_STYLES[0]);
+    const colored = setSiteColor(base, '#1f3a5f');
+    const hero = colored.find((s) => s.section_type === 'HERO')!;
+    expect(hero.config.gradient_from).toBe('#1f3a5f');
+    expect(hero.config.site_style).toBeUndefined();
+    const fonts = setSiteFonts(colored, { title: "'Lora', serif", body: "'Nunito', sans-serif" });
+    expect(siteFonts(fonts)).toEqual({ title: "'Lora', serif", body: "'Nunito', sans-serif" });
+  });
+
+  it('próximos passos acompanham o que falta', () => {
+    const steps = buildNextSteps(SITE, SECOES, false);
+    expect(steps.find((s) => s.id === 'capa')?.done).toBe(true);
+    expect(steps.find((s) => s.id === 'sobre')?.done).toBe(false);
+    expect(steps.find((s) => s.id === 'fotos')?.addType).toBe('GALLERY');
+    expect(steps.find((s) => s.id === 'publicar')?.done).toBe(false);
+    const publicado = buildNextSteps({ ...SITE, status: 'PUBLISHED' }, SECOES, false);
+    expect(publicado.find((s) => s.id === 'publicar')?.done).toBe(true);
+  });
+});
+
+describe('estúdio do site (beta ligada)', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('site vazio abre o começo guiado com os dados da casa', async () => {
+  it('site vazio oferece perguntas, modelos e começar do zero', async () => {
     mockApi([]);
-    render(<SiteEditor canEdit canInsert novo />);
+    render(<SiteStudio canEdit canInsert />);
+    expect(await screen.findByTestId('studio-start')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Ver o modelo Essencial' }));
+    await user.click(await screen.findByRole('button', { name: /Usar este modelo/ }));
+    expect(await screen.findByTestId('studio-canvas')).toBeInTheDocument();
+    expect(screen.getByTestId('studio-steps')).toBeInTheDocument();
+  });
+
+  it('as perguntas abrem o começo guiado com os dados da casa, nada marcado', async () => {
+    mockApi([]);
+    render(<SiteStudio canEdit canInsert />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Responder algumas perguntas/ }));
     expect(await screen.findByTestId('guided-setup')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Nome da casa')).toHaveValue('Casa de Oxalá'));
-    const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Continuar/ }));
-    // Nada vem marcado.
     expect(screen.getAllByRole('checkbox').every((c) => c.getAttribute('aria-checked') === 'false')).toBe(true);
   });
 
-  it('clicar na prévia seleciona a seção; editar o título e desfazer', async () => {
+  it('clicar no site abre a seção; editar o título direto nele e desfazer', async () => {
     mockApi([{ id: 'sec-hero', section_type: 'HERO', order_index: 0, config: { title: 'Casa de Oxalá' } }]);
-    render(<SiteEditor canEdit canInsert novo />);
-    const preview = await screen.findByTestId('site-preview');
-    const frame = preview.querySelector('[data-edit-frame="sec-hero"]') as HTMLElement;
-    fireEvent.click(frame);
-    expect(await screen.findByTestId('section-editor')).toBeInTheDocument();
-    expect(within(preview).getByRole('toolbar', { name: /Ações da seção Capa/ })).toBeInTheDocument();
+    render(<SiteStudio canEdit canInsert />);
+    const canvas = await screen.findByTestId('studio-canvas');
+    fireEvent.click(canvas.querySelector('[data-edit-frame="sec-hero"]') as HTMLElement);
+    expect(await screen.findByTestId('studio-inspector')).toBeInTheDocument();
 
-    const title = preview.querySelector('[data-inline-text="title"]') as HTMLElement;
+    const title = canvas.querySelector('[data-inline-text="title"]') as HTMLElement;
     title.innerText = 'Casa Nova';
     fireEvent.input(title);
     await waitFor(() => expect(screen.getByDisplayValue('Casa Nova')).toBeInTheDocument());
@@ -155,9 +209,31 @@ describe('SiteEditor com a beta ligada', () => {
     await waitFor(() => expect(screen.getByDisplayValue('Casa de Oxalá')).toBeInTheDocument());
   });
 
-  it('"Publicar site" abre a conferência antes de publicar', async () => {
+  it('adicionar entra depois da seção escolhida e duplicar copia logo abaixo', async () => {
+    mockApi([
+      { id: 'sec-hero', section_type: 'HERO', order_index: 0, config: { title: 'Casa' } },
+      { id: 'sec-txt', section_type: 'CUSTOM_TEXT', order_index: 1, config: { title: 'Avisos', body: 'x' } },
+    ]);
+    render(<SiteStudio canEdit canInsert />);
+    const user = userEvent.setup();
+    const layers = await screen.findByTestId('studio-layers');
+    await user.click(within(layers).getByRole('button', { name: /^Capa/ }));
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    expect(screen.getByText(/Entra depois de "Capa"/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Adicionar Fotos' }));
+
+    await user.click(screen.getByRole('button', { name: 'Seções' }));
+    const nomes = () => within(screen.getByTestId('studio-layers')).getAllByRole('listitem').map((li) => li.textContent);
+    expect(nomes()[1]).toContain('Fotos');
+
+    await user.click(within(screen.getByTestId('studio-layers')).getByRole('button', { name: /^Texto livre/ }));
+    await user.click(within(screen.getByTestId('studio-inspector')).getByRole('button', { name: 'Duplicar' }));
+    expect(nomes().filter((n) => n?.includes('Texto livre'))).toHaveLength(2);
+  });
+
+  it('"Publicar" abre a conferência antes de publicar', async () => {
     mockApi([{ id: 'sec-hero', section_type: 'HERO', order_index: 0, config: { title: 'Casa de Oxalá' } }]);
-    render(<SiteEditor canEdit canInsert novo />);
+    render(<SiteStudio canEdit canInsert />);
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('publish-button'));
     expect(await screen.findByText('No Google')).toBeInTheDocument();

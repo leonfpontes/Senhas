@@ -16,7 +16,7 @@ import { buttonVariants } from '@/components/ui/button';
 import type { PublicSiteData, RenderMode, SectionContext } from './types';
 import { isSectionHidden, senhaUrl, siteBrandColor, visibleSections } from './lib';
 import { renderSection } from './sections';
-import { EditableFrame, InsertButton, type SiteEditing } from './EditableFrame';
+import { EditableFrame, type SiteEditing } from './EditableFrame';
 import { MobileCtaBar } from './MobileCtaBar';
 import { SiteFooter } from './SiteFooter';
 
@@ -47,7 +47,6 @@ export function PublicSite({ site, mode, className, editing }: PublicSiteProps) 
         <div className="flex-1">
           {sections.length > 0 && editing ? (
             <>
-              {editing.canEdit && <InsertButton onClick={() => editing.onInsert(0)} />}
               {sections.map((section, i) => (
                 <React.Fragment key={section.id}>
                   <EditableFrame
@@ -65,7 +64,6 @@ export function PublicSite({ site, mode, className, editing }: PublicSiteProps) 
                         : undefined,
                     })}
                   </EditableFrame>
-                  {editing.canEdit && <InsertButton onClick={() => editing.onInsert(i + 1)} />}
                 </React.Fragment>
               ))}
             </>
