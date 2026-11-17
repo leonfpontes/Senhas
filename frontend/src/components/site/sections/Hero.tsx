@@ -11,6 +11,7 @@ import type { SectionConfig, SectionContext } from '../types';
 import { heroBackground, heroForeground, marginPreset, senhaUrl } from '../lib';
 import { FontLink, useSectionTypography } from './SectionShell';
 import { InlineText } from './InlineText';
+import { shows } from '../elements';
 
 const LOGO_SIZES: Record<string, { xs: number; md: number }> = {
   xl: { xs: 220, md: 300 },
@@ -51,7 +52,11 @@ export function Hero({ config, ctx }: HeroProps) {
   const title = String(config.title || '');
   const subtitle = String(config.subtitle || '');
   const logoUrl = config.logo_image_url ? String(config.logo_image_url) : '';
-  const showLogo = String(config.logo_mode || 'none') === 'logo' && Boolean(logoUrl);
+  const showLogo = String(config.logo_mode || 'none') === 'logo' && Boolean(logoUrl) && shows(config, 'show_logo');
+  const showTitle = shows(config, 'show_title');
+  const showSubtitle = shows(config, 'show_subtitle');
+  const showCta = shows(config, 'show_cta');
+  const ctaLabel = String(config.cta_label || '').trim() || 'Retirar senha';
   const logoRight = String(config.logo_position || 'left') === 'right';
   const logoSize = LOGO_SIZES[String(config.logo_size || 'md')] ?? LOGO_SIZES.md;
   const isPreview = ctx.mode === 'preview';
@@ -87,6 +92,9 @@ export function Hero({ config, ctx }: HeroProps) {
       )}
       {!logoRight && logo}
       <div className="flex min-w-0 max-w-[720px] flex-col items-center">
+        {/* Nome escondido: continua no título da página para leitor de tela e Google. */}
+        {!showTitle && title && <h1 className="sr-only">{title}</h1>}
+        {showTitle && (
         <h1
           className="leading-[1.15] [text-shadow:0_2px_8px_rgba(0,0,0,0.35)]"
           style={{
@@ -100,7 +108,8 @@ export function Hero({ config, ctx }: HeroProps) {
             title || (isPreview ? 'Nome do terreiro' : '')
           )}
         </h1>
-        {(subtitle || ctx.edit) && (
+        )}
+        {showSubtitle && (subtitle || ctx.edit) && (
           <p
             className="mt-4 max-w-[640px] opacity-90 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]"
             style={{ fontSize: `clamp(16px, ${((subtitleSize / 1280) * 100).toFixed(2)}cqw, ${subtitleSize}px)` }}
@@ -108,6 +117,7 @@ export function Hero({ config, ctx }: HeroProps) {
             {ctx.edit ? <InlineText value={subtitle} field="subtitle" edit={ctx.edit} multiline placeholder="Uma frase de boas-vindas" /> : subtitle}
           </p>
         )}
+        {showCta && (
         <a
           href={senhaUrl(ctx.slug)}
           data-testid="hero-cta"
@@ -121,8 +131,9 @@ export function Hero({ config, ctx }: HeroProps) {
           style={{ '--cta-bg': fg, '--cta-fg': ctaFg, fontFamily } as React.CSSProperties}
         >
           <Ticket aria-hidden />
-          Retirar senha
+          {ctx.edit ? <InlineText value={String(config.cta_label || '')} field="cta_label" edit={ctx.edit} placeholder="Retirar senha" /> : ctaLabel}
         </a>
+        )}
       </div>
       {logoRight && logo}
     </section>

@@ -26,11 +26,27 @@
   6. **Sair sem perder nada:** "Painel" salva o rascunho antes de sair; site no ar com mudanças não publicadas
      pergunta antes de descartar.
   7. **Celular:** o site ocupa a tela, as ferramentas ficam numa barra embaixo e os painéis abrem como gaveta.
+  8. **Gaveta "Adicionar":** blocos prontos já num jeito de mostrar (Fotos em grade, mosaico ou faixa; Contato
+     em cartões, botões ou lista; Redes em botões ou ícones; Linhas em cartões ou lista; Vídeo sozinho ou com
+     texto), com miniatura na cor do site, categorias, busca sem acento e "Falta no seu site". Clicar coloca na
+     posição indicada; arrastar para a prévia mostra uma linha de encaixe entre as seções e solta ali (no
+     computador; no celular é só o clique). X, Esc ou o ícone de novo fecham sem adicionar.
+  9. **O que aparece em cada seção:** no painel da seção, "O que aparece nesta seção" tem um interruptor por
+     elemento (título, texto, foto, botões, mapa, cada canal de contato, cada rede, PIX, botão de copiar…).
+     Cada um é uma chave `show_<elemento>` na config da seção, **padrão ligado** (chave ausente = aparece, só
+     `false` esconde), então os sites existentes não mudam e não há backend novo. O site público e a prévia
+     respeitam a mesma chave (`components/site/elements.ts`, `shows()`). Os campos de um elemento desligado
+     somem do painel. Abaixo, as abas **Conteúdo** (textos, fotos, itens) e **Estilo** (cores, fontes,
+     fundo, espaço, layout; o antigo "Avançado").
+     Casos especiais: o nome da casa escondido na capa continua num `h1` só para leitor de tela e Google; o
+     logo junta o "Com logo" antigo (`logo_mode`) e `show_logo`; o botão da capa tem texto editável
+     (`cta_label`), usado também na barra fixa "Retirar senha" do celular, que se liga e desliga na capa
+     (`show_mobile_cta`) ou em Ajustes › No celular.
 - **Quem enxerga:** só terreiro beta tester que ligou esta beta em Configurações › Laboratório.
 - **Ao desligar:** o Meu Site volta ao editor de antes. Nada é apagado: as seções novas continuam no site
   público e no editor antigo aparecem na lista (o painel de cada uma segue funcionando).
 - **Onde está:** `frontend/src/components/site/editor/studio/` (`SiteStudio`, `StudioStart`, `StudioCanvas`,
-  `Inspector`, `panels`, `templates`), mais `EditableFrame`, `sections/InlineText`, `styles.ts`,
+  `Inspector`, `panels`, `templates`, `blocks`, `BlockThumb`), `components/site/elements.ts`, mais `EditableFrame`, `sections/InlineText`, `styles.ts`,
   `editor/GuidedSetup`, `editor/StylePanel`, `editor/PublishCheck` e as seções novas em `sections/`; a migração
   `107_site_secoes_novo_construtor` (valores novos do tipo `site_section_type`).
 - **Critério para sair do beta:** casas piloto montam e publicam o site sem ajuda, funciona no celular e no

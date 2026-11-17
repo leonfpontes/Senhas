@@ -16,6 +16,7 @@ import type { PublicSiteData } from '../types';
 import { siteBrandColor } from '../lib';
 import { PublicSite } from '../PublicSite';
 import { MobileCtaBar } from '../MobileCtaBar';
+import { mobileCta } from '../elements';
 
 export type PreviewViewport = 'mobile' | 'desktop';
 
@@ -51,6 +52,7 @@ export function SitePreview({ site, viewport, onViewportChange, className }: Sit
   const available = Math.max(0, host.width - 16);
   const scale = available > 0 ? Math.min(1, available / frameWidth) : 1;
   const brandColor = siteBrandColor(site.sections);
+  const cta = mobileCta(site.sections.filter((s) => !s.config.hidden));
   const isMobile = viewport === 'mobile';
 
   return (
@@ -87,9 +89,9 @@ export function SitePreview({ site, viewport, onViewportChange, className }: Sit
               </div>
             </div>
           </div>
-          {isMobile && (
+          {isMobile && cta.show && (
             <div className="absolute bottom-0 left-0" style={{ width: frameWidth, transform: `scale(${scale})`, transformOrigin: 'bottom left' }}>
-              <MobileCtaBar slug={site.slug} brandColor={brandColor} variant="inline" inert />
+              <MobileCtaBar slug={site.slug} brandColor={brandColor} variant="inline" inert label={cta.label} />
             </div>
           )}
         </div>

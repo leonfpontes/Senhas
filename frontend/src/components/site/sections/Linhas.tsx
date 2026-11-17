@@ -8,6 +8,7 @@ import type { SectionConfig, SectionContext } from '../types';
 import { SectionShell } from './SectionShell';
 import { InlineText } from './InlineText';
 import { EmptyHint, TitleAndIntro, listOf, patchItem } from './shared';
+import { shows } from '../elements';
 
 interface Linha extends Record<string, unknown> {
   nome?: string;
@@ -18,6 +19,7 @@ export function Linhas({ config, ctx }: { config: SectionConfig; ctx: SectionCon
   const items = listOf<Linha>(config);
   const cartoes = String(config.layout || 'cartoes') === 'cartoes';
   const brand = ctx.brandColor || '#2E6A4E';
+  const showText = shows(config, 'show_item_text');
 
   return (
     <SectionShell config={config} defaultBg="#ffffff" aria-label="Linhas de trabalho" data-section="linhas">
@@ -41,6 +43,7 @@ export function Linhas({ config, ctx }: { config: SectionConfig; ctx: SectionCon
                 placeholder="Nome da linha"
                 onText={(t) => ctx.edit?.patch(patchItem(config, i, 'nome', t))}
               />
+              {showText && (
               <InlineText
                 as="p"
                 multiline
@@ -51,6 +54,7 @@ export function Linhas({ config, ctx }: { config: SectionConfig; ctx: SectionCon
                 placeholder="Um texto curto, escrito pela casa"
                 onText={(t) => ctx.edit?.patch(patchItem(config, i, 'texto', t))}
               />
+              )}
             </li>
           ))}
         </ul>

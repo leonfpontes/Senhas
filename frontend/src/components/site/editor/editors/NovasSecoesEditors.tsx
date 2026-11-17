@@ -6,6 +6,7 @@
 import React from 'react';
 import { TextField } from '@/components/fields';
 import { BackgroundFields, ChoiceField, FieldGroup, FontColorField, ImageField, MarginField, usePatch, type ChoiceOption, type SectionEditorProps } from '../controls';
+import { shows } from '../../elements';
 import { ListField } from '../ListField';
 
 type Item = Record<string, unknown>;
@@ -29,8 +30,8 @@ function Titulo({ config, onChange, placeholder, intro }: SectionEditorProps & {
   const patch = usePatch(config, onChange);
   return (
     <FieldGroup title="Conteúdo">
-      <TextField label="Título da seção" value={String(config.title || '')} onChange={(e) => patch({ title: e.target.value })} placeholder={placeholder} />
-      {intro && <TextField label="Introdução (opcional)" multiline rows={2} value={String(config.intro || '')} onChange={(e) => patch({ intro: e.target.value })} placeholder={intro} />}
+      {shows(config, 'show_title') && <TextField label="Título da seção" value={String(config.title || '')} onChange={(e) => patch({ title: e.target.value })} placeholder={placeholder} />}
+      {intro && shows(config, 'show_intro') && <TextField label="Introdução (opcional)" multiline rows={2} value={String(config.intro || '')} onChange={(e) => patch({ intro: e.target.value })} placeholder={intro} />}
     </FieldGroup>
   );
 }
@@ -58,7 +59,7 @@ export function GalleryEditor(props: SectionEditorProps) {
               onUploaded={(id, url) => patch({ items: fotos.map((x, j) => (j === i ? { ...x, id, url } : x)) })}
               onRemove={() => patch({ items: fotos.filter((_, j) => j !== i) })}
             />
-            <TextField label="Legenda (opcional)" value={String(f.legenda || '')} onChange={(e) => patch({ items: fotos.map((x, j) => (j === i ? { ...x, legenda: e.target.value } : x)) })} />
+            {shows(config, 'show_captions') && <TextField label="Legenda (opcional)" value={String(f.legenda || '')} onChange={(e) => patch({ items: fotos.map((x, j) => (j === i ? { ...x, legenda: e.target.value } : x)) })} />}
           </div>
         ))}
         {fotos.length < 24 && (
@@ -122,7 +123,7 @@ export function RotinaEditor(props: SectionEditorProps) {
             { key: 'nome', label: 'O que acontece', placeholder: 'Ex.: Gira de atendimento' },
           ]}
         />
-        <TextField label="Observação (opcional)" value={String(config.observacao || '')} onChange={(e) => patch({ observacao: e.target.value })} placeholder="Ex.: a casa fecha em feriados" />
+        {shows(config, 'show_observacao') && <TextField label="Observação (opcional)" value={String(config.observacao || '')} onChange={(e) => patch({ observacao: e.target.value })} placeholder="Ex.: a casa fecha em feriados" />}
       </FieldGroup>
       <Aparencia {...props} />
     </div>
@@ -167,7 +168,7 @@ export function FaqEditor(props: SectionEditorProps) {
 export function SocialEditor(props: SectionEditorProps) {
   const { config, onChange } = props;
   const patch = usePatch(config, onChange);
-  const field = (key: string, label: string, placeholder: string) => (
+  const field = (key: string, label: string, placeholder: string) => shows(config, `show_${key}`) && (
     <TextField label={label} value={String(config[key] || '')} onChange={(e) => patch({ [key]: e.target.value })} placeholder={placeholder} />
   );
   return (
@@ -200,13 +201,17 @@ export function AjudarEditor(props: SectionEditorProps) {
   return (
     <div className="flex flex-col gap-6">
       <Titulo {...props} placeholder="Como ajudar a casa" intro="Conte como a ajuda é usada" />
+      {shows(config, 'show_pix') && (
       <FieldGroup title="PIX">
         <TextField label="Chave PIX (opcional)" value={String(config.pix_chave || '')} onChange={(e) => patch({ pix_chave: e.target.value })} placeholder="CNPJ, e-mail, telefone ou chave aleatória" />
         <TextField label="Em nome de" value={String(config.pix_nome || '')} onChange={(e) => patch({ pix_nome: e.target.value })} placeholder="Nome que aparece no banco" />
       </FieldGroup>
+      )}
+      {shows(config, 'show_necessidades') && (
       <FieldGroup title="O que a casa precisa">
         <TextField label="Um item por linha (opcional)" multiline rows={4} value={String(config.necessidades || '')} onChange={(e) => patch({ necessidades: e.target.value })} placeholder={'Velas brancas\nAlimentos para a cesta básica'} />
       </FieldGroup>
+      )}
       <Aparencia {...props} />
     </div>
   );

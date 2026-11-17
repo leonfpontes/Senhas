@@ -445,7 +445,17 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       case 'passos':
         return <NextStepsPanel steps={steps} canEdit={canEdit} onStep={onStep} />;
       case 'config':
-        return <SettingsPanel key={editor.site?.updated_at} site={editor.site} sections={sections} publicUrl={editor.publicUrl} canEdit={canEdit} onSave={editor.saveSettings} />;
+        return (
+          <SettingsPanel
+            key={editor.site?.updated_at}
+            site={editor.site}
+            sections={sections}
+            publicUrl={editor.publicUrl}
+            canEdit={canEdit}
+            onSave={editor.saveSettings}
+            onPatchSection={editor.patchConfig}
+          />
+        );
       case 'historico':
         return (
           <div className="flex min-h-0 flex-1 flex-col">

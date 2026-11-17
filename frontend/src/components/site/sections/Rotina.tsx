@@ -8,6 +8,7 @@ import type { SectionConfig, SectionContext } from '../types';
 import { SectionShell } from './SectionShell';
 import { InlineText } from './InlineText';
 import { EmptyHint, TitleAndIntro, listOf, patchItem } from './shared';
+import { shows } from '../elements';
 
 interface Item extends Record<string, unknown> {
   dia?: string;
@@ -18,6 +19,7 @@ interface Item extends Record<string, unknown> {
 export function Rotina({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
   const items = listOf<Item>(config);
   const brand = ctx.brandColor || '#2E6A4E';
+  const showHour = shows(config, 'show_hour');
   const set = (i: number, field: string) => (t: string) => ctx.edit?.patch(patchItem(config, i, field, t));
 
   return (
@@ -35,8 +37,8 @@ export function Rotina({ config, ctx }: { config: SectionConfig; ctx: SectionCon
               <div className="min-w-0">
                 <p className="m-0 text-sm font-semibold tracking-wide uppercase opacity-75">
                   <InlineText value={String(it.dia || '')} field="dia" edit={ctx.edit} placeholder="Dia" onText={set(i, 'dia')} />
-                  {(it.hora || ctx.edit) && <span aria-hidden> · </span>}
-                  <InlineText value={String(it.hora || '')} field="hora" edit={ctx.edit} placeholder="Horário" onText={set(i, 'hora')} />
+                  {showHour && (it.hora || ctx.edit) && <span aria-hidden> · </span>}
+                  {showHour && <InlineText value={String(it.hora || '')} field="hora" edit={ctx.edit} placeholder="Horário" onText={set(i, 'hora')} />}
                 </p>
                 <InlineText as="p" className="mt-1 text-lg font-semibold" value={String(it.nome || '')} field="nome" edit={ctx.edit} placeholder="O que acontece" onText={set(i, 'nome')} />
               </div>
@@ -44,7 +46,7 @@ export function Rotina({ config, ctx }: { config: SectionConfig; ctx: SectionCon
           ))}
         </ul>
       )}
-      {(config.observacao || ctx.edit) && (
+      {shows(config, 'show_observacao') && (config.observacao || ctx.edit) && (
         <InlineText as="p" multiline className="mt-6 text-sm opacity-75" value={String(config.observacao || '')} field="observacao" edit={ctx.edit} placeholder="Observação (ex.: a casa fecha em feriados)" />
       )}
     </SectionShell>

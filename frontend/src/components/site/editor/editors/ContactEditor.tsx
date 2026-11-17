@@ -5,16 +5,17 @@ import React from 'react';
 import { TextField } from '@/components/fields';
 import { SECTION_TITLE_SIZES } from '@/constants/heroFonts';
 import { BackgroundFields, ChoiceField, FieldGroup, FontColorField, MarginField, TypographyFields, usePatch, type SectionEditorProps } from '../controls';
+import { shows } from '../../elements';
 
 export function ContactEditor({ config, onChange }: SectionEditorProps) {
   const patch = usePatch(config, onChange);
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="Conteúdo">
-        <TextField label="Título da seção" value={String(config.title || 'Contato')} onChange={(e) => patch({ title: e.target.value })} />
-        <TextField label="WhatsApp / telefone" value={String(config.phone || '')} onChange={(e) => patch({ phone: e.target.value })} placeholder="(11) 99999-9999" inputMode="tel" />
-        <TextField label="E-mail de contato" type="email" value={String(config.email || '')} onChange={(e) => patch({ email: e.target.value })} placeholder="contato@terreiro.com" />
-        <TextField label="Instagram (sem @)" value={String(config.instagram || '')} onChange={(e) => patch({ instagram: e.target.value.replace(/^@/, '') })} placeholder="nomedoterreiro" />
+        {shows(config, 'show_title') && <TextField label="Título da seção" value={String(config.title || 'Contato')} onChange={(e) => patch({ title: e.target.value })} />}
+        {shows(config, 'show_whatsapp') && <TextField label="WhatsApp / telefone" value={String(config.phone || '')} onChange={(e) => patch({ phone: e.target.value })} placeholder="(11) 99999-9999" inputMode="tel" />}
+        {shows(config, 'show_email') && <TextField label="E-mail de contato" type="email" value={String(config.email || '')} onChange={(e) => patch({ email: e.target.value })} placeholder="contato@terreiro.com" />}
+        {shows(config, 'show_instagram') && <TextField label="Instagram (sem @)" value={String(config.instagram || '')} onChange={(e) => patch({ instagram: e.target.value.replace(/^@/, '') })} placeholder="nomedoterreiro" />}
       </FieldGroup>
 
       <FieldGroup title="Layout">

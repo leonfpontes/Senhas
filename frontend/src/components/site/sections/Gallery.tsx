@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import type { SectionConfig, SectionContext } from '../types';
 import { SectionShell } from './SectionShell';
 import { EmptyHint, TitleAndIntro, listOf } from './shared';
+import { shows } from '../elements';
 
 interface Foto extends Record<string, unknown> {
   id?: string;
@@ -17,6 +18,7 @@ interface Foto extends Record<string, unknown> {
 export function Gallery({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
   const fotos = listOf<Foto>(config).filter((f) => typeof f.url === 'string' && f.url);
   const layout = String(config.layout || 'grade');
+  const showCaptions = shows(config, 'show_captions');
 
   return (
     <SectionShell config={config} defaultBg="#ffffff" aria-label="Fotos" data-section="gallery">
@@ -46,7 +48,7 @@ export function Gallery({ config, ctx }: { config: SectionConfig; ctx: SectionCo
                   loading="lazy"
                   className={cn('block w-full rounded-xl object-cover', layout !== 'mosaico' && 'aspect-[4/3]')}
                 />
-                {f.legenda && <figcaption className="mt-1.5 text-sm opacity-80">{String(f.legenda)}</figcaption>}
+                {showCaptions && f.legenda && <figcaption className="mt-1.5 text-sm opacity-80">{String(f.legenda)}</figcaption>}
               </figure>
             </li>
           ))}

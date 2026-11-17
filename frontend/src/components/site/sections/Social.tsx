@@ -10,6 +10,7 @@ import type { SectionConfig, SectionContext } from '../types';
 import { toBrWhatsAppNumber } from '../lib';
 import { SectionShell } from './SectionShell';
 import { EmptyHint, TitleAndIntro } from './shared';
+import { shows } from '../elements';
 
 function handle(v: unknown): string {
   return String(v || '').trim().replace(/^@/, '');
@@ -33,7 +34,7 @@ export function socialLinks(config: SectionConfig) {
 }
 
 export function Social({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
-  const links = socialLinks(config);
+  const links = socialLinks(config).filter((l) => shows(config, `show_${l.key}`));
   const brand = ctx.brandColor || '#2E6A4E';
   const botoes = String(config.layout || 'botoes') === 'botoes';
   const isPreview = ctx.mode === 'preview';

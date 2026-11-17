@@ -22,6 +22,7 @@ import {
   MousePointerClick,
   Plus,
   Search,
+  Smartphone,
   Sparkles,
   Trash2,
   X,
@@ -30,6 +31,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
+import { mobileCta } from '../../elements';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -609,12 +612,15 @@ export function SettingsPanel({
   publicUrl,
   canEdit,
   onSave,
+  onPatchSection,
 }: {
   site: SiteInfo | null;
   sections: SiteSection[];
   publicUrl: string;
   canEdit: boolean;
   onSave: (payload: { meta_title: string | null; meta_description: string | null }) => Promise<boolean>;
+  /** Grava parte da config de uma seção (a barra do celular fica na capa). */
+  onPatchSection?: (id: string, patch: Record<string, unknown>) => void;
 }) {
   const [metaTitle, setMetaTitle] = useState(site?.meta_title ?? '');
   const [metaDesc, setMetaDesc] = useState(site?.meta_description ?? '');
@@ -646,6 +652,8 @@ export function SettingsPanel({
           <p className="text-xs text-muted-foreground">É o mesmo endereço dos links de senha da casa.</p>
         </section>
 
+        <MobileBarSetting sections={sections} canEdit={canEdit} onPatchSection={onPatchSection} />
+
         <section className="flex flex-col gap-3">
           <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">No Google</h3>
           <div className="rounded-lg border border-border bg-card p-3" aria-label="Como aparece no Google">
@@ -673,5 +681,39 @@ export function SettingsPanel({
         </section>
       </div>
     </div>
+  );
+}
+
+/** Barra "Retirar senha" presa no pé do celular. A escolha mora na capa (`show_mobile_cta`). */
+function MobileBarSetting({
+  sections,
+  canEdit,
+  onPatchSection,
+}: {
+  sections: SiteSection[];
+  canEdit: boolean;
+  onPatchSection?: (id: string, patch: Record<string, unknown>) => void;
+}) {
+  const hero = sections.find((s) => s.section_type === 'HERO');
+  const on = mobileCta(sections).show;
+  return (
+    <section className="flex flex-col gap-1.5">
+      <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">No celular</h3>
+      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3">
+        <Smartphone className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Barra “Retirar senha”</span>
+          <span className="block text-xs text-muted-foreground">
+            {hero ? 'Fica presa no pé da tela, em todo o site. O texto é o mesmo do botão da capa.' : 'Aparece sempre. Para escolher, adicione a capa ao site.'}
+          </span>
+        </span>
+        <Switch
+          checked={on}
+          disabled={!canEdit || !hero || !onPatchSection}
+          onCheckedChange={(v) => hero && onPatchSection?.(hero.id, { show_mobile_cta: v })}
+          aria-label="Mostrar a barra Retirar senha no celular"
+        />
+      </label>
+    </section>
   );
 }

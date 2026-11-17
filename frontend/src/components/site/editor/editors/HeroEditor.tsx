@@ -23,17 +23,21 @@ import {
   TypographyFields,
   usePatch,
   type SectionEditorProps,
+  useEditorTab,
 } from '../controls';
+import { shows } from '../../elements';
 
 export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
   const patch = usePatch(config, onChange);
   const bgType = String(config.bg_type || 'gradient');
   const active = activeHeroPalette(config);
   const title = String(config.title || '');
+  const tab = useEditorTab();
+  const logoOn = String(config.logo_mode || 'none') === 'logo' && shows(config, 'show_logo');
 
   return (
     <div className="flex flex-col gap-6">
-      <FieldGroup title="Texto">
+      <FieldGroup title="Texto" kind="conteudo">
         <TextField
           label="Título"
           required
@@ -41,7 +45,9 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
           onChange={(e) => patch({ title: e.target.value })}
           error={!title.trim() && 'A capa precisa de um título.'}
           placeholder="Nome do terreiro"
+          helperText={!shows(config, 'show_title') ? 'Escondido na capa, mas continua no título da página e no Google.' : undefined}
         />
+        {shows(config, 'show_subtitle') && (
         <TextField
           label="Subtítulo"
           multiline
@@ -50,7 +56,21 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
           onChange={(e) => patch({ subtitle: e.target.value })}
           placeholder="Uma frase de boas-vindas"
         />
+        )}
       </FieldGroup>
+
+      {shows(config, 'show_cta') && (
+        <FieldGroup title="Botão" kind="conteudo">
+          <TextField
+            label="Texto do botão"
+            value={String(config.cta_label || '')}
+            onChange={(e) => patch({ cta_label: e.target.value })}
+            placeholder="Retirar senha"
+            maxLength={40}
+            helperText="Leva para a página da senha. Vale também para a barra do celular."
+          />
+        </FieldGroup>
+      )}
 
       <FieldGroup title="Cores">
         <div role="radiogroup" aria-label="Paleta de cores" className="grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -78,7 +98,7 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
           })}
         </div>
         <p className="text-xs text-muted-foreground">
-          A cor do texto é ajustada automaticamente para ter contraste. Outras opções em &quot;Avançado&quot;.
+          A cor do texto é ajustada automaticamente para ter contraste.{tab ? ' Fundo, tamanho do título e cor do texto ficam mais abaixo.' : ' Outras opções em "Avançado".'}
         </p>
       </FieldGroup>
 
@@ -86,6 +106,7 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
         <FontSelect value={String(config.font_family || 'system-ui, sans-serif')} onChange={(v) => patch({ font_family: v })} />
       </FieldGroup>
 
+      {(!tab || logoOn) && (
       <FieldGroup title="Logo">
         <ChoiceField
           label="Logo"
@@ -123,11 +144,9 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
           </>
         )}
       </FieldGroup>
+      )}
 
-      <Accordion type="single" collapsible>
-        <AccordionItem value="avancado" className="rounded-lg border px-4">
-          <AccordionTrigger className="hover:no-underline">Avançado</AccordionTrigger>
-          <AccordionContent className="flex flex-col gap-6 pt-2">
+      <AdvancedWrap plain={Boolean(tab)}>
             <FieldGroup title="Fundo">
               <ChoiceField
                 label="Tipo"
@@ -197,10 +216,21 @@ export function HeroEditor({ config, onChange, upload }: SectionEditorProps) {
             <FieldGroup title="Layout">
               <MarginField config={config} onChange={onChange} />
             </FieldGroup>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+      </AdvancedWrap>
     </div>
+  );
+}
+
+/** "Avançado" em sanfona no editor antigo; no estúdio a aba Estilo já separa, sem sanfona. */
+function AdvancedWrap({ plain, children }: { plain: boolean; children: React.ReactNode }) {
+  if (plain) return <>{children}</>;
+  return (
+    <Accordion type="single" collapsible>
+      <AccordionItem value="avancado" className="rounded-lg border px-4">
+        <AccordionTrigger className="hover:no-underline">Avançado</AccordionTrigger>
+        <AccordionContent className="flex flex-col gap-6 pt-2">{children}</AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }
 

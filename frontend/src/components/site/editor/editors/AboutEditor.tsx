@@ -16,13 +16,17 @@ import {
   usePatch,
   type SectionEditorProps,
 } from '../controls';
+import { shows } from '../../elements';
 
 export function AboutEditor({ config, onChange, upload }: SectionEditorProps) {
   const patch = usePatch(config, onChange);
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="Conteúdo">
-        <TextField label="Título da seção" value={String(config.title || '')} onChange={(e) => patch({ title: e.target.value })} placeholder="Sobre o terreiro" />
+        {shows(config, 'show_title') && (
+          <TextField label="Título da seção" value={String(config.title || '')} onChange={(e) => patch({ title: e.target.value })} placeholder="Sobre o terreiro" />
+        )}
+        {shows(config, 'show_body') && (
         <TextField
           label="Texto"
           multiline
@@ -31,8 +35,10 @@ export function AboutEditor({ config, onChange, upload }: SectionEditorProps) {
           onChange={(e) => patch({ body: e.target.value })}
           placeholder="Conte a história do terreiro, a linha de trabalho e como funciona o atendimento."
         />
+        )}
       </FieldGroup>
 
+      {shows(config, 'show_image') && (
       <FieldGroup title="Foto">
         <ImageField
           label="Imagem"
@@ -43,6 +49,10 @@ export function AboutEditor({ config, onChange, upload }: SectionEditorProps) {
           onRemove={() => patch({ image: undefined, image_url: undefined })}
         />
         <ChoiceField label="Posição da foto" value={String(config.image_side || 'right')} options={SIDE_OPTIONS} onChange={(v) => patch({ image_side: v })} />
+      </FieldGroup>
+      )}
+
+      <FieldGroup title="Espaço">
         <MarginField config={config} onChange={onChange} />
       </FieldGroup>
 

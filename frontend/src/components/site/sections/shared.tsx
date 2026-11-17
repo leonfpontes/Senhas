@@ -6,6 +6,7 @@ import React from 'react';
 import type { SectionConfig, SectionContext } from '../types';
 import { SectionBody, SectionTitle } from './SectionShell';
 import { InlineText } from './InlineText';
+import { shows } from '../elements';
 
 /** Lista de objetos da config (`items`), tolerante a valor ausente ou malformado. */
 export function listOf<T extends Record<string, unknown>>(config: SectionConfig, key = 'items'): T[] {
@@ -24,12 +25,12 @@ export function TitleAndIntro({ config, ctx, titlePlaceholder, introPlaceholder 
   const intro = String(config.intro || '');
   return (
     <>
-      {(title || ctx.edit) && (
+      {shows(config, 'show_title') && (title || ctx.edit) && (
         <SectionTitle config={config}>
           <InlineText value={title} field="title" edit={ctx.edit} placeholder={titlePlaceholder} />
         </SectionTitle>
       )}
-      {introPlaceholder && (intro || ctx.edit) && (
+      {introPlaceholder && shows(config, 'show_intro') && (intro || ctx.edit) && (
         <SectionBody config={config} as="div" className="mb-8 max-w-[680px] opacity-90">
           <InlineText value={intro} field="intro" edit={ctx.edit} multiline as="div" placeholder={introPlaceholder} />
         </SectionBody>

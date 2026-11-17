@@ -10,6 +10,9 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { PublicSiteData } from '../../types';
 import { PublicSite } from '../../PublicSite';
+import { MobileCtaBar } from '../../MobileCtaBar';
+import { mobileCta } from '../../elements';
+import { isSectionHidden, siteBrandColor } from '../../lib';
 import type { SiteEditing } from '../../EditableFrame';
 import { BLOCK_DRAG_MIME, dropIndexFor } from './blocks';
 
@@ -122,6 +125,7 @@ export function StudioCanvas({ site, device, editing, scrollToId, scrollKey, cla
   const scrollRef = useRef<HTMLDivElement>(null);
   const frame = DEVICE_WIDTH[device];
   const isMobile = device === 'mobile';
+  const cta = mobileCta(site.sections.filter((s) => !isSectionHidden(s)));
   const pad = host.width < 640 ? 0 : 48;
   const scale = host.width > 0 ? Math.min(1, (host.width - pad) / frame) : 1;
 
@@ -199,6 +203,10 @@ export function StudioCanvas({ site, device, editing, scrollToId, scrollKey, cla
           >
             <ScaledFrame width={frame} scale={scale}>
               <PublicSite site={site} mode="preview" editing={editing} className={cn('min-h-[70vh]', isMobile && 'pb-6')} />
+              {/* No celular, a barra "Retirar senha" do site (se a casa deixou ligada). */}
+              {isMobile && cta.show && (
+                <MobileCtaBar slug={site.slug} brandColor={siteBrandColor(site.sections)} variant="inline" inert label={cta.label} className="sticky bottom-0" />
+              )}
             </ScaledFrame>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { pickForeground } from '@/lib/brand';
 import type { SectionConfig, SectionContext } from '../types';
 import { sectionForeground, toBrWhatsAppNumber } from '../lib';
 import { SectionShell, SectionTitle } from './SectionShell';
+import { shows } from '../elements';
 
 /** O lucide-react não traz ícones de marca; o do Instagram é desenhado aqui. */
 function Instagram(props: React.SVGProps<SVGSVGElement>) {
@@ -54,7 +55,7 @@ const KIND_LABEL: Record<ContactItem['kind'], string> = {
 
 export function Contact({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
   const isPreview = ctx.mode === 'preview';
-  const contacts = buildContacts(config, isPreview);
+  const contacts = buildContacts(config, isPreview).filter((c) => shows(config, `show_${c.kind}`));
   if (contacts.length === 0) return null;
 
   const layout = String(config.contact_layout || 'cards');
@@ -72,9 +73,11 @@ export function Contact({ config, ctx }: { config: SectionConfig; ctx: SectionCo
 
   return (
     <SectionShell config={config} defaultBg="#ffffff" innerClassName="text-center" aria-label="Contato" data-section="contact">
-      <SectionTitle config={config} defaultSize={30} className="mb-6">
-        {title}
-      </SectionTitle>
+      {shows(config, 'show_title') && (
+        <SectionTitle config={config} defaultSize={30} className="mb-6">
+          {title}
+        </SectionTitle>
+      )}
 
       {layout === 'cards' && (
         <ul className="flex list-none flex-wrap justify-center gap-4 p-0">

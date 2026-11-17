@@ -18,6 +18,7 @@ import { isSectionHidden, senhaUrl, siteBrandColor, visibleSections } from './li
 import { renderSection } from './sections';
 import { EditableFrame, type SiteEditing } from './EditableFrame';
 import { MobileCtaBar } from './MobileCtaBar';
+import { mobileCta } from './elements';
 import { SiteFooter } from './SiteFooter';
 
 export interface PublicSiteProps {
@@ -35,6 +36,7 @@ export interface PublicSiteProps {
 export function PublicSite({ site, mode, className, editing }: PublicSiteProps) {
   const sections = editing ? [...site.sections].sort((a, b) => a.order_index - b.order_index) : visibleSections(site.sections);
   const brandColor = siteBrandColor(site.sections);
+  const cta = mobileCta(visibleSections(site.sections));
   const isPreview = mode === 'preview';
   const ctx: SectionContext = { mode, slug: site.slug, giras: site.upcoming_giras, brandColor };
 
@@ -42,7 +44,7 @@ export function PublicSite({ site, mode, className, editing }: PublicSiteProps) 
     <>
       <div
         data-slot="public-site"
-        className={cn('@container flex min-h-screen flex-col bg-background text-foreground', mode === 'public' && 'pb-20 md:pb-0', className)}
+        className={cn('@container flex min-h-screen flex-col bg-background text-foreground', mode === 'public' && cta.show && 'pb-20 md:pb-0', className)}
       >
         <div className="flex-1">
           {sections.length > 0 && editing ? (
@@ -97,7 +99,7 @@ export function PublicSite({ site, mode, className, editing }: PublicSiteProps) 
         </div>
         <SiteFooter inert={isPreview} />
       </div>
-      {mode === 'public' && <MobileCtaBar slug={site.slug} brandColor={brandColor} variant="fixed" />}
+      {mode === 'public' && cta.show && <MobileCtaBar slug={site.slug} brandColor={brandColor} variant="fixed" label={cta.label} />}
     </>
   );
 }

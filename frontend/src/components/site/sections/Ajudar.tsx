@@ -9,11 +9,13 @@ import type { SectionConfig, SectionContext } from '../types';
 import { SectionShell } from './SectionShell';
 import { InlineText } from './InlineText';
 import { EmptyHint, TitleAndIntro } from './shared';
+import { shows } from '../elements';
 
 export function Ajudar({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
-  const chave = String(config.pix_chave || '').trim();
+  const chave = shows(config, 'show_pix') ? String(config.pix_chave || '').trim() : '';
+  const showCopy = shows(config, 'show_copy_button');
   const nome = String(config.pix_nome || '').trim();
-  const necessidades = String(config.necessidades || '')
+  const necessidades = String((shows(config, 'show_necessidades') && config.necessidades) || '')
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
@@ -34,7 +36,7 @@ export function Ajudar({ config, ctx }: { config: SectionConfig; ctx: SectionCon
   return (
     <SectionShell config={config} defaultBg="#ffffff" aria-label="Como ajudar a casa" data-section="ajudar">
       <TitleAndIntro config={config} ctx={ctx} titlePlaceholder="Como ajudar a casa" introPlaceholder="Conte como a ajuda é usada (opcional)" />
-      {!chave && necessidades.length === 0 && !ctx.edit ? null : !chave && necessidades.length === 0 ? (
+      {!chave && necessidades.length === 0 && (!ctx.edit || String(config.pix_chave || config.necessidades || '').trim()) ? null : !chave && necessidades.length === 0 ? (
         <EmptyHint ctx={ctx}>Coloque a chave PIX e o que a casa precisa no painel ao lado.</EmptyHint>
       ) : (
         <div className="grid gap-6 @min-[900px]:grid-cols-2">
@@ -45,6 +47,7 @@ export function Ajudar({ config, ctx }: { config: SectionConfig; ctx: SectionCon
               </p>
               <p className="mt-2 mb-1 font-mono text-lg [overflow-wrap:anywhere]">{chave}</p>
               {nome && <p className="m-0 text-sm opacity-75">Em nome de {nome}</p>}
+              {showCopy && (
               <button
                 type="button"
                 onClick={copiar}
@@ -54,6 +57,7 @@ export function Ajudar({ config, ctx }: { config: SectionConfig; ctx: SectionCon
                 {copiado ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
                 {copiado ? 'Chave copiada' : 'Copiar chave PIX'}
               </button>
+              )}
             </div>
           )}
           {necessidades.length > 0 && (
