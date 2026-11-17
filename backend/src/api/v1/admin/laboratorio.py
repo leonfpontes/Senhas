@@ -19,7 +19,7 @@ from src.core.database import get_db
 from src.models import PermissionFeature, User
 from src.repositories.feature_flags_repo import FeatureFlagsRepository
 from src.services.audit_service import AuditService
-from src.services.laboratorio import CATALOGO, CHAVES, betas_ligadas, eh_beta_tester
+from src.services.laboratorio import CHAVES, betas_disponiveis, betas_ligadas, eh_beta_tester
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-laboratorio"])
 
@@ -53,7 +53,7 @@ async def _resposta(db: AsyncSession, user: User) -> LaboratorioOut:
     return LaboratorioOut(
         beta_tester=True,
         betas=[BetaOut(chave=b.chave, nome=b.nome, descricao=b.descricao, grupo=b.grupo, nota=b.nota, ligada=b.chave in ligadas)
-               for b in CATALOGO],
+               for b in await betas_disponiveis(db, user.tenant_id)],
     )
 
 
@@ -76,6 +76,8 @@ async def set_beta(body: LaboratorioIn, current_user: User = Depends(get_current
     await _exigir_beta_tester(db, current_user)
     if body.chave not in CHAVES:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Beta desconhecida.")
+    if body.chave not in {b.chave for b in await betas_disponiveis(db, current_user.tenant_id)}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta beta ainda não foi liberada para esta casa.")
     antes = body.chave in await betas_ligadas(db, current_user.tenant_id)
     await FeatureFlagsRepository(db).create_or_update(tenant_id=current_user.tenant_id, feature=body.chave, enabled=body.ligada)
     await AuditService(db).log_config_change(

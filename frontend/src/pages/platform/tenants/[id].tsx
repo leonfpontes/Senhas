@@ -95,6 +95,7 @@ interface TenantInfo {
   /** Lançamento em piloto da Área do Médium: a plataforma libera por terreiro. */
   area_medium_liberada?: boolean;
   beta_tester?: boolean;
+  ia_site_liberada?: boolean;
   /** Cartão recusado, plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
   payment_pending_since?: string | null;
 }
@@ -323,6 +324,22 @@ export default function TenantDetailPage() {
       toast.error(extractApiErrorMessage(err, 'Não foi possível mudar o beta tester.'));
     } finally {
       setBetaSaving(false);
+    }
+  };
+
+  // Beta "Textos do site com IA": usa a chave da Anthropic do GiraHub; a plataforma libera por casa.
+  const [iaSaving, setIaSaving] = useState(false);
+  const toggleIaSite = async (liberar: boolean) => {
+    if (!tenant) return;
+    setIaSaving(true);
+    try {
+      await apiClient.put(`/api/v1/platform/tenants/${tenant.id}`, { ia_site_liberada: liberar });
+      toast.success(liberar ? 'IA dos textos do site liberada para este terreiro.' : 'IA dos textos do site desligada para este terreiro.');
+      load();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Não foi possível mudar a IA dos textos do site.'));
+    } finally {
+      setIaSaving(false);
     }
   };
 
@@ -630,6 +647,7 @@ export default function TenantDetailPage() {
             </CardHeader>
             <CardContent className="px-4">
               {tenant ? (
+                <>
                 <div className="flex items-center justify-between gap-4">
                   <Label htmlFor="beta-tester" className="font-normal">
                     {tenant.beta_tester ? 'Beta tester' : 'Desligado'}
@@ -641,6 +659,22 @@ export default function TenantDetailPage() {
                     disabled={betaSaving || isDeleted}
                   />
                 </div>
+                <div className="mt-3 flex items-start justify-between gap-4 border-t border-border pt-3">
+                  <Label htmlFor="ia-site" className="flex flex-col items-start gap-0.5 font-normal">
+                    <span>Textos do site com IA</span>
+                    <span className="text-xs text-muted-foreground">
+                      Usa a chave da Anthropic do GiraHub. Só aparece no Laboratório da casa depois de liberar aqui.
+                    </span>
+                  </Label>
+                  <Switch
+                    id="ia-site"
+                    checked={!!tenant.ia_site_liberada}
+                    onCheckedChange={toggleIaSite}
+                    disabled={iaSaving || isDeleted || !tenant.beta_tester}
+                    aria-label="Liberar textos do site com IA"
+                  />
+                </div>
+                </>
               ) : (
                 <Skeleton className="h-8 w-full" />
               )}

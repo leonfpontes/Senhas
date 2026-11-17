@@ -1,6 +1,12 @@
 # Textos do site com IA (beta)
 
 - **Chave:** `beta_textos_ia_site` · **Grupo:** Para o site · **Situação:** em teste desde 17/11/2026
+- **Quem libera:** **só a plataforma, casa por casa.** A beta usa a chave da Anthropic do GiraHub, então ser
+  beta tester não basta. Em /platform › terreiro › cartão "Beta tester (Laboratório)" fica o interruptor
+  **"Textos do site com IA"** (`tenants.ia_site_liberada`, migração 108). Sem ele, a beta nem aparece no
+  Laboratório da casa, o PUT do Laboratório responde 403 e a beta não vale, mesmo que já estivesse ligada.
+  Depois da liberação, a casa liga ou desliga a beta em Configurações › Laboratório.
+  (`Beta.liberacao` em `services/laboratorio.py`.)
 - **Depende de:** `beta_novo_construtor_site` ligada (o cartão fica no painel da seção do estúdio) e da variável
   `ANTHROPIC_API_KEY` no servidor. Sem a chave, `GET /api/v1/admin/sites/ia` responde `disponivel: false` e o
   cartão não aparece.
@@ -33,4 +39,5 @@
   `ANTHROPIC_API_KEY=` no `.env`: no local para testar e no `/opt/senhas/.env` em produção. O
   docker-compose passa a variável ao backend. Nunca commitar o valor.
 - **Desligar:** apaga só o cartão. Os textos que a casa aplicou continuam no site.
-- **Testes:** `backend/tests/unit/test_site_textos_ia.py` e `frontend/__tests__/components/site/textAssist.test.tsx`.
+- **Testes:** `backend/tests/unit/test_site_textos_ia.py`, `backend/tests/integration_pg/test_site_textos_ia.py`,
+  `backend/tests/integration_pg/test_laboratorio.py` e `frontend/__tests__/components/site/textAssist.test.tsx`.
