@@ -49,16 +49,15 @@ function ToolButton({ label, onClick, children, danger }: { label: string; onCli
 
 export function InsertButton({ onClick, label = 'Adicionar seção aqui' }: { onClick: () => void; label?: string }) {
   return (
-    <div className="group/insert relative z-20 h-0">
-      <div className="absolute inset-x-0 -top-4 flex h-8 items-center justify-center opacity-0 transition-opacity group-hover/insert:opacity-100 focus-within:opacity-100">
-        <div className="absolute inset-x-6 top-1/2 h-px" style={{ background: BRAND }} aria-hidden />
+    <div className="relative z-20 h-0">
+      <div className="pointer-events-none absolute inset-x-0 -top-4 flex h-8 items-center justify-center">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onClick();
           }}
-          className="relative inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-white shadow-md"
+          className="pointer-events-auto relative inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-white opacity-75 shadow-md transition-opacity hover:opacity-100 focus-visible:opacity-100"
           style={{ background: BRAND, transform: 'scale(var(--ui-scale, 1))' }}
         >
           <Plus className="size-4" aria-hidden /> {label}
