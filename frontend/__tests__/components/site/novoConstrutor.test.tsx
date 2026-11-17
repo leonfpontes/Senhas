@@ -274,6 +274,39 @@ describe('estúdio do site (beta ligada)', () => {
     expect(screen.queryByTestId('studio-drop-mark')).not.toBeInTheDocument();
   });
 
+  it('a gaveta Adicionar cancela pelo X, por Esc e clicando de novo no ícone, e volta ao painel de antes', async () => {
+    mockApi([{ id: 'sec-hero', section_type: 'HERO', order_index: 0, config: { title: 'Casa' } }]);
+    render(<SiteStudio canEdit canInsert />);
+    const user = userEvent.setup();
+    await screen.findByTestId('studio-layers');
+
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    await user.click(within(screen.getByTestId('studio-add')).getByRole('button', { name: 'Fechar sem adicionar' }));
+    expect(screen.queryByTestId('studio-add')).not.toBeInTheDocument();
+    expect(screen.getByTestId('studio-layers')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    expect(screen.queryByTestId('studio-add')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Estilo' }));
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByTestId('studio-add')).not.toBeInTheDocument();
+    expect(screen.getByTestId('studio-style')).toBeInTheDocument();
+
+    // Esc na busca: primeiro limpa, depois fecha.
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    const busca = screen.getByRole('textbox', { name: 'Procurar bloco' });
+    await user.type(busca, 'fotos');
+    await user.keyboard('{Escape}');
+    expect(busca).toHaveValue('');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByTestId('studio-add')).not.toBeInTheDocument();
+    // Nada foi adicionado.
+    expect(within(screen.getByTestId('studio-style')).queryByText('Fotos')).not.toBeInTheDocument();
+  });
+
   it('"Publicar" abre a conferência antes de publicar', async () => {
     mockApi([{ id: 'sec-hero', section_type: 'HERO', order_index: 0, config: { title: 'Casa de Oxalá' } }]);
     render(<SiteStudio canEdit canInsert />);

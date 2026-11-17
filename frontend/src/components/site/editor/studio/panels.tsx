@@ -24,6 +24,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -228,9 +229,11 @@ export interface AddPanelProps {
   onGoTo: (id: string) => void;
   /** Começo e fim do arrastar (a prévia mostra onde o bloco vai entrar). */
   onDragBlock?: (block: Block | null) => void;
+  /** Fecha a gaveta sem adicionar nada. */
+  onClose?: () => void;
 }
 
-export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, onGoTo, onDragBlock }: AddPanelProps) {
+export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, onGoTo, onDragBlock, onClose }: AddPanelProps) {
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<BlockCategory | 'todos'>('todos');
   const [hint, setHint] = useState<Block | null>(null);
@@ -295,7 +298,17 @@ export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, 
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="studio-add" onMouseLeave={() => setHint(null)}>
-      <PanelHeader title="Adicionar" description="Arraste um bloco para o site ou clique para colocar." />
+      <PanelHeader
+        title="Adicionar"
+        description="Arraste um bloco para o site ou clique para colocar."
+        action={
+          onClose && (
+            <Button variant="ghost" size="icon-sm" className="-mt-1 -mr-2 shrink-0" onClick={onClose} aria-label="Fechar sem adicionar" title="Fechar (Esc)">
+              <X />
+            </Button>
+          )
+        }
+      />
       <div className="flex flex-col gap-2 border-b border-border px-3 py-3">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -304,9 +317,10 @@ export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, 
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && results[0] && !existingFor(results[0], sections)) onAdd(results[0]);
-              if (e.key === 'Escape' && q) {
+              if (e.key === 'Escape') {
                 e.stopPropagation();
-                setQ('');
+                if (q) setQ('');
+                else onClose?.();
               }
             }}
             placeholder="Procurar: fotos, PIX, mapa…"

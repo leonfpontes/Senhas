@@ -13,7 +13,7 @@
  * Usa o mesmo `useSiteEditor` do construtor antigo: rascunho com salvamento automático,
  * conflito de versão, histórico, publicar e despublicar continuam iguais.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   AlertCircle,
@@ -188,7 +188,10 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
   const busy = editor.saving || editor.publishing;
 
   // Painel aberto: lateral no computador, gaveta no celular.
+  // Painel aberto antes da gaveta "Adicionar", para voltar a ele ao cancelar.
+  const beforeAdd = useRef<PanelId | null>(null);
   const openPanel = (id: PanelId) => {
+    if (id === 'adicionar' && !isPhone && panel !== 'adicionar') beforeAdd.current = panel;
     if (isPhone) setSheetPanel(id);
     else setPanel((p) => (p === id && id !== 'adicionar' ? null : id));
   };
@@ -221,6 +224,16 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
 
   const addSection = (block: Block) => placeBlock(block, insertIndex);
 
+  /** Fecha a gaveta "Adicionar" sem adicionar nada e volta para a lista de seções. */
+  const closeAdd = () => {
+    setInsertAt(null);
+    setDragBlock(null);
+    if (isPhone) setSheetPanel(null);
+    else setPanel(beforeAdd.current ?? 'secoes');
+    beforeAdd.current = null;
+  };
+  const addOpen = isPhone ? sheetPanel === 'adicionar' : panel === 'adicionar';
+
   const dropBlock = (raw: string, index: number) => {
     setDragBlock(null);
     const block = decodeBlockDrag(raw, blocks);
@@ -245,6 +258,7 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       const k = e.key.toLowerCase();
       if (e.key === 'Escape') {
         if (previewMode) setPreviewMode(false);
+        else if (addOpen) closeAdd();
         else editor.setSelectedId(null);
         return;
       }
@@ -272,7 +286,7 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canEdit, previewMode, undo, redo, editor.selectedId, editor.moveSection]);
+  }, [canEdit, previewMode, undo, redo, editor.selectedId, editor.moveSection, addOpen]);
 
   useEffect(() => {
     if (panel === 'historico' || sheetPanel === 'historico') void editor.loadVersions();
@@ -421,6 +435,7 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
             onAdd={addSection}
             onGoTo={(sid) => select(sid)}
             onDragBlock={setDragBlock}
+            onClose={closeAdd}
           />
         ) : (
           <PanelHeader title="Adicionar seção" description="Você só pode ver o site." />
@@ -612,7 +627,10 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
                     key={p.id}
                     type="button"
                     onClick={() => {
-                      if (p.id === 'adicionar') setInsertAt(null);
+                      if (p.id === 'adicionar') {
+                        if (panel === 'adicionar') return closeAdd();
+                        setInsertAt(null);
+                      }
                       openPanel(p.id);
                     }}
                     aria-pressed={on}
