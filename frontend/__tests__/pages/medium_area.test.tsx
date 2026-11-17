@@ -376,6 +376,28 @@ describe('gate do MediumLayout', () => {
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/login'));
   });
 
+  it('sessão vencida (refresh falhou, sem cookie auth_state) vai para o login, sem ficar carregando', async () => {
+    // Celular que guardou o `user`, mas os cookies sumiram (teto de 14 dias da sessão, ou
+    // login sem "Lembrar-me"): /auth/profile e /medium/me dão 401 e o api_client não
+    // redireciona sozinho. Antes a Área ficava no spinner para sempre.
+    const profile = profileOf('medium', MEDIUM_AREAS);
+    localStorage.setItem('user', JSON.stringify(profile));
+    mockGet = jest.fn(() => Promise.reject({ status: 401 }));
+    const Page = require('@/pages/medium/index').default;
+    renderApp(<Page />);
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/login'));
+    expect(localStorage.getItem('user')).toBeNull();
+  });
+
+  it('401 só no /medium/me mostra "Tentar de novo", não o spinner eterno', async () => {
+    const profile = profileOf('medium', MEDIUM_AREAS);
+    signIn(profile);
+    api({ '/api/v1/medium/me': { status: 401 } }, profile);
+    const Page = require('@/pages/medium/index').default;
+    renderApp(<Page />);
+    expect(await screen.findByText('Não conseguimos abrir a Área agora')).toBeInTheDocument();
+  });
+
   it('com as duas áreas, o menu tem "Trocar de área", que vai ao painel', async () => {
     const profile = profileOf('operator', AMBAS);
     signIn(profile);

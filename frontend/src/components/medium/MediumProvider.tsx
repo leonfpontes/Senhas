@@ -92,7 +92,10 @@ export function MediumProvider({ children }: { children: React.ReactNode }) {
         if (err?.status === 403 || err?.status === 402) {
           setMe(null);
           setStatus('indisponivel');
-        } else if (err?.status !== 401) {
+        } else {
+          // 401 inclusive: o api_client só redireciona para o /login quando ainda há o cookie
+          // `auth_state`; sem ele, ficar em 'loading' prendia a Área no spinner. Com 'erro' a
+          // pessoa vê "Tentar de novo" (e o ProfileProvider descarta a sessão vencida).
           setStatus((s) => (s === 'ok' ? s : 'erro'));
         }
       });
