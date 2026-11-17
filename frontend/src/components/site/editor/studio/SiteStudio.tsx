@@ -435,7 +435,9 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
             onAdd={addSection}
             onGoTo={(sid) => select(sid)}
             onDragBlock={setDragBlock}
-            onClose={closeAdd}
+            // No celular a gaveta de baixo já tem o próprio X.
+            onClose={isPhone ? undefined : closeAdd}
+            canDrag={!isPhone}
           />
         ) : (
           <PanelHeader title="Adicionar seção" description="Você só pode ver o site." />
@@ -724,7 +726,15 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
 
       {/* Painéis no celular */}
       <Sheet open={isPhone && sheetPanel !== null} onOpenChange={(o) => !o && setSheetPanel(null)}>
-        <SheetContent side="bottom" className="z-[60] flex h-[82vh] flex-col gap-0 rounded-t-2xl p-0">
+        <SheetContent
+          side="bottom"
+          className="z-[60] flex h-[82vh] flex-col gap-0 rounded-t-2xl p-0 outline-none"
+          // Sem foco automático no primeiro campo: no celular ele abriria o teclado por cima da gaveta.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            (e.currentTarget as HTMLElement | null)?.focus();
+          }}
+        >
           <SheetTitle className="sr-only">{PANELS.find((p) => p.id === sheetPanel)?.label}</SheetTitle>
           <div className="flex min-h-0 flex-1 flex-col pt-6">{sheetPanel && renderPanel(sheetPanel)}</div>
         </SheetContent>

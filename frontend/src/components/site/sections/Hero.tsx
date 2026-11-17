@@ -131,7 +131,8 @@ export function Hero({ config, ctx }: HeroProps) {
           style={{ '--cta-bg': fg, '--cta-fg': ctaFg, fontFamily } as React.CSSProperties}
         >
           <Ticket aria-hidden />
-          {ctx.edit ? <InlineText value={String(config.cta_label || '')} field="cta_label" edit={ctx.edit} placeholder="Retirar senha" /> : ctaLabel}
+          {/* Na edição mostra o texto que vai ao ar (o padrão, se a casa não escreveu outro), não um placeholder. */}
+          {ctx.edit ? <InlineText value={ctaLabel} field="cta_label" edit={ctx.edit} placeholder="Retirar senha" /> : ctaLabel}
         </a>
         )}
       </div>

@@ -234,9 +234,11 @@ export interface AddPanelProps {
   onDragBlock?: (block: Block | null) => void;
   /** Fecha a gaveta sem adicionar nada. */
   onClose?: () => void;
+  /** Arrastar para a prévia (só no computador; no celular é só o clique). */
+  canDrag?: boolean;
 }
 
-export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, onGoTo, onDragBlock, onClose }: AddPanelProps) {
+export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, onGoTo, onDragBlock, onClose, canDrag = true }: AddPanelProps) {
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<BlockCategory | 'todos'>('todos');
   const [hint, setHint] = useState<Block | null>(null);
@@ -253,7 +255,7 @@ export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, 
       <li key={b.id} className="flex min-w-0">
         <button
           type="button"
-          draggable={!existing}
+          draggable={canDrag && !existing}
           onDragStart={(e) => {
             e.dataTransfer.effectAllowed = 'copy';
             e.dataTransfer.setData(BLOCK_DRAG_MIME, encodeBlockDrag(b));
@@ -268,7 +270,8 @@ export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, 
           aria-describedby="studio-add-hint"
           className={cn(
             'group relative flex h-full w-full flex-col gap-1.5 rounded-xl border bg-card p-1.5 text-left transition-[border-color,box-shadow,transform] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-            existing ? 'border-dashed border-border opacity-70 hover:opacity-100' : 'cursor-grab border-border hover:-translate-y-px hover:border-brand hover:shadow-md active:cursor-grabbing',
+            existing ? 'border-dashed border-border opacity-70 hover:opacity-100' : canDrag ? 'cursor-grab border-border' : 'border-border',
+            !existing && 'hover:-translate-y-px hover:border-brand hover:shadow-md active:cursor-grabbing',
           )}
         >
           <BlockThumb block={b} accent={accent} className={big ? 'h-[88px]' : undefined} />
@@ -303,7 +306,7 @@ export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, 
     <div className="flex min-h-0 flex-1 flex-col" data-testid="studio-add" onMouseLeave={() => setHint(null)}>
       <PanelHeader
         title="Adicionar"
-        description="Arraste um bloco para o site ou clique para colocar."
+        description={canDrag ? 'Arraste um bloco para o site ou clique para colocar.' : 'Toque num bloco para colocar no site.'}
         action={
           onClose && (
             <Button variant="ghost" size="icon-sm" className="-mt-1 -mr-2 shrink-0" onClick={onClose} aria-label="Fechar sem adicionar" title="Fechar (Esc)">
@@ -408,7 +411,8 @@ export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, 
           <>
             <MousePointerClick className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
             <span className="text-muted-foreground">
-              Clique para colocar <span className="font-medium text-foreground">{insertHint}</span>, ou arraste até o ponto exato do site.
+              {canDrag ? 'Clique para colocar' : 'Toque para colocar'} <span className="font-medium text-foreground">{insertHint}</span>
+              {canDrag ? ', ou arraste até o ponto exato do site.' : '.'}
             </span>
           </>
         )}
