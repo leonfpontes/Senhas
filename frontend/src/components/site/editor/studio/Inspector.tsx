@@ -43,6 +43,7 @@ import { SectionIcon } from '../sectionIcons';
 import { SectionEditor } from '../SectionEditor';
 import { EditorTabContext, type EditorTab } from '../controls';
 import { elementPatch, elementsFor, isElementOn, type SectionElement } from '../../elements';
+import { TextAssist, type IaCampo } from './TextAssist';
 
 const ELEMENT_ICONS: Record<string, LucideIcon> = {
   show_title: Heading,
@@ -144,9 +145,11 @@ export interface InspectorProps {
   onToggleHidden: () => void;
   onDelete: () => void;
   onClose?: () => void;
+  /** Beta "Textos do site com IA": campos desta seção com sugestão (vazio = sem ajuda). */
+  iaCampos?: IaCampo[];
 }
 
-export function Inspector({ section, index, total, errors, canEdit, upload, onChange, onMove, onDuplicate, onToggleHidden, onDelete, onClose }: InspectorProps) {
+export function Inspector({ section, index, total, errors, canEdit, upload, onChange, onMove, onDuplicate, onToggleHidden, onDelete, onClose, iaCampos }: InspectorProps) {
   const hidden = isSectionHidden(section);
   const single = Boolean(catalogEntry(section.section_type)?.single);
   const label = sectionLabel(section.section_type);
@@ -220,6 +223,9 @@ export function Inspector({ section, index, total, errors, canEdit, upload, onCh
           ))}
         </div>
         <div role="tabpanel" id="insp-tabpanel" aria-labelledby={`insp-tab-${tab}`}>
+          {tab === 'conteudo' && canEdit && iaCampos && iaCampos.length > 0 && (
+            <TextAssist section={section} campos={iaCampos} onChange={onChange} />
+          )}
           <EditorTabContext.Provider value={tab}>
             <SectionEditor section={section} errors={errors} onChange={onChange} upload={upload} hideHeader />
           </EditorTabContext.Provider>

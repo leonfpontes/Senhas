@@ -62,6 +62,12 @@ CATALOGO: tuple[Beta, ...] = (
          "clicando no site, arraste seções, troque estilo, cor e fontes e veja no celular antes de publicar.",
          "Para o site",
          "docs/betas/beta_novo_construtor_site.md"),
+    Beta("beta_textos_ia_site", "Textos do site com IA",
+         "No estúdio do site, peça sugestões para títulos e textos: escrever, melhorar, encurtar ou deixar "
+         "mais acolhedor. Você escolhe uma sugestão ou nenhuma. A IA não escreve sobre entidades, Orixás ou "
+         "fundamentos. Precisa do \"Novo construtor do site\" ligado.",
+         "Para o site",
+         "docs/betas/beta_textos_ia_site.md"),
 )
 CHAVES = {b.chave for b in CATALOGO}
 
