@@ -6,7 +6,10 @@ Decisão do dono em 01/11/2026: o que é novo nas jornadas v2 entra como **beta*
 1. A plataforma marca o terreiro como **beta tester** em `/platform` (detalhe do terreiro, chave "Beta tester"). Fica em `tenants.beta_tester` (migração 102).
 2. Só então a casa vê **Configurações › Laboratório (beta)** e liga ou desliga cada beta. A escolha fica em `feature_flags`, com a chave `beta_<nome>`.
 3. Uma beta só vale com as duas coisas. No backend, `services/laboratorio.beta_ligada(db, tenant_id, chave)`; na página do consulente, a lista `betas` da resposta de `/api/v1/public/gira/{id}`.
-4. **Desligar não apaga dado**: o que a casa registrou com a beta continua no banco e volta ao ligar.
+4. **Beta com custo do GiraHub** (ex.: a IA dos textos do site) tem `liberacao` no catálogo: além de beta tester, a
+   plataforma libera a casa num interruptor próprio em `/platform` (coluna de `tenants`). Sem isso a beta some do
+   Laboratório e não vale.
+5. **Desligar não apaga dado**: o que a casa registrou com a beta continua no banco e volta ao ligar.
 
 ## Catálogo
 O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda beta nova entra nele, ganha um arquivo aqui e uma entrada em **Notas da versão · Beta testers** (`frontend/src/constants/releaseNotes.ts`, `BETA_RELEASE_NOTES`).
@@ -28,4 +31,5 @@ O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda 
 | [Menu que se ajusta ao uso](beta_menu_ajustavel.md) | `beta_menu_ajustavel` | Para o painel |
 | [Indicação do plano pelo uso](beta_indicacao_plano.md) | `beta_indicacao_plano` | Para o painel |
 | [Novo construtor do site](beta_novo_construtor_site.md) | `beta_novo_construtor_site` | Para o site |
+| [Textos do site com IA](beta_textos_ia_site.md) | `beta_textos_ia_site` | Para o site |
 | [Assistente de plano no site](assistente_plano_site.md) | `NEXT_PUBLIC_ASSISTENTE_PLANO` (chave do site, fora do Laboratório) | Para o site |

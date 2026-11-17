@@ -5,6 +5,9 @@ beta em Configurações › Laboratório. Cada beta ligada é uma linha em `feat
 `beta_<nome>`. Uma beta só vale com as duas coisas: o terreiro beta tester **e** a beta ligada.
 Desligar não apaga o que a casa registrou com ela. Documentação: `docs/betas/`.
 
+Beta com custo do GiraHub (ex.: IA) tem `liberacao`: além de beta tester, a plataforma libera a casa
+numa coluna própria de `tenants`; sem isso a beta some do Laboratório e não vale.
+
 O catálogo é a fonte única: a tela do Laboratório, a checagem `beta_ligada` e a página pública
 (`betas_ligadas`) leem daqui.
 """
@@ -26,6 +29,9 @@ class Beta:
     descricao: str
     grupo: str
     nota: str  # caminho da documentação no repositório
+    # Coluna booleana de `tenants` que a plataforma liga por casa antes de a beta existir para ela
+    # (beta com custo do GiraHub, como a IA). None = basta ser beta tester.
+    liberacao: str | None = None
 
 
 CATALOGO: tuple[Beta, ...] = (
@@ -62,6 +68,12 @@ CATALOGO: tuple[Beta, ...] = (
          "clicando no site, arraste seções, troque estilo, cor e fontes e veja no celular antes de publicar.",
          "Para o site",
          "docs/betas/beta_novo_construtor_site.md"),
+    Beta("beta_textos_ia_site", "Textos do site com IA",
+         "No estúdio do site, peça sugestões para títulos e textos: escrever, melhorar, encurtar ou deixar "
+         "mais acolhedor. Você escolhe uma sugestão ou nenhuma. A IA não escreve sobre entidades, Orixás ou "
+         "fundamentos. Precisa do \"Novo construtor do site\" ligado.",
+         "Para o site",
+         "docs/betas/beta_textos_ia_site.md", liberacao="ia_site_liberada"),
 )
 CHAVES = {b.chave for b in CATALOGO}
 
@@ -70,15 +82,25 @@ async def eh_beta_tester(db: AsyncSession, tenant_id: UUID) -> bool:
     return bool(await db.scalar(select(Tenant.beta_tester).where(Tenant.id == tenant_id)))
 
 
+async def betas_disponiveis(db: AsyncSession, tenant_id: UUID) -> list[Beta]:
+    """Betas que a casa vê no Laboratório: todas as do catálogo, menos as que pedem liberação da
+    plataforma (`Beta.liberacao`) ainda não liberada para ela. Vazio se não é beta tester."""
+    tenant = await db.get(Tenant, tenant_id)
+    if tenant is None or not tenant.beta_tester:
+        return []
+    return [b for b in CATALOGO if b.liberacao is None or bool(getattr(tenant, b.liberacao, False))]
+
+
 async def betas_ligadas(db: AsyncSession, tenant_id: UUID) -> set[str]:
-    """Chaves das betas que valem para o terreiro (beta tester e ligadas). Vazio se não é beta tester."""
-    if not await eh_beta_tester(db, tenant_id):
+    """Chaves das betas que valem para o terreiro (beta tester, disponíveis e ligadas)."""
+    disponiveis = {b.chave for b in await betas_disponiveis(db, tenant_id)}
+    if not disponiveis:
         return set()
     rows = await db.scalars(
         select(FeatureFlag.feature).where(
             FeatureFlag.tenant_id == tenant_id,
             FeatureFlag.enabled.is_(True),
-            FeatureFlag.feature.in_(CHAVES),
+            FeatureFlag.feature.in_(disponiveis),
         )
     )
     return set(rows)

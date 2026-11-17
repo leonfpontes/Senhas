@@ -42,7 +42,8 @@ async def test_beta_tester_liga_desliga_e_audita(client, db):
     r = await client.get(LAB, headers=admin.headers)
     assert r.status_code == 200, r.text
     betas = r.json()["betas"]
-    assert {b["chave"] for b in betas} == set(CHAVES)
+    # Beta com custo do GiraHub (IA) só aparece depois da liberação da plataforma.
+    assert {b["chave"] for b in betas} == set(CHAVES) - {"beta_textos_ia_site"}
     assert not any(b["ligada"] for b in betas)
 
     r = await client.put(LAB, headers=admin.headers, json={"chave": "beta_bilhete_offline", "ligada": True})
@@ -60,6 +61,29 @@ async def test_beta_tester_liga_desliga_e_audita(client, db):
     db.add(tenant)
     await db.commit()
     assert await betas_ligadas(db, tenant.id) == set()
+
+
+async def test_beta_da_ia_precisa_da_liberacao_da_plataforma(client, db):
+    tenant = await _beta_tester(db, await create_tenant(db))
+    admin = await create_user(db, tenant, UserRole.ADMIN)
+    r = await client.put(LAB, headers=admin.headers, json={"chave": "beta_textos_ia_site", "ligada": True})
+    assert r.status_code == 403
+    assert await betas_ligadas(db, tenant.id) == set()
+
+    tenant.ia_site_liberada = True
+    db.add(tenant)
+    await db.commit()
+    r = await client.get(LAB, headers=admin.headers)
+    assert "beta_textos_ia_site" in {b["chave"] for b in r.json()["betas"]}
+    r = await client.put(LAB, headers=admin.headers, json={"chave": "beta_textos_ia_site", "ligada": True})
+    assert r.status_code == 200, r.text
+    assert "beta_textos_ia_site" in await betas_ligadas(db, tenant.id)
+
+    # Tirar a liberação desliga na hora, sem apagar a escolha da casa.
+    tenant.ia_site_liberada = False
+    db.add(tenant)
+    await db.commit()
+    assert "beta_textos_ia_site" not in await betas_ligadas(db, tenant.id)
 
 
 async def test_grupos_de_permissao(client, db):

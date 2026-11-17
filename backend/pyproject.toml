@@ -46,6 +46,8 @@ dependencies = [
     "email-validator>=2.2.0,<3.0.0",
     "httpx==0.28.1",
     "stripe==15.4.0",
+    # Beta "Textos do site com IA" (services/site_textos_ia.py): SDK oficial da Anthropic.
+    "anthropic==2.9.0",
     "python-dateutil>=2.8.2",
     "slowapi>=0.1.9",
     "limits[redis]>=3.6.0",

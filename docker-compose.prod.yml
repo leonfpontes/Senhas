@@ -128,6 +128,8 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       # Bot Crescimento (GET /api/v1/bots/crescimento/resumo). Vazio = rota desligada (401).
       GIRAHUB_READ_TOKEN: ${GIRAHUB_READ_TOKEN:-}
+      # Beta "Textos do site com IA" (sugestões no estúdio do site). Vazio = opção escondida.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
       # Stripe
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}

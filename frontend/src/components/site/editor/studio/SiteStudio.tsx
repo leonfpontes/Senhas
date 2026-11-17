@@ -45,6 +45,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useSubscription } from '@/hooks/useSubscription';
 import { apiClient } from '@/services/api_client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,7 @@ import { PublishCheck } from '../PublishCheck';
 import { StudioCanvas, DEVICE_LABEL, type StudioDevice } from './StudioCanvas';
 import { StudioStart } from './StudioStart';
 import { Inspector } from './Inspector';
+import { useSiteIa } from './TextAssist';
 import { buildBlocks, decodeBlockDrag, existingFor, type Block } from './blocks';
 import { AddPanel, LayersPanel, NextStepsPanel, PanelHeader, SettingsPanel, StyleRailPanel, buildNextSteps, type NextStep } from './panels';
 
@@ -148,6 +150,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
   // Tela larga cabe painel + site + seção; abaixo disso o painel fecha ao clicar no site (como no Wix).
   const wide = useMediaQuery('(min-width: 1600px)');
   const giras = useAdminGiras(!editor.loading);
+  const { beta } = useSubscription();
+  const iaCampos = useSiteIa(canEdit && Boolean(beta?.('beta_textos_ia_site')));
 
   const [panel, setPanel] = useState<PanelId | null>('secoes');
   const [sheetPanel, setSheetPanel] = useState<PanelId | null>(null);
@@ -485,6 +489,7 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       onToggleHidden={() => editor.toggleHidden(selected.id)}
       onDelete={() => setDeleteId(selected.id)}
       onClose={isPhone ? undefined : () => editor.setSelectedId(null)}
+      iaCampos={iaCampos?.[selected.section_type]}
     />
   );
 
@@ -790,6 +795,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       </Dialog>
 
       <ConfirmDialog
+        className="z-[70]"
+        overlayClassName="z-[70]"
         open={confirmUnpublish}
         title="Tirar o site do ar"
         message="O endereço passa a mostrar “Site em preparação”. Tudo continua salvo e pode ser publicado de novo com um clique."
@@ -803,7 +810,10 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       />
 
       <ConfirmDialog
+        className="z-[70]"
+        overlayClassName="z-[70]"
         open={confirmLeave}
+        size="default"
         title="Sair sem publicar?"
         message={
           editor.isPublished
@@ -822,6 +832,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       />
 
       <ConfirmDialog
+        className="z-[70]"
+        overlayClassName="z-[70]"
         open={deleteTarget != null}
         title="Excluir seção"
         message={

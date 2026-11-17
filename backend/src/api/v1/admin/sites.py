@@ -13,6 +13,8 @@ Routes:
   DELETE /api/v1/admin/sites/images/{image_id}  — Delete image (409 se ainda está no site)
   GET  /api/v1/admin/sites/versions     — List version history (sem o snapshot)
   POST /api/v1/admin/sites/versions/{version_id}/restore  — Restore a version
+  GET  /api/v1/admin/sites/ia           — Beta "Textos do site com IA": ligada? e campos com sugestão
+  POST /api/v1/admin/sites/ia/sugestoes — Até 3 sugestões de texto (SITE:edit; 12/min e 150/dia por terreiro)
 
 Histórico de versões (cada versão = estado ANTES da operação, máx. 10):
   - "Publicado": ao publicar (estado que foi ao ar) e a cada salvamento com o site no
@@ -50,6 +52,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
+from src.core.limiter import get_client_ip, limiter
 from src.core.database import get_db
 from src.models import User, PermissionFeature
 from src.models.site import SiteStatus, SiteSectionType, TenantSite
@@ -639,3 +642,78 @@ async def restore_version(
         sections=[_section_to_response(s) for s in sections],
         site_updated_at=_iso_utc(site.updated_at),
     )
+
+
+# ── Beta "Textos do site com IA" (beta_textos_ia_site) ────────────────────────
+# Sugestões de texto no estúdio (services/site_textos_ia.py). Vale só com as duas betas ligadas
+# (o estúdio é do "Novo construtor do site") e com ANTHROPIC_API_KEY no servidor.
+
+def _ia_tenant_key(request: Request) -> str:
+    # Limite por terreiro, não por IP: a cota de IA é da casa.
+    tenant_id = getattr(request.state, "tenant_id", None)
+    return f"site-ia:{tenant_id}" if tenant_id else get_client_ip(request)
+
+
+async def _ia_ligada(db: AsyncSession, tenant_id: UUID) -> bool:
+    from src.services.laboratorio import betas_ligadas
+    from src.services import site_textos_ia
+
+    betas = await betas_ligadas(db, tenant_id)
+    return "beta_novo_construtor_site" in betas and site_textos_ia.BETA in betas
+
+
+class IaStatusResponse(BaseModel):
+    disponivel: bool
+    campos: dict[str, list[dict[str, Any]]]
+
+
+class IaSugestaoRequest(BaseModel):
+    secao: str = Field(..., max_length=40)
+    campo: str = Field(..., max_length=40)
+    pedido: str = Field("escrever", max_length=20)
+    texto_atual: str = Field("", max_length=3000)
+    ideia: str = Field("", max_length=400)
+
+
+class IaSugestaoResponse(BaseModel):
+    sugestoes: list[str]
+
+
+@router.get("/ia", response_model=IaStatusResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "view"))])
+async def get_site_ia(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IaStatusResponse:
+    from src.services import site_textos_ia
+
+    ligada = site_textos_ia.disponivel() and await _ia_ligada(db, current_user.tenant_id)
+    return IaStatusResponse(disponivel=ligada, campos=site_textos_ia.campos_por_secao() if ligada else {})
+
+
+@router.post("/ia/sugestoes", response_model=IaSugestaoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "edit"))])
+@limiter.limit("12/minute;150/day", key_func=_ia_tenant_key)
+async def post_site_ia_sugestoes(
+    request: Request,
+    body: IaSugestaoRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IaSugestaoResponse:
+    from src.services import site_textos_ia
+
+    if not await _ia_ligada(db, current_user.tenant_id):
+        raise HTTPException(status_code=403, detail="Ligue a beta \"Textos do site com IA\" no Laboratório.")
+    try:
+        sugestoes = await site_textos_ia.sugerir(
+            db,
+            current_user.tenant_id,
+            secao=body.secao,
+            campo=body.campo,
+            pedido=body.pedido,
+            texto_atual=body.texto_atual,
+            ideia=body.ideia,
+        )
+    except site_textos_ia.PedidoInvalido as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except site_textos_ia.IaIndisponivel as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return IaSugestaoResponse(sugestoes=sugestoes)

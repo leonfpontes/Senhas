@@ -51,6 +51,8 @@ services:
       MERCADOPAGO_CLIENT_SECRET: ${MERCADOPAGO_CLIENT_SECRET:-}
       MERCADOPAGO_REDIRECT_URI: ${MERCADOPAGO_REDIRECT_URI:-}
       MERCADOPAGO_WEBHOOK_SECRET: ${MERCADOPAGO_WEBHOOK_SECRET:-}
+      # Beta "Textos do site com IA". Vazio = opção escondida no estúdio.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       EXTRA_ALLOWED_HOSTS: backend,senhas_backend
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"

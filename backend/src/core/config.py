@@ -117,6 +117,12 @@ class Settings(BaseSettings):
     # `openssl rand -hex 32`. Nunca commitar o valor.
     GIRAHUB_READ_TOKEN: str = ""
 
+    # Beta "Textos do site com IA" (beta_textos_ia_site): o estúdio do site sugere textos com a API
+    # da Anthropic. Vazio = a opção some da tela (GET /admin/sites/ia diz `disponivel: false`).
+    # Chave criada no Console da Anthropic ("Em outro lugar" → chave de API). Nunca commitar o valor.
+    ANTHROPIC_API_KEY: str = ""
+    SITE_IA_MODEL: str = "claude-opus-5-5"
+
     # Sentry
     SENTRY_DSN: str = ""
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1   # 10% das transações em prod

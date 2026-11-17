@@ -47,6 +47,8 @@ class UpdateTenantRequest(BaseModel):
     area_medium_liberada: Optional[bool] = None
     # Laboratório: o terreiro testa as betas (a casa liga cada uma em Configurações › Laboratório).
     beta_tester: Optional[bool] = None
+    # Beta "Textos do site com IA": usa a chave da Anthropic do GiraHub; a plataforma libera por casa.
+    ia_site_liberada: Optional[bool] = None
 
 
 class DeleteTenantRequest(BaseModel):
@@ -78,6 +80,7 @@ class TenantResponse(BaseModel):
     self_deactivated_at: Optional[str] = None
     area_medium_liberada: bool = False
     beta_tester: bool = False
+    ia_site_liberada: bool = False
     # Tolerância do cartão (migração 094): cartão recusado, plano ainda ativo enquanto a Stripe
     # tenta de novo — badge "Pagamento pendente" na lista e no Tenant 360.
     payment_pending_since: Optional[str] = None
@@ -183,6 +186,7 @@ async def get_tenant(
             ),
             area_medium_liberada=bool(tenant.area_medium_liberada),
             beta_tester=bool(getattr(tenant, "beta_tester", False)),
+            ia_site_liberada=bool(getattr(tenant, "ia_site_liberada", False)),
             payment_pending_since=_payment_pending_since(sub),
         )
     except HTTPException:
@@ -206,7 +210,7 @@ async def update_tenant(
     
     try:
         update_data = request.model_dump(exclude_unset=True)
-        for field in ("name", "is_active", "area_medium_liberada", "beta_tester"):
+        for field in ("name", "is_active", "area_medium_liberada", "beta_tester", "ia_site_liberada"):
             if field in update_data and update_data[field] is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -54,6 +54,9 @@ class Tenant(SoftDeleteModel):
     # Laboratório (jornadas v2, decisão do dono 01/11/2026): a plataforma marca o terreiro como beta
     # tester; só então a casa liga ou desliga cada beta (feature_flags `beta_*`). Migração 102.
     beta_tester: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
+    # Beta "Textos do site com IA" (17/11/2026): usa a chave da Anthropic do GiraHub, então só a
+    # plataforma libera, casa por casa, em /platform. Sem isso a beta nem aparece no Laboratório.
+    ia_site_liberada: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
 
     # Relationships
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan", foreign_keys="User.tenant_id")
