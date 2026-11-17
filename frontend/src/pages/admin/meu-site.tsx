@@ -17,6 +17,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SiteEditor } from '@/components/site/editor/SiteEditor';
+import { SiteStudio } from '@/components/site/editor/studio/SiteStudio';
 import { minPlanFor } from '@/constants/plans';
 
 export { validateSection } from '@/components/site/lib';
@@ -42,7 +43,9 @@ function usePageTitle(title: string) {
 
 export default function MeuSitePage() {
   usePageTitle(PAGE_TITLE);
-  const { can, loading: subLoading } = useSubscription();
+  const { can, beta, loading: subLoading } = useSubscription();
+  // Beta do Laboratório: começo guiado, edição direto na prévia, estilos e seções novas.
+  const novo = Boolean(beta?.('beta_novo_construtor_site'));
   const { can: canGroup } = usePermissions();
   const canView = canGroup('site', 'view');
   const canEdit = canGroup('site', 'edit');
@@ -69,7 +72,8 @@ export default function MeuSitePage() {
       </div>
     );
   } else {
-    content = <SiteEditor canEdit={canEdit} canInsert={canInsert} />;
+    // Beta: o estúdio ocupa a tela inteira (por cima do painel), como os construtores de mercado.
+    content = novo ? <SiteStudio canEdit={canEdit} canInsert={canInsert} /> : <SiteEditor canEdit={canEdit} canInsert={canInsert} />;
   }
 
   return (

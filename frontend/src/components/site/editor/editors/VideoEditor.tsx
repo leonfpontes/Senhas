@@ -16,6 +16,7 @@ import {
   usePatch,
   type SectionEditorProps,
 } from '../controls';
+import { shows } from '../../elements';
 
 export function VideoEditor({ config, onChange }: SectionEditorProps) {
   const patch = usePatch(config, onChange);
@@ -34,7 +35,17 @@ export function VideoEditor({ config, onChange }: SectionEditorProps) {
           helperText={urlError ? undefined : 'Cole o link do vídeo. O player é gerado automaticamente.'}
           inputMode="url"
         />
-        <TextField label="Título / legenda" value={String(config.caption || '')} onChange={(e) => patch({ caption: e.target.value })} />
+        {shows(config, 'show_title') && <TextField label="Título / legenda" value={String(config.caption || '')} onChange={(e) => patch({ caption: e.target.value })} />}
+        {layout === 'side-by-side' && shows(config, 'show_side_text') && (
+          <TextField
+            label="Texto lateral"
+            multiline
+            rows={4}
+            value={String(config.side_text || '')}
+            onChange={(e) => patch({ side_text: e.target.value })}
+            helperText="Aparece ao lado do vídeo no computador e abaixo dele no celular."
+          />
+        )}
       </FieldGroup>
 
       <FieldGroup title="Layout">
@@ -48,17 +59,7 @@ export function VideoEditor({ config, onChange }: SectionEditorProps) {
           onChange={(v) => patch({ layout: v })}
         />
         {layout === 'side-by-side' && (
-          <>
-            <ChoiceField label="Vídeo à" value={String(config.video_side || 'right')} options={SIDE_OPTIONS} onChange={(v) => patch({ video_side: v })} />
-            <TextField
-              label="Texto lateral"
-              multiline
-              rows={4}
-              value={String(config.side_text || '')}
-              onChange={(e) => patch({ side_text: e.target.value })}
-              helperText="Aparece ao lado do vídeo no computador e abaixo dele no celular."
-            />
-          </>
+          <ChoiceField label="Vídeo à" value={String(config.video_side || 'right')} options={SIDE_OPTIONS} onChange={(v) => patch({ video_side: v })} />
         )}
         <MarginField config={config} onChange={onChange} />
       </FieldGroup>

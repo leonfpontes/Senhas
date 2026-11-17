@@ -292,6 +292,8 @@ export interface SectionCatalogEntry {
   defaultConfig: SectionConfig;
   /** Só faz sentido uma por site. */
   single?: boolean;
+  /** Só aparece com a beta "Novo construtor do site" ligada. */
+  beta?: boolean;
 }
 
 export const SECTION_CATALOG: SectionCatalogEntry[] = [
@@ -347,7 +349,60 @@ export const SECTION_CATALOG: SectionCatalogEntry[] = [
     description: 'Um bloco de título e texto para o que você quiser.',
     defaultConfig: { title: '', body: '' },
   },
+  // ── Beta "Novo construtor do site" (beta_novo_construtor_site) ──
+  {
+    type: 'GALLERY',
+    label: 'Fotos',
+    description: 'Fotos da casa e das festas, em grade, mosaico ou faixa.',
+    defaultConfig: { title: 'Fotos da casa', layout: 'grade', items: [] },
+    beta: true,
+  },
+  {
+    type: 'LINHAS',
+    label: 'Linhas de trabalho',
+    description: 'As linhas que a casa trabalha, com um texto curto escrito pela casa.',
+    defaultConfig: { title: 'Linhas de trabalho', layout: 'cartoes', items: [] },
+    beta: true,
+    single: true,
+  },
+  {
+    type: 'ROTINA',
+    label: 'Rotina da casa',
+    description: 'Dias e horários fixos: giras, desenvolvimento, atendimento.',
+    defaultConfig: { title: 'Rotina da casa', items: [] },
+    beta: true,
+    single: true,
+  },
+  {
+    type: 'FAQ',
+    label: 'Perguntas frequentes',
+    description: 'Respostas para quem vem pela primeira vez. Ajuda a aparecer no Google.',
+    defaultConfig: { title: 'Perguntas frequentes', items: [] },
+    beta: true,
+    single: true,
+  },
+  {
+    type: 'SOCIAL',
+    label: 'Redes sociais',
+    description: 'Instagram, Facebook, YouTube, TikTok e WhatsApp da casa.',
+    defaultConfig: { title: 'Acompanhe a casa', layout: 'botoes' },
+    beta: true,
+    single: true,
+  },
+  {
+    type: 'AJUDAR',
+    label: 'Como ajudar a casa',
+    description: 'Chave PIX para doação e a lista do que a casa precisa.',
+    defaultConfig: { title: 'Como ajudar a casa' },
+    beta: true,
+    single: true,
+  },
 ];
+
+/** Catálogo que a casa vê: as seções da beta só com ela ligada. */
+export function sectionCatalog(novoConstrutor: boolean): SectionCatalogEntry[] {
+  return SECTION_CATALOG.filter((e) => novoConstrutor || !e.beta);
+}
 
 export function sectionLabel(type: string): string {
   return SECTION_CATALOG.find((e) => e.type === type)?.label ?? type;

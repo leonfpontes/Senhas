@@ -101,11 +101,14 @@ export function SectionTitle({
 }) {
   const size = Number(config.title_font_size || defaultSize);
   const weight = Number(config.title_font_weight || 700);
+  // Fonte própria dos títulos (estilos do novo construtor); sem ela, a da seção.
+  const titleFont = config.title_font_family ? String(config.title_font_family) : undefined;
   return (
     <Tag
       className={cn('mb-4 leading-tight', className)}
-      style={{ fontSize: `clamp(${Math.round(size * 0.78)}px, ${((size / 1280) * 100).toFixed(2)}cqw, ${size}px)`, fontWeight: weight }}
+      style={{ fontSize: `clamp(${Math.round(size * 0.78)}px, ${((size / 1280) * 100).toFixed(2)}cqw, ${size}px)`, fontWeight: weight, fontFamily: titleFont }}
     >
+      {titleFont && <FontLink url={fontImportUrl(titleFont)} />}
       {children}
     </Tag>
   );

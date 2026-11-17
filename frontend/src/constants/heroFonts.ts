@@ -62,6 +62,11 @@ export const HERO_FONTS: HeroFont[] = [
     importUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;0,900;1,400;1,700&display=swap',
   },
   {
+    label: 'Fraunces',
+    value: "'Fraunces', serif",
+    importUrl: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&display=swap',
+  },
+  {
     label: 'Lora',
     value: "'Lora', serif",
     importUrl: 'https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,700&display=swap',

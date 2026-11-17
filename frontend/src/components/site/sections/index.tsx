@@ -12,8 +12,14 @@ import { Location } from './Location';
 import { Contact } from './Contact';
 import { Sponsor } from './Sponsor';
 import { CustomText } from './CustomText';
+import { Gallery } from './Gallery';
+import { Linhas } from './Linhas';
+import { Rotina } from './Rotina';
+import { Faq } from './Faq';
+import { Social } from './Social';
+import { Ajudar } from './Ajudar';
 
-export { Hero, About, Video, GirasCalendar, Location, Contact, Sponsor, CustomText };
+export { Hero, About, Video, GirasCalendar, Location, Contact, Sponsor, CustomText, Gallery, Linhas, Rotina, Faq, Social, Ajudar };
 
 export function renderSection(section: SiteSection, ctx: SectionContext): React.ReactNode {
   const { section_type, config, id } = section;
@@ -34,6 +40,18 @@ export function renderSection(section: SiteSection, ctx: SectionContext): React.
       return <Sponsor key={id} config={config} ctx={ctx} />;
     case 'CUSTOM_TEXT':
       return <CustomText key={id} config={config} ctx={ctx} />;
+    case 'GALLERY':
+      return <Gallery key={id} config={config} ctx={ctx} />;
+    case 'LINHAS':
+      return <Linhas key={id} config={config} ctx={ctx} />;
+    case 'ROTINA':
+      return <Rotina key={id} config={config} ctx={ctx} />;
+    case 'FAQ':
+      return <Faq key={id} config={config} ctx={ctx} />;
+    case 'SOCIAL':
+      return <Social key={id} config={config} ctx={ctx} />;
+    case 'AJUDAR':
+      return <Ajudar key={id} config={config} ctx={ctx} />;
     default:
       return null;
   }

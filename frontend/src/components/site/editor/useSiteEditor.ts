@@ -20,6 +20,7 @@
  * - Seção "desligada" = `config.hidden === true` (convenção do frontend; o backend
  *   aceita qualquer chave na config).
  */
+import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
@@ -38,6 +39,7 @@ export interface UseSiteEditorOptions {
 }
 
 const AUTOSAVE_MS = 1500;
+const HISTORY_LIMIT = 100;
 const UNSAVED_MESSAGE = 'Você tem alterações não publicadas. Sair mesmo assim?';
 
 function tempId() {
@@ -87,6 +89,20 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     setSiteUpdatedAt(version);
   }, []);
 
+  // Desfazer/refazer (beta "Novo construtor do site", mas vale para todos): pilhas de
+  // retratos das seções. Digitação seguida no mesmo campo vira um passo só (`coalesce`).
+  const pastRef = useRef<SiteSection[][]>([]);
+  const futureRef = useRef<SiteSection[][]>([]);
+  const lastCoalesceRef = useRef<{ key: string; at: number } | null>(null);
+  const [historyTick, setHistoryTick] = useState(0);
+
+  const resetHistory = useCallback(() => {
+    pastRef.current = [];
+    futureRef.current = [];
+    lastCoalesceRef.current = null;
+    setHistoryTick((n) => n + 1);
+  }, []);
+
   // ── Carregamento ────────────────────────────────────────────────────────────
 
   const reload = useCallback(async () => {
@@ -102,12 +118,13 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
       setSectionsState(Array.isArray(sectionsRes.data?.sections) ? sectionsRes.data.sections : []);
       setSiteUpdatedAt(sectionsRes.data?.site_updated_at || siteRes.data?.updated_at || '');
       setDirty(false);
+      resetHistory();
     } catch (err) {
       setLoadError(extractApiErrorMessage(err, 'Erro ao carregar o site.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resetHistory]);
 
   useEffect(() => {
     if (!enabled) {
@@ -132,11 +149,37 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
 
   // ── Mutações locais ─────────────────────────────────────────────────────────
 
-  const mutate = useCallback((fn: (prev: SiteSection[]) => SiteSection[]) => {
+  const mutate = useCallback((fn: (prev: SiteSection[]) => SiteSection[], coalesce?: string) => {
     editSeqRef.current += 1;
+    const now = Date.now();
+    const last = lastCoalesceRef.current;
+    const merge = Boolean(coalesce && last && last.key === coalesce && now - last.at < 1200);
+    if (!merge) {
+      pastRef.current = [...pastRef.current.slice(-(HISTORY_LIMIT - 1)), sectionsRef.current];
+      futureRef.current = [];
+      setHistoryTick((n) => n + 1);
+    }
+    lastCoalesceRef.current = coalesce ? { key: coalesce, at: now } : null;
     setSectionsState((prev) => fn(prev).map((s, i) => ({ ...s, order_index: i })));
     setDirty(true);
   }, []);
+
+  const jump = useCallback((from: React.MutableRefObject<SiteSection[][]>, to: React.MutableRefObject<SiteSection[][]>) => {
+    const target = from.current.at(-1);
+    if (!target) return;
+    from.current = from.current.slice(0, -1);
+    to.current = [...to.current, sectionsRef.current];
+    lastCoalesceRef.current = null;
+    editSeqRef.current += 1;
+    setSectionsState(target);
+    setSelectedId((prev) => (prev && target.some((s) => s.id === prev) ? prev : null));
+    setDirty(true);
+    setHistoryTick((n) => n + 1);
+  }, []);
+  const undo = useCallback(() => jump(pastRef, futureRef), [jump]);
+  const redo = useCallback(() => jump(futureRef, pastRef), [jump]);
+  const canUndo = historyTick >= 0 && pastRef.current.length > 0;
+  const canRedo = historyTick >= 0 && futureRef.current.length > 0;
 
   const addSection = useCallback(
     (type: SectionType, config?: SectionConfig): string => {
@@ -145,6 +188,39 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
       mutate((prev) => [...prev, { id, _tempId: id, section_type: type, order_index: prev.length, config: { ...base, ...(config ?? {}) } }]);
       setSelectedId(id);
       return id;
+    },
+    [mutate],
+  );
+
+  /** Insere uma seção na posição `index` (o "+" entre seções da prévia). */
+  const insertSection = useCallback(
+    (type: SectionType, index: number, config?: SectionConfig): string => {
+      const id = tempId();
+      const base = catalogEntry(type)?.defaultConfig ?? {};
+      mutate((prev) => {
+        const next = [...prev];
+        const at = Math.max(0, Math.min(index, next.length));
+        next.splice(at, 0, { id, _tempId: id, section_type: type, order_index: at, config: { ...base, ...(config ?? {}) } });
+        return next;
+      });
+      setSelectedId(id);
+      return id;
+    },
+    [mutate],
+  );
+
+  /** Junta chaves na config (edição direto na prévia); digitação seguida = um passo de desfazer. */
+  const patchConfig = useCallback(
+    (id: string, patch: SectionConfig) => {
+      mutate((prev) => prev.map((s) => (s.id === id ? { ...s, config: { ...s.config, ...patch } } : s)), `patch:${id}:${Object.keys(patch).join(',')}`);
+    },
+    [mutate],
+  );
+
+  /** Troca todas as seções de uma vez (aplicar um estilo ao site inteiro). */
+  const transformAll = useCallback(
+    (fn: (prev: SiteSection[]) => SiteSection[]) => {
+      mutate(fn);
     },
     [mutate],
   );
@@ -175,6 +251,40 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     [mutate],
   );
 
+  /** Leva a seção para a posição `index` (arrastar na lista de seções). */
+  const moveSectionTo = useCallback(
+    (id: string, index: number) => {
+      mutate((prev) => {
+        const from = prev.findIndex((s) => s.id === id);
+        if (from < 0) return prev;
+        const next = [...prev];
+        const [item] = next.splice(from, 1);
+        next.splice(Math.max(0, Math.min(index, next.length)), 0, item);
+        return next;
+      });
+    },
+    [mutate],
+  );
+
+  /** Copia a seção logo abaixo dela. Seções que só existem uma vez por site não duplicam. */
+  const duplicateSection = useCallback(
+    (id: string): string | null => {
+      const src = sectionsRef.current.find((s) => s.id === id);
+      if (!src || catalogEntry(src.section_type)?.single) return null;
+      const copyId = tempId();
+      mutate((prev) => {
+        const idx = prev.findIndex((s) => s.id === id);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        next.splice(idx + 1, 0, { id: copyId, _tempId: copyId, section_type: src.section_type, order_index: idx + 1, config: JSON.parse(JSON.stringify(src.config)) });
+        return next;
+      });
+      setSelectedId(copyId);
+      return copyId;
+    },
+    [mutate],
+  );
+
   const removeSection = useCallback(
     (id: string) => {
       mutate((prev) => prev.filter((s) => s.id !== id));
@@ -185,7 +295,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
 
   const updateConfig = useCallback(
     (id: string, config: SectionConfig) => {
-      mutate((prev) => prev.map((s) => (s.id === id ? { ...s, config } : s)));
+      mutate((prev) => prev.map((s) => (s.id === id ? { ...s, config } : s)), `config:${id}`);
     },
     [mutate],
   );
@@ -284,14 +394,21 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     return () => clearTimeout(t);
   }, [sections, dirty, saving, uploading, errorCount, conflict, canEdit, site, siteStatus]);
 
-  // Aviso ao sair com alterações pendentes.
+  // Aviso ao sair com alterações pendentes. `releaseLeaveGuard` desliga o aviso quando a própria
+  // tela já perguntou (estúdio) ou acabou de salvar.
+  const leaveGuardOffRef = useRef(false);
+  const releaseLeaveGuard = useCallback(() => {
+    leaveGuardOffRef.current = true;
+  }, []);
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (leaveGuardOffRef.current) return;
       e.preventDefault();
       e.returnValue = '';
     };
     const onRouteChange = () => {
+      if (leaveGuardOffRef.current) return;
       if (typeof window !== 'undefined' && !window.confirm(UNSAVED_MESSAGE)) {
         router.events?.emit?.('routeChangeError');
         throw 'Navegação cancelada: alterações não publicadas.';
@@ -356,12 +473,13 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
         adoptVersion(res.data?.site_updated_at);
         setDirty(false);
         setSelectedId(null);
+        resetHistory();
         toast.success('Versão restaurada!');
       } catch (err) {
         toast.error(extractApiErrorMessage(err, 'Erro ao restaurar versão.'));
       }
     },
-    [canEdit, adoptVersion],
+    [canEdit, adoptVersion, resetHistory],
   );
 
   // ── Configurações ───────────────────────────────────────────────────────────
@@ -442,8 +560,17 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     reload,
     loadVersions,
     addSection,
+    insertSection,
+    patchConfig,
+    transformAll,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
     replaceAll,
     moveSection,
+    moveSectionTo,
+    duplicateSection,
     removeSection,
     updateConfig,
     toggleHidden,
@@ -453,6 +580,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     restore,
     saveSettings,
     uploadImage,
+    releaseLeaveGuard,
   };
 }
 

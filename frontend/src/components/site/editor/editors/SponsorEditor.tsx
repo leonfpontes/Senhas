@@ -5,14 +5,15 @@ import React from 'react';
 import { TextField } from '@/components/fields';
 import { SECTION_BODY_SIZES, SECTION_TITLE_SIZES } from '@/constants/heroFonts';
 import { BackgroundFields, FieldGroup, FontColorField, MarginField, TypographyFields, usePatch, type SectionEditorProps } from '../controls';
+import { shows } from '../../elements';
 
 export function SponsorEditor({ config, onChange }: SectionEditorProps) {
   const patch = usePatch(config, onChange);
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="Conteúdo">
-        <TextField label="Título da seção" value={String(config.title || 'Apoiadores')} onChange={(e) => patch({ title: e.target.value })} />
-        <TextField label="Texto introdutório" multiline rows={3} value={String(config.intro || '')} onChange={(e) => patch({ intro: e.target.value })} />
+        {shows(config, 'show_title') && <TextField label="Título da seção" value={String(config.title || 'Apoiadores')} onChange={(e) => patch({ title: e.target.value })} />}
+        {shows(config, 'show_intro') && <TextField label="Texto introdutório" multiline rows={3} value={String(config.intro || '')} onChange={(e) => patch({ intro: e.target.value })} />}
       </FieldGroup>
       <FieldGroup title="Layout">
         <MarginField config={config} onChange={onChange} />

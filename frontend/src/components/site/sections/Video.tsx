@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import type { SectionConfig, SectionContext } from '../types';
 import { toYoutubeEmbedUrl } from '../lib';
 import { PreviewHint, SectionShell } from './SectionShell';
+import { shows } from '../elements';
 
 export function Video({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
   const rawUrl = String(config.youtube_url || '');
@@ -17,8 +18,8 @@ export function Video({ config, ctx }: { config: SectionConfig; ctx: SectionCont
 
   const sideBySide = String(config.layout || 'video-only') === 'side-by-side';
   const videoLeft = String(config.video_side || 'right') === 'left';
-  const caption = config.caption ? String(config.caption) : '';
-  const sideText = config.side_text ? String(config.side_text) : '';
+  const caption = config.caption && shows(config, 'show_title') ? String(config.caption) : '';
+  const sideText = config.side_text && shows(config, 'show_side_text') ? String(config.side_text) : '';
   const captionSize = Number(config.caption_font_size || 24);
   const captionWeight = Number(config.caption_font_weight || 600);
 
@@ -66,7 +67,7 @@ export function Video({ config, ctx }: { config: SectionConfig; ctx: SectionCont
                 {sideText}
               </p>
             ) : (
-              !caption && isPreview && <PreviewHint>Título e texto aparecem aqui, ao lado do vídeo.</PreviewHint>
+              !caption && isPreview && shows(config, 'show_title') && shows(config, 'show_side_text') && <PreviewHint>Título e texto aparecem aqui, ao lado do vídeo.</PreviewHint>
             )}
           </div>
           {player}

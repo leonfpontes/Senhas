@@ -28,6 +28,7 @@ import {
   sortGiras,
 } from '../lib';
 import { SectionBody, SectionShell, SectionTitle } from './SectionShell';
+import { shows } from '../elements';
 
 interface GiraCardProps {
   gira: SiteGira;
@@ -122,7 +123,7 @@ function GiraCard(props: GiraCardProps) {
           )}
         </div>
       </div>
-      {gira.descricao && (
+      {gira.descricao && shows(config, 'show_description') && (
         <SectionBody config={config} defaultSize={14} className="mt-2 line-clamp-3 opacity-85">
           {gira.descricao}
         </SectionBody>
@@ -309,9 +310,11 @@ export function GirasCalendar({ config, ctx }: { config: SectionConfig; ctx: Sec
 
   return (
     <SectionShell config={config} defaultBg="#ffffff" aria-label="Próximas giras" data-section="giras">
-      <SectionTitle config={config} defaultSize={28}>
-        {title}
-      </SectionTitle>
+      {shows(config, 'show_title') && (
+        <SectionTitle config={config} defaultSize={28}>
+          {title}
+        </SectionTitle>
+      )}
 
       {giras.length === 0 ? (
         <EmptyGiras config={config} />
@@ -326,11 +329,13 @@ export function GirasCalendar({ config, ctx }: { config: SectionConfig; ctx: Sec
           <div data-testid="giras-desktop" className="hidden @min-[900px]:block">
             {displayMode === 'calendar' && (
               <div className="flex flex-col gap-6">
-                {next && <GiraCard gira={next} config={config} isPreview={isPreview} brand={brand} cardBg={cardBg} highlight />}
+                {next && shows(config, 'show_highlight') && <GiraCard gira={next} config={config} isPreview={isPreview} brand={brand} cardBg={cardBg} highlight />}
                 <MonthCalendar giras={giras} config={config} isPreview={isPreview} brand={brand} cardBg={cardBg} />
-                <p className="text-sm opacity-60">
-                  Dias destacados têm gira. {isPreview ? 'No site, clicar no dia mostra os detalhes.' : 'Clique no dia para ver os detalhes.'}
-                </p>
+                {shows(config, 'show_calendar_note') && (
+                  <p className="text-sm opacity-60">
+                    Dias destacados têm gira. {isPreview ? 'No site, clicar no dia mostra os detalhes.' : 'Clique no dia para ver os detalhes.'}
+                  </p>
+                )}
               </div>
             )}
             {displayMode === 'list' && cardList('flex flex-col gap-4')}

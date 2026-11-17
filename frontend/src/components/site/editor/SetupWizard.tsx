@@ -24,7 +24,7 @@ export const SITE_TEMPLATES = [
   { value: 'minimal', label: 'Minimalista', description: 'Fundo claro, poucos elementos.' },
 ] as const;
 
-interface TenantFacts {
+export interface TenantFacts {
   nome: string | null;
   logoUrl: string | null;
   primary: string;
@@ -35,7 +35,7 @@ interface TenantFacts {
   girasCount: number | null;
 }
 
-async function loadTenantFacts(): Promise<TenantFacts> {
+export async function loadTenantFacts(): Promise<TenantFacts> {
   const [branding, config, giras] = await Promise.allSettled([
     apiClient.get('/api/v1/admin/tenant/branding'),
     apiClient.get('/api/v1/admin/tenant/config'),

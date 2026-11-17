@@ -10,6 +10,7 @@ import { buttonVariants } from '@/components/ui/button';
 import type { SectionConfig, SectionContext } from '../types';
 import { sectionForeground } from '../lib';
 import { SectionBody, SectionShell, SectionTitle } from './SectionShell';
+import { shows } from '../elements';
 
 export function buildAddress(config: SectionConfig) {
   const street = String(config.street || '');
@@ -33,6 +34,11 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
   const title = String(config.title || 'Como chegar');
   const instructions = String(config.instructions || '');
   const mapLeft = String(config.map_side || 'right') === 'left';
+  const showTitle = shows(config, 'show_title');
+  const showAddress = shows(config, 'show_address');
+  const showInstructions = shows(config, 'show_instructions');
+  const showMap = shows(config, 'show_map');
+  const showMapsButton = shows(config, 'show_maps_button');
   const fg = sectionForeground(config, '#f8f8f8');
   const mapsUrl = address.query
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.query)}`
@@ -42,7 +48,7 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
   const [geocodeFailed, setGeocodeFailed] = useState(false);
 
   useEffect(() => {
-    if (isPreview || !address.query) return;
+    if (isPreview || !address.query || !showMap) return;
     let cancelled = false;
     setGeocodeFailed(false);
     const geocode = (q: string) =>
@@ -66,7 +72,7 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
     return () => {
       cancelled = true;
     };
-  }, [isPreview, address.query, address.street, address.number, address.city, address.state]);
+  }, [isPreview, showMap, address.query, address.street, address.number, address.city, address.state]);
 
   const osmUrl = coords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${coords.lon - 0.005}%2C${coords.lat - 0.003}%2C${coords.lon + 0.005}%2C${coords.lat + 0.003}&layer=mapnik&marker=${coords.lat}%2C${coords.lon}`
@@ -98,10 +104,12 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
 
   const infoBlock = (
     <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 @min-[900px]:py-4">
-      <SectionTitle config={config} className="mb-0">
-        {title}
-      </SectionTitle>
-      {address.line1 || address.line2 || address.cepLine ? (
+      {showTitle && (
+        <SectionTitle config={config} className="mb-0">
+          {title}
+        </SectionTitle>
+      )}
+      {!showAddress ? null : address.line1 || address.line2 || address.cepLine ? (
         <address className="flex flex-col gap-1 not-italic">
           {address.line1 && <SectionBody config={config} defaultSize={15}>{address.line1}</SectionBody>}
           {address.line2 && (
@@ -118,8 +126,8 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
       ) : (
         isPreview && <p className="text-sm italic opacity-50">Preencha o endereço no painel ao lado.</p>
       )}
-      {instructions && <p className="text-sm leading-relaxed whitespace-pre-line opacity-70">{instructions}</p>}
-      {mapsUrl && (
+      {showInstructions && instructions && <p className="text-sm leading-relaxed whitespace-pre-line opacity-70">{instructions}</p>}
+      {showMapsButton && mapsUrl && (
         <a
           href={mapsUrl}
           target="_blank"
@@ -143,7 +151,7 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
     <SectionShell config={config} defaultBg="#f8f8f8" aria-label="Como chegar" data-section="location">
       <div className={cn('flex flex-col gap-6 @min-[900px]:items-center @min-[900px]:gap-10', mapLeft ? '@min-[900px]:flex-row-reverse' : '@min-[900px]:flex-row')}>
         {infoBlock}
-        {mapBlock}
+        {showMap && mapBlock}
       </div>
     </SectionShell>
   );

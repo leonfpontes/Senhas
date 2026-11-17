@@ -18,6 +18,7 @@ import {
   usePatch,
   type SectionEditorProps,
 } from '../controls';
+import { shows } from '../../elements';
 
 function SwitchRow({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (v: boolean) => void }) {
   const id = useId();
@@ -36,7 +37,7 @@ export function GirasCalendarEditor({ config, onChange }: SectionEditorProps) {
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="Conteúdo">
-        <TextField label="Título da seção" value={String(config.title || 'Próximas giras')} onChange={(e) => patch({ title: e.target.value })} />
+        {shows(config, 'show_title') && <TextField label="Título da seção" value={String(config.title || 'Próximas giras')} onChange={(e) => patch({ title: e.target.value })} />}
         <ChoiceField
           label="No computador"
           value={String(config.display_mode || 'calendar')}
@@ -51,7 +52,7 @@ export function GirasCalendarEditor({ config, onChange }: SectionEditorProps) {
         <p className="text-xs text-muted-foreground">No celular as giras aparecem sempre em lista, com a próxima em destaque.</p>
       </FieldGroup>
 
-      <FieldGroup title="Botões de senha">
+      <FieldGroup title="Botões de senha" kind="classic">
         <SwitchRow label="Mostrar &quot;Retire sua senha&quot;" checked={config.show_ticket_button !== false} onCheckedChange={(v) => patch({ show_ticket_button: v })} />
         <SwitchRow label="Mostrar &quot;Senha de associado&quot;" checked={config.show_sponsor_button !== false} onCheckedChange={(v) => patch({ show_sponsor_button: v })} />
       </FieldGroup>

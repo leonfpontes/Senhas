@@ -27,4 +27,5 @@ O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda 
 | [Retorno do consulente na porta](beta_retorno_consulente.md) | `beta_retorno_consulente` | Para a porta |
 | [Menu que se ajusta ao uso](beta_menu_ajustavel.md) | `beta_menu_ajustavel` | Para o painel |
 | [Indicação do plano pelo uso](beta_indicacao_plano.md) | `beta_indicacao_plano` | Para o painel |
+| [Novo construtor do site](beta_novo_construtor_site.md) | `beta_novo_construtor_site` | Para o site |
 | [Assistente de plano no site](assistente_plano_site.md) | `NEXT_PUBLIC_ASSISTENTE_PLANO` (chave do site, fora do Laboratório) | Para o site |

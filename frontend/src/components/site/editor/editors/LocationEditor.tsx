@@ -18,6 +18,7 @@ import {
   usePatch,
   type SectionEditorProps,
 } from '../controls';
+import { shows } from '../../elements';
 
 export function LocationEditor({ config, onChange }: SectionEditorProps) {
   const patch = usePatch(config, onChange);
@@ -50,7 +51,7 @@ export function LocationEditor({ config, onChange }: SectionEditorProps) {
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="Conteúdo">
-        <TextField label="Título da seção" value={String(config.title || 'Como chegar')} onChange={(e) => patch({ title: e.target.value })} />
+        {shows(config, 'show_title') && <TextField label="Título da seção" value={String(config.title || 'Como chegar')} onChange={(e) => patch({ title: e.target.value })} />}
       </FieldGroup>
 
       <FieldGroup title="Endereço">
@@ -93,6 +94,7 @@ export function LocationEditor({ config, onChange }: SectionEditorProps) {
             helperText="Preencha os campos acima para o mapa ficar mais preciso."
           />
         )}
+        {shows(config, 'show_instructions') && (
         <TextField
           label="Instruções adicionais"
           multiline
@@ -101,6 +103,7 @@ export function LocationEditor({ config, onChange }: SectionEditorProps) {
           onChange={(e) => patch({ instructions: e.target.value })}
           helperText="Opcional. Ex.: entrada pelo portão lateral, estacionamento no pátio…"
         />
+        )}
       </FieldGroup>
 
       <FieldGroup title="Layout">

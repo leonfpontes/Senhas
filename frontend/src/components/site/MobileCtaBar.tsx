@@ -16,9 +16,11 @@ export interface MobileCtaBarProps {
   variant?: 'fixed' | 'inline';
   inert?: boolean;
   className?: string;
+  /** Texto do botão (o mesmo do botão da capa). */
+  label?: string;
 }
 
-export function MobileCtaBar({ slug, brandColor, variant = 'fixed', inert = false, className }: MobileCtaBarProps) {
+export function MobileCtaBar({ slug, brandColor, variant = 'fixed', inert = false, className, label = 'Retirar senha' }: MobileCtaBarProps) {
   return (
     <div
       data-testid="mobile-cta-bar"
@@ -40,7 +42,7 @@ export function MobileCtaBar({ slug, brandColor, variant = 'fixed', inert = fals
         style={{ '--brand': brandColor, '--brand-fg': pickForeground(brandColor) } as React.CSSProperties}
       >
         <Ticket aria-hidden />
-        Retirar senha
+        {label}
       </a>
     </div>
   );

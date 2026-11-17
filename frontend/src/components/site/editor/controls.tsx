@@ -30,7 +30,35 @@ export function usePatch(config: SectionConfig, onChange: (c: SectionConfig) => 
 
 // ── Grupo ─────────────────────────────────────────────────────────────────────
 
-export function FieldGroup({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+/**
+ * Aba do painel da seção no estúdio (beta "Novo construtor do site"): "Conteúdo" (textos,
+ * fotos, itens) ou "Estilo" (cores, fontes, fundo, espaço, layout). Fora do estúdio não há
+ * aba e todos os grupos aparecem, como antes.
+ */
+export type EditorTab = 'conteudo' | 'estilo';
+export const EditorTabContext = React.createContext<EditorTab | null>(null);
+export const useEditorTab = () => React.useContext(EditorTabContext);
+
+/** Grupos de aparência pelo título. "Texto" sozinho é a cor do texto (o de conteúdo passa `kind`). */
+const STYLE_GROUPS = new Set(['Cores', 'Fonte', 'Fundo', 'Tipografia', 'Layout', 'Espaço', 'Texto']);
+
+export function FieldGroup({
+  title,
+  children,
+  className,
+  kind,
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+  /** Em que aba o grupo fica. `classic` só aparece fora do estúdio (o estúdio tem o próprio controle). */
+  kind?: EditorTab | 'classic';
+}) {
+  const tab = useEditorTab();
+  if (tab) {
+    const k = kind ?? (STYLE_GROUPS.has(title) ? 'estilo' : 'conteudo');
+    if (k !== tab) return null;
+  }
   return (
     <fieldset className={cn('flex min-w-0 flex-col gap-3 border-0 p-0', className)}>
       <legend className="mb-2 flex w-full items-center gap-2 text-xs font-semibold text-muted-foreground">
