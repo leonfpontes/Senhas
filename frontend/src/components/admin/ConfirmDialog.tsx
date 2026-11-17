@@ -29,6 +29,8 @@ export interface ConfirmDialogProps {
   onConfirm:   () => void;
   onCancel:    () => void;
   className?:  string;
+  /** Camada do fundo escuro; junto com `className` (ex.: `z-[70]`) põe o diálogo acima de gavetas. */
+  overlayClassName?: string;
   /** `default`: diálogo largo, texto à esquerda (DialogoDeAlerta da v2); `sm`: o compacto de sempre. */
   size?:       'default' | 'sm';
 }
@@ -44,6 +46,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
   className,
+  overlayClassName,
   size = 'sm',
 }) => (
   <AlertDialog
@@ -52,7 +55,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       if (!next && !loading) onCancel();
     }}
   >
-    <AlertDialogContent size={size} className={className}>
+    <AlertDialogContent size={size} className={className} overlayClassName={overlayClassName}>
       <AlertDialogHeader>
         <AlertDialogTitle className="font-display text-2xl leading-tight font-normal tracking-[-0.01em]">{title}</AlertDialogTitle>
         {typeof message === 'string' ? (

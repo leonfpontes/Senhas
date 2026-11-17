@@ -49,13 +49,16 @@ const AlertDialogOverlay = React.forwardRef<
 function AlertDialogContent({
   className,
   size = "default",
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
   size?: "default" | "sm"
+  /** Sobre telas com camadas acima de z-50 (ex.: gavetas do estúdio do site, z-[60]). */
+  overlayClassName?: string
 }) {
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      <AlertDialogOverlay className={overlayClassName} />
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         data-size={size}

@@ -795,6 +795,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       </Dialog>
 
       <ConfirmDialog
+        className="z-[70]"
+        overlayClassName="z-[70]"
         open={confirmUnpublish}
         title="Tirar o site do ar"
         message="O endereço passa a mostrar “Site em preparação”. Tudo continua salvo e pode ser publicado de novo com um clique."
@@ -808,6 +810,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       />
 
       <ConfirmDialog
+        className="z-[70]"
+        overlayClassName="z-[70]"
         open={confirmLeave}
         size="default"
         title="Sair sem publicar?"
@@ -828,6 +832,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
       />
 
       <ConfirmDialog
+        className="z-[70]"
+        overlayClassName="z-[70]"
         open={deleteTarget != null}
         title="Excluir seção"
         message={
