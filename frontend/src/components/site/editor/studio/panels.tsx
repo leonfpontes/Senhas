@@ -19,8 +19,10 @@ import {
   GripVertical,
   Loader2,
   MoreHorizontal,
+  MousePointerClick,
   Plus,
   Search,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -36,10 +38,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TextField } from '@/components/fields';
 import type { SectionType, SiteInfo, SiteSection } from '../../types';
-import { catalogEntry, isSectionHidden, sectionCatalog, sectionLabel, siteBrandColor } from '../../lib';
+import { catalogEntry, isSectionHidden, sectionLabel, siteBrandColor } from '../../lib';
 import { HERO_FONTS } from '@/constants/heroFonts';
 import { activeStyleId, applySiteStyle, setSiteColor, setSiteFonts, siteFonts, type SiteStyle } from '../../styles';
-import { SectionIcon, SectionThumb } from '../sectionIcons';
+import { SectionIcon } from '../sectionIcons';
+import { BlockThumb } from './BlockThumb';
+import { BLOCK_CATEGORIES, BLOCK_DRAG_MIME, buildBlocks, encodeBlockDrag, existingFor, filterBlocks, suggestedBlocks, type Block, type BlockCategory } from './blocks';
 import { StyleChoices, useHouseColors } from '../StylePanel';
 import { ColorField } from '../controls';
 import { googleSnippet } from '../PublishCheck';
@@ -209,86 +213,188 @@ export function LayersPanel({ sections, selectedId, errorsById, canEdit, onSelec
   );
 }
 
-// ── Adicionar ───────────────────────────────────────────────────────────────
+// ── Adicionar (gaveta de blocos) ────────────────────────────────────────────
 
-const GROUPS: { title: string; types: SectionType[] }[] = [
-  { title: 'O essencial', types: ['HERO', 'GIRAS_CALENDAR', 'LOCATION', 'CONTACT'] },
-  { title: 'Apresentar a casa', types: ['ABOUT', 'ROTINA', 'LINHAS', 'GALLERY', 'VIDEO_EMBED', 'CUSTOM_TEXT'] },
-  { title: 'Receber e ser ajudada', types: ['FAQ', 'AJUDAR', 'SOCIAL', 'SPONSOR'] },
-];
-
-export function AddPanel({
-  sections,
-  novoConstrutor,
-  insertHint,
-  onAdd,
-  onGoTo,
-}: {
+export interface AddPanelProps {
   sections: SiteSection[];
   novoConstrutor: boolean;
   /** "depois de Capa", "no fim do site"… */
   insertHint: string;
-  onAdd: (type: SectionType) => void;
+  /** Cor principal do site, para as miniaturas. */
+  accent: string;
+  /** Clique ou Enter: entra na posição de `insertHint`. */
+  onAdd: (block: Block) => void;
   /** Seção única que já existe: leva até ela. */
   onGoTo: (id: string) => void;
-}) {
+  /** Começo e fim do arrastar (a prévia mostra onde o bloco vai entrar). */
+  onDragBlock?: (block: Block | null) => void;
+}
+
+export function AddPanel({ sections, novoConstrutor, insertHint, accent, onAdd, onGoTo, onDragBlock }: AddPanelProps) {
   const [q, setQ] = useState('');
-  const catalog = sectionCatalog(novoConstrutor);
-  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const query = norm(q.trim());
+  const [category, setCategory] = useState<BlockCategory | 'todos'>('todos');
+  const [hint, setHint] = useState<Block | null>(null);
+  const blocks = useMemo(() => buildBlocks(novoConstrutor), [novoConstrutor]);
+  const results = useMemo(() => filterBlocks(blocks, q, category), [blocks, q, category]);
+  const suggestions = useMemo(() => (q || category !== 'todos' ? [] : suggestedBlocks(blocks, sections)), [blocks, sections, q, category]);
+  const categories = BLOCK_CATEGORIES.filter((c) => blocks.some((b) => b.category === c.id));
+  const searching = q.trim().length > 0;
+
+  const card = (b: Block, big = false) => {
+    const existing = existingFor(b, sections);
+    const name = b.variant ? `${b.label}: ${b.variant}` : b.label;
+    return (
+      <li key={b.id} className="flex min-w-0">
+        <button
+          type="button"
+          draggable={!existing}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData(BLOCK_DRAG_MIME, encodeBlockDrag(b));
+            e.dataTransfer.setData('text/plain', name);
+            onDragBlock?.(b);
+          }}
+          onDragEnd={() => onDragBlock?.(null)}
+          onClick={() => (existing ? onGoTo(existing.id) : onAdd(b))}
+          onMouseEnter={() => setHint(b)}
+          onFocus={() => setHint(b)}
+          aria-label={existing ? `${name} já está no site: ir até ela` : `Adicionar ${name} ${insertHint}`}
+          aria-describedby="studio-add-hint"
+          className={cn(
+            'group relative flex h-full w-full flex-col gap-1.5 rounded-xl border bg-card p-1.5 text-left transition-[border-color,box-shadow,transform] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+            existing ? 'border-dashed border-border opacity-70 hover:opacity-100' : 'cursor-grab border-border hover:-translate-y-px hover:border-brand hover:shadow-md active:cursor-grabbing',
+          )}
+        >
+          <BlockThumb block={b} accent={accent} className={big ? 'h-[88px]' : undefined} />
+          <span className="flex min-w-0 flex-1 items-end gap-1 px-1 pb-0.5">
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-2 block text-[13px] leading-tight font-semibold">{b.label}</span>
+              <span className="block truncate text-[11px] leading-tight text-muted-foreground">
+                {existing ? 'Já está no site' : b.variant || '\u00a0'}
+              </span>
+            </span>
+            {existing ? (
+              <Check className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            ) : (
+              <Plus className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-brand" aria-hidden />
+            )}
+          </span>
+          {b.isNew && !existing && b.variant === '' && (
+            <span className="absolute top-2.5 right-2.5 rounded-full bg-brand px-1.5 py-px text-[9px] font-bold tracking-wide text-white uppercase">Novo</span>
+          )}
+        </button>
+      </li>
+    );
+  };
+
+  // Seções únicas que já estão no site vão para o fim do grupo.
+  const grid = (list: Block[], big = false) => {
+    const ordered = [...list.filter((b) => !existingFor(b, sections)), ...list.filter((b) => existingFor(b, sections))];
+    return <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0">{ordered.map((b) => card(b, big))}</ul>;
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="studio-add">
-      <PanelHeader title="Adicionar seção" description={`Entra ${insertHint}.`} />
-      <div className="px-3 pt-3">
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="studio-add" onMouseLeave={() => setHint(null)}>
+      <PanelHeader title="Adicionar" description="Arraste um bloco para o site ou clique para colocar." />
+      <div className="flex flex-col gap-2 border-b border-border px-3 py-3">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar (fotos, PIX, mapa…)" className="pl-8" aria-label="Procurar seção" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && results[0] && !existingFor(results[0], sections)) onAdd(results[0]);
+              if (e.key === 'Escape' && q) {
+                e.stopPropagation();
+                setQ('');
+              }
+            }}
+            placeholder="Procurar: fotos, PIX, mapa…"
+            className="pl-8"
+            aria-label="Procurar bloco"
+          />
+        </div>
+        <div role="tablist" aria-label="Categorias" className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none]">
+          {[{ id: 'todos' as const, label: 'Todos' }, ...categories].map((c) => {
+            const on = category === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setCategory(c.id)}
+                className={cn(
+                  'shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                  on ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground',
+                )}
+              >
+                {c.label}
+              </button>
+            );
+          })}
         </div>
       </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {GROUPS.map((g) => {
-          const entries = g.types
-            .map((t) => catalog.find((e) => e.type === t))
-            .filter((e): e is NonNullable<typeof e> => Boolean(e))
-            .filter((e) => !query || norm(`${e.label} ${e.description}`).includes(query));
-          if (entries.length === 0) return null;
-          return (
-            <section key={g.title} className="mb-4">
-              <h3 className="mb-2 px-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{g.title}</h3>
-              <ul className="m-0 grid list-none grid-cols-1 gap-2 p-0">
-                {entries.map((e) => {
-                  const existing = e.single ? sections.find((s) => s.section_type === e.type) : undefined;
-                  return (
-                    <li key={e.type}>
-                      <button
-                        type="button"
-                        onClick={() => (existing ? onGoTo(existing.id) : onAdd(e.type))}
-                        aria-label={existing ? `${e.label} já está no site: ir até ela` : `Adicionar ${e.label}`}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2 text-left transition-[border-color,box-shadow] hover:border-brand hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                      >
-                        <SectionThumb type={e.type} className="w-20 shrink-0" />
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="flex items-center gap-1.5 text-sm font-semibold">
-                            {e.label}
-                            {e.beta && !existing && <span className="rounded-full bg-brand/10 px-1.5 py-px text-[10px] font-semibold text-brand">Novo</span>}
-                          </span>
-                          <span className="line-clamp-2 text-xs text-muted-foreground">{e.description}</span>
-                          {existing && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                              <Check className="size-3" aria-hidden /> Já está no site
-                            </span>
-                          )}
-                        </span>
-                        {!existing && <Plus className="size-4 shrink-0 text-muted-foreground group-hover:text-brand" aria-hidden />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          );
-        })}
+        {suggestions.length > 0 && (
+          <section className="mb-5" aria-labelledby="studio-add-sug">
+            <h3 id="studio-add-sug" className="mb-2 flex items-center gap-1.5 px-0.5 text-[11px] font-semibold tracking-wide text-brand uppercase">
+              <Sparkles className="size-3.5" aria-hidden /> Falta no seu site
+            </h3>
+            {grid(suggestions, true)}
+          </section>
+        )}
+
+        {results.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+            <Search className="size-6 text-muted-foreground/60" aria-hidden />
+            <p className="text-sm font-medium">Nada com “{q.trim()}”.</p>
+            <p className="text-xs text-muted-foreground">Tente “fotos”, “PIX”, “mapa” ou “WhatsApp”.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setQ('');
+                setCategory('todos');
+              }}
+            >
+              Ver todos os blocos
+            </Button>
+          </div>
+        ) : searching || category !== 'todos' ? (
+          grid(results)
+        ) : (
+          categories.map((c) => {
+            const list = results.filter((b) => b.category === c.id);
+            if (list.length === 0) return null;
+            return (
+              <section key={c.id} className="mb-5" aria-label={c.label}>
+                <h3 className="mb-2 px-0.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{c.label}</h3>
+                {grid(list)}
+              </section>
+            );
+          })
+        )}
+      </div>
+
+      <div id="studio-add-hint" className="flex min-h-[64px] items-start gap-2.5 border-t border-border bg-muted/40 px-4 py-3 text-xs" aria-live="polite">
+        {hint ? (
+          <>
+            <SectionIcon type={hint.type} className="mt-0.5 size-4 shrink-0 text-brand" />
+            <span className="min-w-0">
+              <span className="block font-semibold text-foreground">{hint.variant ? `${hint.label} · ${hint.variant}` : hint.label}</span>
+              <span className="text-muted-foreground">{hint.description}</span>
+            </span>
+          </>
+        ) : (
+          <>
+            <MousePointerClick className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="text-muted-foreground">
+              Clique para colocar <span className="font-medium text-foreground">{insertHint}</span>, ou arraste até o ponto exato do site.
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

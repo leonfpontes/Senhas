@@ -51,6 +51,7 @@ export function InsertButton({ onClick, label = 'Adicionar seção aqui', classN
   return (
     <button
       type="button"
+      data-insert-button
       onClick={(e) => {
         e.stopPropagation();
         onClick();

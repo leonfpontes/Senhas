@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { PublicSiteData } from '../../types';
 import { PublicSite } from '../../PublicSite';
 import type { SiteEditing } from '../../EditableFrame';
+import { BLOCK_DRAG_MIME, dropIndexFor } from './blocks';
 
 export type StudioDevice = 'desktop' | 'tablet' | 'mobile';
 
@@ -67,10 +68,57 @@ export interface StudioCanvasProps {
   scrollToId?: string | null;
   scrollKey?: number;
   className?: string;
+  /** Bloco sendo arrastado da gaveta "Adicionar" (nome para o aviso), ou null. */
+  draggingLabel?: string | null;
+  /** Bloco solto na tela: `raw` é o dado do arrastar, `index` a posição entre as seções. */
+  onDropBlock?: (raw: string, index: number) => void;
 }
 
-export function StudioCanvas({ site, device, editing, scrollToId, scrollKey, className }: StudioCanvasProps) {
+interface DropMark {
+  index: number;
+  /** Posição da linha, relativa à área da tela. */
+  y: number;
+  left: number;
+  width: number;
+}
+
+const hasBlock = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes(BLOCK_DRAG_MIME);
+
+export function StudioCanvas({ site, device, editing, scrollToId, scrollKey, className, draggingLabel, onDropBlock }: StudioCanvasProps) {
   const [hostRef, host] = useElementSize<HTMLDivElement>();
+  const [mark, setMark] = useState<DropMark | null>(null);
+  const acceptsDrop = Boolean(onDropBlock && editing?.canEdit);
+
+  useEffect(() => {
+    if (!draggingLabel) setMark(null);
+  }, [draggingLabel]);
+
+  /** Onde o bloco entra: entre as seções, pela altura do ponteiro. Rola a tela perto das bordas. */
+  const track = (e: React.DragEvent) => {
+    const hostEl = hostRef.current;
+    const sc = scrollRef.current;
+    if (!hostEl || !sc) return;
+    const frames = Array.from(sc.querySelectorAll<HTMLElement>('[data-edit-frame]'));
+    const hb = hostEl.getBoundingClientRect();
+    const sb = sc.getBoundingClientRect();
+    if (e.clientY < sb.top + 64) sc.scrollTop -= 16;
+    else if (e.clientY > sb.bottom - 64) sc.scrollTop += 16;
+    if (frames.length === 0) {
+      setMark({ index: 0, y: sb.top - hb.top + 48, left: 24, width: Math.max(0, hb.width - 48) });
+      return;
+    }
+    const rects = frames.map((f) => f.getBoundingClientRect());
+    const index = dropIndexFor(
+      e.clientY,
+      rects.map((r) => r.top + r.height / 2),
+    );
+    const y = index === 0 ? rects[0].top : index === rects.length ? rects[rects.length - 1].bottom : (rects[index - 1].bottom + rects[index].top) / 2;
+    const clampedY = Math.min(Math.max(y, sb.top + 4), sb.bottom - 4);
+    setMark((m) => {
+      const next = { index, y: clampedY - hb.top, left: rects[0].left - hb.left, width: rects[0].width };
+      return m && m.index === next.index && Math.abs(m.y - next.y) < 1 && m.left === next.left ? m : next;
+    });
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const frame = DEVICE_WIDTH[device];
   const isMobile = device === 'mobile';
@@ -93,8 +141,55 @@ export function StudioCanvas({ site, device, editing, scrollToId, scrollKey, cla
   }, [scrollKey]);
 
   return (
-    <div ref={hostRef} className={cn('relative flex min-h-0 min-w-0 flex-1 flex-col bg-areia-100 dark:bg-muted', className)} data-testid="studio-canvas">
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="site-preview-scroll">
+    <div
+      ref={hostRef}
+      className={cn('relative flex min-h-0 min-w-0 flex-1 flex-col bg-areia-100 dark:bg-muted', className)}
+      data-testid="studio-canvas"
+      onDragOver={(e) => {
+        if (!acceptsDrop || !hasBlock(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        track(e);
+      }}
+      onDragLeave={(e) => {
+        if (!hostRef.current?.contains(e.relatedTarget as Node | null)) setMark(null);
+      }}
+      onDrop={(e) => {
+        if (!acceptsDrop || !hasBlock(e)) return;
+        e.preventDefault();
+        const raw = e.dataTransfer.getData(BLOCK_DRAG_MIME);
+        const at = mark?.index;
+        setMark(null);
+        if (raw && at !== undefined) onDropBlock?.(raw, at);
+      }}
+    >
+      {acceptsDrop && draggingLabel && (
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center" aria-hidden>
+          <span className="rounded-full bg-foreground/85 px-3 py-1 text-xs font-medium text-background shadow-md">
+            {mark ? 'Solte para colocar aqui' : 'Leve até o site e solte entre as seções'}
+          </span>
+        </div>
+      )}
+      {acceptsDrop && draggingLabel && mark && (
+        <div
+          className="pointer-events-none absolute z-40 flex items-center"
+          style={{ top: mark.y, left: mark.left, width: mark.width, transform: 'translateY(-50%)' }}
+          data-testid="studio-drop-mark"
+          aria-hidden
+        >
+          <span className="size-3 shrink-0 rounded-full border-2 border-brand bg-background" />
+          <span className="h-[3px] flex-1 bg-brand" />
+          <span className="absolute left-1/2 -translate-x-1/2 rounded-full bg-brand px-3 py-1 text-xs font-semibold whitespace-nowrap text-white shadow-lg">
+            + {draggingLabel}
+          </span>
+          <span className="size-3 shrink-0 rounded-full border-2 border-brand bg-background" />
+        </div>
+      )}
+      <div
+        ref={scrollRef}
+        className={cn('min-h-0 flex-1 overflow-x-hidden overflow-y-auto', draggingLabel && '[&_[data-insert-button]]:hidden')}
+        data-testid="site-preview-scroll"
+      >
         <div className={cn('mx-auto flex justify-center', pad ? 'py-6' : 'py-0')}>
           <div
             className={cn(

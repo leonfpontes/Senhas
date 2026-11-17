@@ -219,8 +219,8 @@ describe('estúdio do site (beta ligada)', () => {
     const layers = await screen.findByTestId('studio-layers');
     await user.click(within(layers).getByRole('button', { name: /^Capa/ }));
     await user.click(screen.getByRole('button', { name: 'Adicionar' }));
-    expect(screen.getByText(/Entra depois de "Capa"/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Adicionar Fotos' }));
+    expect(screen.getByText('depois de "Capa"')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: /^Adicionar Fotos: Grade/ })[0]);
 
     await user.click(screen.getByRole('button', { name: 'Seções' }));
     const nomes = () => within(screen.getByTestId('studio-layers')).getAllByRole('listitem').map((li) => li.textContent);
@@ -229,6 +229,49 @@ describe('estúdio do site (beta ligada)', () => {
     await user.click(within(screen.getByTestId('studio-layers')).getByRole('button', { name: /^Texto livre/ }));
     await user.click(within(screen.getByTestId('studio-inspector')).getByRole('button', { name: 'Duplicar' }));
     expect(nomes().filter((n) => n?.includes('Texto livre'))).toHaveLength(2);
+  });
+
+  it('arrastar um bloco da gaveta e soltar na prévia coloca a seção ali', async () => {
+    mockApi([
+      { id: 'sec-hero', section_type: 'HERO', order_index: 0, config: { title: 'Casa' } },
+      { id: 'sec-txt', section_type: 'CUSTOM_TEXT', order_index: 1, config: { title: 'Avisos', body: 'x' } },
+    ]);
+    render(<SiteStudio canEdit canInsert />);
+    const user = userEvent.setup();
+    await screen.findByTestId('studio-layers');
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+    const gaveta = screen.getByTestId('studio-add');
+    // Categoria e busca filtram os blocos.
+    await user.click(within(gaveta).getByRole('tab', { name: 'Fotos e vídeo' }));
+    expect(within(gaveta).queryByRole('button', { name: /^Adicionar Contato/ })).not.toBeInTheDocument();
+    const mosaico = within(gaveta).getByRole('button', { name: /^Adicionar Fotos: Mosaico/ });
+
+    const store: Record<string, string> = {};
+    const dataTransfer = {
+      setData: (k: string, v: string) => {
+        store[k] = v;
+      },
+      getData: (k: string) => store[k] ?? '',
+      get types() {
+        return Object.keys(store);
+      },
+      effectAllowed: 'all',
+      dropEffect: 'none',
+    };
+    fireEvent.dragStart(mosaico, { dataTransfer });
+    const canvas = screen.getByTestId('studio-canvas');
+    expect(within(canvas).getByText('Leve até o site e solte entre as seções')).toBeInTheDocument();
+    fireEvent.dragOver(canvas, { dataTransfer, clientY: 0 });
+    expect(screen.getByTestId('studio-drop-mark')).toHaveTextContent('Fotos · Mosaico');
+    fireEvent.drop(canvas, { dataTransfer, clientY: 0 });
+    fireEvent.dragEnd(mosaico, { dataTransfer });
+
+    await user.click(screen.getByRole('button', { name: 'Seções' }));
+    const nomes = within(screen.getByTestId('studio-layers'))
+      .getAllByRole('listitem')
+      .map((li) => li.textContent);
+    expect(nomes[0]).toContain('Fotos');
+    expect(screen.queryByTestId('studio-drop-mark')).not.toBeInTheDocument();
   });
 
   it('"Publicar" abre a conferência antes de publicar', async () => {

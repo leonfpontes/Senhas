@@ -61,8 +61,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
-import type { PublicSiteData, SectionType, SiteGira } from '../../types';
-import { sectionLabel } from '../../lib';
+import type { PublicSiteData, SiteGira } from '../../types';
+import { sectionLabel, siteBrandColor } from '../../lib';
 import type { SiteEditing } from '../../EditableFrame';
 import { useSiteEditor } from '../useSiteEditor';
 import { HistoryPanel } from '../HistoryPanel';
@@ -70,6 +70,7 @@ import { PublishCheck } from '../PublishCheck';
 import { StudioCanvas, DEVICE_LABEL, type StudioDevice } from './StudioCanvas';
 import { StudioStart } from './StudioStart';
 import { Inspector } from './Inspector';
+import { buildBlocks, decodeBlockDrag, existingFor, type Block } from './blocks';
 import { AddPanel, LayersPanel, NextStepsPanel, PanelHeader, SettingsPanel, StyleRailPanel, buildNextSteps, type NextStep } from './panels';
 
 type PanelId = 'secoes' | 'adicionar' | 'estilo' | 'passos' | 'config' | 'historico';
@@ -153,6 +154,8 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
   const [device, setDevice] = useState<StudioDevice>('desktop');
   const [previewMode, setPreviewMode] = useState(false);
   const [insertAt, setInsertAt] = useState<number | null>(null);
+  /** Bloco sendo arrastado da gaveta "Adicionar". */
+  const [dragBlock, setDragBlock] = useState<Block | null>(null);
   const [scroll, setScroll] = useState<{ id: string | null; key: number }>({ id: null, key: 0 });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
@@ -200,11 +203,28 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
   const insertHint =
     insertIndex >= sections.length ? 'no fim do site' : insertIndex === 0 ? 'no começo do site' : `depois de "${sectionLabel(sections[insertIndex - 1].section_type)}"`;
 
-  const addSection = (type: SectionType) => {
-    const id = editor.insertSection(type, insertIndex);
+  const blocks = useMemo(() => buildBlocks(true), []);
+
+  /** Coloca o bloco (seção com o jeito escolhido) na posição `index`. */
+  const placeBlock = (block: Block, index: number) => {
+    const existing = existingFor(block, sections);
+    if (existing) {
+      select(existing.id);
+      toast.info(`${sectionLabel(block.type)} já está no site. Ela só pode aparecer uma vez.`);
+      return;
+    }
+    const id = editor.insertSection(block.type, index, block.config);
     setInsertAt(null);
     setScroll((s) => ({ id, key: s.key + 1 }));
     if (isPhone) setSheetPanel(null);
+  };
+
+  const addSection = (block: Block) => placeBlock(block, insertIndex);
+
+  const dropBlock = (raw: string, index: number) => {
+    setDragBlock(null);
+    const block = decodeBlockDrag(raw, blocks);
+    if (block) placeBlock(block, index);
   };
 
   const duplicate = (id: string) => {
@@ -393,7 +413,15 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
         );
       case 'adicionar':
         return canEdit ? (
-          <AddPanel sections={sections} novoConstrutor insertHint={insertHint} onAdd={addSection} onGoTo={(sid) => select(sid)} />
+          <AddPanel
+            sections={sections}
+            novoConstrutor
+            insertHint={insertHint}
+            accent={siteBrandColor(sections)}
+            onAdd={addSection}
+            onGoTo={(sid) => select(sid)}
+            onDragBlock={setDragBlock}
+          />
         ) : (
           <PanelHeader title="Adicionar seção" description="Você só pode ver o site." />
         );
@@ -608,14 +636,23 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
 
           {/* Painel da ferramenta (computador) */}
           {!isPhone && !previewMode && panel && (
-            <aside className="flex w-[300px] shrink-0 flex-col border-r border-border bg-card" aria-label="Painel">
+            <aside className={cn('flex shrink-0 flex-col border-r border-border bg-card transition-[width]', panel === 'adicionar' ? 'w-[360px]' : 'w-[300px]')} aria-label="Painel">
               {renderPanel(panel)}
             </aside>
           )}
 
           {/* Tela */}
           {previewSite && (
-            <StudioCanvas site={previewSite} device={shownDevice} editing={editing} scrollToId={scroll.id} scrollKey={scroll.key} className={cn(isPhone && !previewMode && 'pb-16')} />
+            <StudioCanvas
+              site={previewSite}
+              device={shownDevice}
+              editing={editing}
+              scrollToId={scroll.id}
+              scrollKey={scroll.key}
+              className={cn(isPhone && !previewMode && 'pb-16')}
+              draggingLabel={dragBlock ? (dragBlock.variant ? `${dragBlock.label} · ${dragBlock.variant}` : dragBlock.label) : null}
+              onDropBlock={isPhone ? undefined : dropBlock}
+            />
           )}
 
           {/* Painel da seção (computador) */}
