@@ -809,6 +809,7 @@ export function SiteStudio({ canEdit, canInsert }: SiteStudioProps) {
 
       <ConfirmDialog
         open={confirmLeave}
+        size="default"
         title="Sair sem publicar?"
         message={
           editor.isPublished
