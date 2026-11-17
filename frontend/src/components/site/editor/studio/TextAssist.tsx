@@ -187,8 +187,13 @@ export function TextAssist({ section, campos, onChange }: { section: SiteSection
 
           <Button size="sm" onClick={sugerir} disabled={loading || precisaIdeia || !pedidoValido} className="self-start">
             {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
-            {loading ? 'Pensando…' : 'Sugerir texto'}
+            {loading ? 'Escrevendo…' : 'Sugerir texto'}
           </Button>
+          {loading && (
+            <p className="text-[11px] text-muted-foreground" aria-live="polite">
+              Pode levar uns 15 segundos. Pode continuar mexendo no site enquanto isso.
+            </p>
+          )}
 
           {erro && (
             <p role="alert" className="text-xs text-destructive">
