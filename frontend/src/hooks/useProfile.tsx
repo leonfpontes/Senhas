@@ -85,8 +85,20 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
           JSON.stringify({ ...(existing ? JSON.parse(existing) : {}), ...data }),
         );
       }
-    } catch {
-      // Keep the cached profile from localStorage on transient errors.
+    } catch (err) {
+      // Erro passageiro (rede, 5xx): mantém o perfil guardado no aparelho.
+      // 401 aqui já passou pelo /auth/refresh do api_client e ele falhou: a sessão acabou
+      // (teto de MAX_SESSION_DAYS, ou cookies de sessão sem "Lembrar-me" que o navegador
+      // apagou). Sem o cookie `auth_state` o api_client não redireciona, então o perfil
+      // guardado deixaria as telas presas em "carregando" (a Área do Médium ficava no
+      // spinner para sempre). Descarta o perfil para os layouts mandarem para o /login.
+      if ((err as { status?: number } | null)?.status === 401) {
+        setProfile(null);
+        const isImpersonating =
+          typeof sessionStorage !== 'undefined' &&
+          Boolean(sessionStorage.getItem('impersonating'));
+        if (!isImpersonating) localStorage.removeItem('user');
+      }
     } finally {
       setLoading(false);
     }
