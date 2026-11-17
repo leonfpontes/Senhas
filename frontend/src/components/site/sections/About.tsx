@@ -5,6 +5,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import type { SectionConfig, SectionContext } from '../types';
 import { PreviewHint, SectionBody, SectionShell, SectionTitle } from './SectionShell';
+import { InlineText } from './InlineText';
 
 export function About({ config, ctx }: { config: SectionConfig; ctx: SectionContext }) {
   const title = String(config.title || '');
@@ -15,10 +16,20 @@ export function About({ config, ctx }: { config: SectionConfig; ctx: SectionCont
 
   return (
     <SectionShell config={config} defaultBg="#ffffff" aria-label="Sobre o terreiro" data-section="about">
-      {title && <SectionTitle config={config}>{title}</SectionTitle>}
+      {ctx.edit ? (
+        <SectionTitle config={config}>
+          <InlineText value={title} field="title" edit={ctx.edit} placeholder="Título da seção" />
+        </SectionTitle>
+      ) : (
+        title && <SectionTitle config={config}>{title}</SectionTitle>
+      )}
       <div className={cn('flex flex-col gap-8', imageLeft ? '@min-[900px]:flex-row-reverse' : '@min-[900px]:flex-row', '@min-[900px]:items-start')}>
         <div className="min-w-0 flex-1">
-          {body ? (
+          {ctx.edit ? (
+            <SectionBody config={config} as="div">
+              <InlineText value={body} field="body" edit={ctx.edit} multiline as="div" placeholder="Conte aqui a história do terreiro, a linha de trabalho e como funciona o atendimento." />
+            </SectionBody>
+          ) : body ? (
             <SectionBody config={config}>{body}</SectionBody>
           ) : (
             isPreview && <PreviewHint>Conte aqui a história do terreiro, a linha de trabalho e como funciona o atendimento.</PreviewHint>

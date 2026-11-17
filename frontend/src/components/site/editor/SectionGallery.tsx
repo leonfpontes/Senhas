@@ -7,7 +7,7 @@ import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import type { SectionType } from '../types';
-import { SECTION_CATALOG } from '../lib';
+import { sectionCatalog } from '../lib';
 import { SectionIcon, SectionThumb } from './sectionIcons';
 
 export interface SectionGalleryProps {
@@ -15,9 +15,11 @@ export interface SectionGalleryProps {
   onOpenChange: (open: boolean) => void;
   existingTypes: string[];
   onAdd: (type: SectionType) => void;
+  /** Beta "Novo construtor do site": mostra as seções novas. */
+  novoConstrutor?: boolean;
 }
 
-export function SectionGallery({ open, onOpenChange, existingTypes, onAdd }: SectionGalleryProps) {
+export function SectionGallery({ open, onOpenChange, existingTypes, onAdd, novoConstrutor = false }: SectionGalleryProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full gap-0 sm:max-w-[600px]">
@@ -26,7 +28,7 @@ export function SectionGallery({ open, onOpenChange, existingTypes, onAdd }: Sec
           <SheetDescription>Escolha um bloco para o seu site. Você pode mudar a ordem depois.</SheetDescription>
         </SheetHeader>
         <ul className="grid list-none grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2" aria-label="Galeria de seções">
-          {SECTION_CATALOG.map((entry) => {
+          {sectionCatalog(novoConstrutor).map((entry) => {
             const taken = Boolean(entry.single) && existingTypes.includes(entry.type);
             return (
               <li key={entry.type}>
@@ -44,6 +46,7 @@ export function SectionGallery({ open, onOpenChange, existingTypes, onAdd }: Sec
                   <div className="flex items-center gap-2">
                     <SectionIcon type={entry.type} className="text-muted-foreground" />
                     <span className="font-semibold">{entry.label}</span>
+                    {entry.beta && !taken && <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Novo</span>}
                     {taken && (
                       <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Check className="size-3.5" aria-hidden /> Já adicionada

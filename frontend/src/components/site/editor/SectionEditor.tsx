@@ -18,6 +18,7 @@ import { LocationEditor } from './editors/LocationEditor';
 import { ContactEditor } from './editors/ContactEditor';
 import { SponsorEditor } from './editors/SponsorEditor';
 import { CustomTextEditor } from './editors/CustomTextEditor';
+import { AjudarEditor, FaqEditor, GalleryEditor, LinhasEditor, RotinaEditor, SocialEditor } from './editors/NovasSecoesEditors';
 
 const EDITORS: Record<string, React.ComponentType<SectionEditorProps>> = {
   HERO: HeroEditor,
@@ -28,6 +29,12 @@ const EDITORS: Record<string, React.ComponentType<SectionEditorProps>> = {
   CONTACT: ContactEditor,
   SPONSOR: SponsorEditor,
   CUSTOM_TEXT: CustomTextEditor,
+  GALLERY: GalleryEditor,
+  LINHAS: LinhasEditor,
+  ROTINA: RotinaEditor,
+  FAQ: FaqEditor,
+  SOCIAL: SocialEditor,
+  AJUDAR: AjudarEditor,
 };
 
 export interface SectionEditorPanelProps {

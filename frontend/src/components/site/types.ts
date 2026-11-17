@@ -13,7 +13,14 @@ export type SectionType =
   | 'LOCATION'
   | 'CONTACT'
   | 'SPONSOR'
-  | 'CUSTOM_TEXT';
+  | 'CUSTOM_TEXT'
+  // Beta "Novo construtor do site" (beta_novo_construtor_site)
+  | 'GALLERY'
+  | 'LINHAS'
+  | 'ROTINA'
+  | 'FAQ'
+  | 'SOCIAL'
+  | 'AJUDAR';
 
 /** `config` é um dicionário livre no backend (JSONB). */
 export type SectionConfig = Record<string, unknown>;
@@ -101,4 +108,16 @@ export interface SectionContext {
   giras: SiteGira[];
   /** Cor de marca do site (vinda do Hero) — CTAs e destaque do calendário. */
   brandColor?: string;
+  /**
+   * Edição direto na prévia (beta "Novo construtor do site"). Presente só no editor:
+   * os textos marcados com `InlineText` viram editáveis e gravam na config da seção.
+   */
+  edit?: SectionEdit;
+}
+
+export interface SectionEdit {
+  /** Junta as chaves na config da seção (`{ title: '…' }`). */
+  patch: (patch: SectionConfig) => void;
+  /** A seção está selecionada no editor. */
+  selected: boolean;
 }

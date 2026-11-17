@@ -42,7 +42,9 @@ function usePageTitle(title: string) {
 
 export default function MeuSitePage() {
   usePageTitle(PAGE_TITLE);
-  const { can, loading: subLoading } = useSubscription();
+  const { can, beta, loading: subLoading } = useSubscription();
+  // Beta do Laboratório: começo guiado, edição direto na prévia, estilos e seções novas.
+  const novo = Boolean(beta?.('beta_novo_construtor_site'));
   const { can: canGroup } = usePermissions();
   const canView = canGroup('site', 'view');
   const canEdit = canGroup('site', 'edit');
@@ -69,7 +71,7 @@ export default function MeuSitePage() {
       </div>
     );
   } else {
-    content = <SiteEditor canEdit={canEdit} canInsert={canInsert} />;
+    content = <SiteEditor canEdit={canEdit} canInsert={canInsert} novo={novo} />;
   }
 
   return (

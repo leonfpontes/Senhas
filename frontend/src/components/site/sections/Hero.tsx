@@ -10,6 +10,7 @@ import { buttonVariants } from '@/components/ui/button';
 import type { SectionConfig, SectionContext } from '../types';
 import { heroBackground, heroForeground, marginPreset, senhaUrl } from '../lib';
 import { FontLink, useSectionTypography } from './SectionShell';
+import { InlineText } from './InlineText';
 
 const LOGO_SIZES: Record<string, { xs: number; md: number }> = {
   xl: { xs: 220, md: 300 },
@@ -93,14 +94,18 @@ export function Hero({ config, ctx }: HeroProps) {
             fontWeight: titleWeight,
           }}
         >
-          {title || (isPreview ? 'Nome do terreiro' : '')}
+          {ctx.edit ? (
+            <InlineText value={title} field="title" edit={ctx.edit} placeholder="Nome do terreiro" />
+          ) : (
+            title || (isPreview ? 'Nome do terreiro' : '')
+          )}
         </h1>
-        {subtitle && (
+        {(subtitle || ctx.edit) && (
           <p
             className="mt-4 max-w-[640px] opacity-90 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]"
             style={{ fontSize: `clamp(16px, ${((subtitleSize / 1280) * 100).toFixed(2)}cqw, ${subtitleSize}px)` }}
           >
-            {subtitle}
+            {ctx.edit ? <InlineText value={subtitle} field="subtitle" edit={ctx.edit} multiline placeholder="Uma frase de boas-vindas" /> : subtitle}
           </p>
         )}
         <a

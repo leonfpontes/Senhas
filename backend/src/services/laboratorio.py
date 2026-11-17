@@ -57,6 +57,10 @@ CATALOGO: tuple[Beta, ...] = (
     Beta("beta_indicacao_plano", "Indicação do plano pelo uso",
          "Em Conta e plano, uma frase com o uso do mês (giras e médiuns) diz qual plano dá conta.",
          "Para o painel", "docs/betas/beta_indicacao_plano.md"),
+    Beta("beta_novo_construtor_site", "Novo construtor do site",
+         "O site nasce de 5 perguntas sobre a casa e se edita clicando direto nele, com desfazer, estilos "
+         "prontos, seções novas e uma conferência antes de publicar.", "Para o site",
+         "docs/betas/beta_novo_construtor_site.md"),
 )
 CHAVES = {b.chave for b in CATALOGO}
 

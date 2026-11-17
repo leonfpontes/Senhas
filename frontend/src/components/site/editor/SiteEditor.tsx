@@ -15,9 +15,13 @@ import {
   GlobeLock,
   Loader2,
   MoreHorizontal,
+  ListOrdered,
+  Palette,
+  Redo2,
   RefreshCw,
   Save,
   Settings2,
+  Undo2,
 } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -48,10 +52,29 @@ import { SettingsSheet } from './SettingsSheet';
 import { HistoryPanel } from './HistoryPanel';
 import { SectionIcon } from './sectionIcons';
 import { apiClient } from '@/services/api_client';
+import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
+import type { SiteEditing } from '../EditableFrame';
+import { activeStyleId, applySiteStyle } from '../styles';
+import { GuidedSetup } from './GuidedSetup';
+import { StylePanel } from './StylePanel';
+import { PublishCheck } from './PublishCheck';
 
 export interface SiteEditorProps {
   canEdit: boolean;
   canInsert: boolean;
+  /**
+   * Beta "Novo construtor do site" (`beta_novo_construtor_site`): começo guiado, edição
+   * direto na prévia, estilos, seções novas, conferência antes de publicar e divulgação.
+   */
+  novo?: boolean;
+}
+
+/** Foco num campo de texto: o Ctrl+Z é do navegador, não do site. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
 }
 
 /** Giras do terreiro para a prévia (API admin; opcional — sem permissão, a prévia usa exemplos). */
@@ -89,7 +112,7 @@ function useAdminGiras(enabled: boolean): SiteGira[] {
   return giras;
 }
 
-export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
+export function SiteEditor({ canEdit, canInsert, novo = false }: SiteEditorProps) {
   const editor = useSiteEditor({ enabled: true, canEdit });
   const isMobile = useMediaQuery('(max-width: 899px)');
   const hasPreviewPane = useMediaQuery('(min-width: 1200px)');
@@ -103,6 +126,30 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
   const [deleteTarget, setDeleteTarget] = useState<SiteSection | null>(null);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [insertAt, setInsertAt] = useState<number | null>(null);
+
+  const { undo, redo } = editor;
+  // Desfazer / refazer pelo teclado (fora de campos de texto, onde vale o do navegador).
+  useEffect(() => {
+    if (!novo || !canEdit) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || isTypingTarget(e.target)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === 'z' && e.shiftKey) || k === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [novo, canEdit, undo, redo]);
 
   useEffect(() => {
     if (tab === 'historico') void editor.loadVersions();
@@ -124,6 +171,45 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
           }
         : null,
     [editor.site, editor.sections, giras],
+  );
+
+  const editing: SiteEditing | undefined = novo
+    ? {
+        selectedId: editor.selectedId,
+        onSelect: (id) => {
+          editor.setSelectedId(id);
+          setTab('secoes');
+        },
+        onMove: editor.moveSection,
+        onToggleHidden: editor.toggleHidden,
+        onDelete: (id) => setDeleteTarget(editor.sections.find((s) => s.id === id) ?? null),
+        onInsert: (index) => {
+          setInsertAt(index);
+          setGalleryOpen(true);
+        },
+        onPatch: editor.patchConfig,
+        labelOf: sectionLabel,
+        canEdit,
+      }
+    : undefined;
+
+  const doPublish = async () => {
+    const ok = await editor.publish();
+    if (ok && novo) {
+      setCheckOpen(false);
+      setShareOpen(true);
+    }
+  };
+
+  const historyButtons = novo && canEdit && (
+    <div className="flex items-center gap-0.5">
+      <Button variant="ghost" size="icon-sm" onClick={editor.undo} disabled={!editor.canUndo} aria-label="Desfazer" title="Desfazer (Ctrl+Z)">
+        <Undo2 />
+      </Button>
+      <Button variant="ghost" size="icon-sm" onClick={editor.redo} disabled={!editor.canRedo} aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)">
+        <Redo2 />
+      </Button>
+    </div>
   );
 
   const upload = canInsert && canEdit ? editor.uploadImage : undefined;
@@ -191,6 +277,35 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
     setDeleteTarget(null);
   };
 
+  const listPanel = (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as 'secoes' | 'historico')} className="flex min-h-0 flex-1 flex-col gap-0">
+      <TabsList variant="line" className="w-full justify-start border-b border-border px-2">
+        <TabsTrigger value="secoes" className="flex-none">
+          Seções
+        </TabsTrigger>
+        <TabsTrigger value="historico" className="flex-none">
+          Histórico
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="secoes" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+        <SectionList
+          sections={editor.sections}
+          selectedId={editor.selectedId}
+          errorsById={editor.errorsById}
+          canEdit={canEdit}
+          onSelect={selectSection}
+          onMove={editor.moveSection}
+          onToggleHidden={editor.toggleHidden}
+          onDelete={setDeleteTarget}
+          onAdd={() => setGalleryOpen(true)}
+        />
+      </TabsContent>
+      <TabsContent value="historico" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+        <HistoryPanel versions={editor.versions} loading={editor.versionsLoading} canEdit={canEdit} hasChanges={editor.dirty} onRestore={editor.restore} />
+      </TabsContent>
+    </Tabs>
+  );
+
   const editorPanel = editor.selected ? (
     <SectionEditor
       section={editor.selected}
@@ -203,7 +318,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
     <EmptyState
       icon={<SectionIcon type="CUSTOM_TEXT" className="size-6" />}
       title="Escolha uma seção"
-      description="Selecione uma seção na lista para editar, ou adicione uma nova."
+      description={novo ? 'Clique numa seção do site para editar. O "+" entre seções adiciona outra ali.' : 'Selecione uma seção na lista para editar, ou adicione uma nova.'}
       action={canEdit && <Button variant="outline" onClick={() => setGalleryOpen(true)}>Adicionar seção</Button>}
     />
   );
@@ -219,6 +334,17 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          {!showWizard && historyButtons}
+          {novo && canEdit && !showWizard && !editor.loading && (
+            <Button variant="outline" size="sm" onClick={() => setStyleOpen(true)}>
+              <Palette aria-hidden /> Estilo
+            </Button>
+          )}
+          {novo && !showWizard && !editor.loading && hasPreviewPane === false && !isMobile && (
+            <Button variant="outline" size="sm" onClick={() => setListOpen(true)}>
+              <ListOrdered aria-hidden /> Seções
+            </Button>
+          )}
           {editor.isPublished && editor.site && (
             <Button asChild variant="ghost" size="sm" className={canEdit ? 'hidden sm:inline-flex' : undefined}>
               <a href={editor.publicUrl} target="_blank" rel="noopener noreferrer">
@@ -227,7 +353,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
               </a>
             </Button>
           )}
-          {!hasPreviewPane && (
+          {!hasPreviewPane && !(novo && !isMobile) && (
             <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)} disabled={editor.loading}>
               <Eye aria-hidden /> Prévia
             </Button>
@@ -239,7 +365,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
           )}
           {canEdit && (
             <div className="flex flex-col items-end">
-              <Button size="sm" onClick={() => void editor.publish()} disabled={publishDisabled} data-testid="publish-button">
+              <Button size="sm" onClick={() => (novo ? setCheckOpen(true) : void editor.publish())} disabled={publishDisabled} data-testid="publish-button">
                 {editor.publishing ? <Loader2 className="animate-spin" aria-hidden /> : <CloudUpload aria-hidden />}
                 {publishLabel}
               </Button>
@@ -311,6 +437,19 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
             </AlertDescription>
           </Alert>
         </div>
+      ) : showWizard && novo ? (
+        <GuidedSetup
+          slug={editor.site?.slug ?? ''}
+          canEdit={canEdit}
+          onSkip={() => {
+            setWizardDismissed(true);
+            if (canEdit) setGalleryOpen(true);
+          }}
+          onCreate={(drafts) => {
+            editor.replaceAll(drafts);
+            setWizardDismissed(true);
+          }}
+        />
       ) : showWizard ? (
         <SetupWizard
           template={editor.site?.template ?? 'moderno'}
@@ -327,36 +466,22 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
             setWizardDismissed(true);
           }}
         />
+      ) : novo && !isMobile ? (
+        <div className="flex min-h-0 flex-1">
+          {/* Lista / histórico (≥ 1200); entre 900 e 1199 abre pelo botão "Seções". */}
+          {hasPreviewPane && <aside className="flex w-[260px] shrink-0 flex-col border-r border-border">{listPanel}</aside>}
+          {/* Prévia editável no centro */}
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {previewSite && <SitePreview site={previewSite} viewport={viewport} onViewportChange={setViewport} editing={editing} />}
+          </main>
+          {/* Detalhes da seção escolhida */}
+          <aside className="@container min-h-0 w-[360px] shrink-0 overflow-y-auto border-l border-border bg-muted/30 xl:w-[400px]">{editorPanel}</aside>
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1">
           {/* Lista / histórico */}
           <aside className="flex w-full min-w-0 flex-col md:w-[300px] md:shrink-0 md:border-r md:border-border">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as 'secoes' | 'historico')} className="flex min-h-0 flex-1 flex-col gap-0">
-              <TabsList variant="line" className="w-full justify-start border-b border-border px-2">
-                <TabsTrigger value="secoes" className="flex-none">
-                  Seções
-                </TabsTrigger>
-                <TabsTrigger value="historico" className="flex-none">
-                  Histórico
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="secoes" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-                <SectionList
-                  sections={editor.sections}
-                  selectedId={editor.selectedId}
-                  errorsById={editor.errorsById}
-                  canEdit={canEdit}
-                  onSelect={selectSection}
-                  onMove={editor.moveSection}
-                  onToggleHidden={editor.toggleHidden}
-                  onDelete={setDeleteTarget}
-                  onAdd={() => setGalleryOpen(true)}
-                />
-              </TabsContent>
-              <TabsContent value="historico" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-                <HistoryPanel versions={editor.versions} loading={editor.versionsLoading} canEdit={canEdit} hasChanges={editor.dirty} onRestore={editor.restore} />
-              </TabsContent>
-            </Tabs>
+            {listPanel}
           </aside>
 
           {/* Editor (≥ 900) */}
@@ -388,7 +513,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
       <Sheet open={previewOpen && !hasPreviewPane} onOpenChange={setPreviewOpen}>
         <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[min(100vw,900px)]">
           <SheetTitle className="sr-only">Prévia do site</SheetTitle>
-          {previewSite && <SitePreview site={previewSite} viewport={viewport} onViewportChange={setViewport} className="pt-10" />}
+          {previewSite && <SitePreview site={previewSite} viewport={viewport} onViewportChange={setViewport} className="pt-10" editing={editing ? { ...editing, onSelect: (id) => { setPreviewOpen(false); editing.onSelect(id); } } : undefined} />}
         </SheetContent>
       </Sheet>
 
@@ -396,12 +521,53 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
         open={galleryOpen}
         onOpenChange={setGalleryOpen}
         existingTypes={editor.sections.map((s) => s.section_type)}
+        novoConstrutor={novo}
         onAdd={(type) => {
-          editor.addSection(type);
+          if (insertAt !== null) editor.insertSection(type, insertAt);
+          else editor.addSection(type);
+          setInsertAt(null);
           setGalleryOpen(false);
           setTab('secoes');
         }}
       />
+
+      {novo && (
+        <>
+          <StylePanel
+            open={styleOpen}
+            onOpenChange={setStyleOpen}
+            activeId={activeStyleId(editor.sections)}
+            onApply={(style) => editor.transformAll((prev) => applySiteStyle(prev, style))}
+          />
+          <PublishCheck
+            open={checkOpen}
+            onOpenChange={setCheckOpen}
+            site={editor.site}
+            sections={editor.sections}
+            errorsById={editor.errorsById}
+            publishing={editor.publishing}
+            isPublished={editor.isPublished}
+            onPublish={() => void doPublish()}
+            onGoTo={(id) => {
+              setCheckOpen(false);
+              editing?.onSelect(id);
+            }}
+          />
+          <ShareLinkDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            link={editor.publicUrl}
+            title="Seu site está no ar"
+            description="Mande o link no WhatsApp, coloque na bio do Instagram ou imprima o QR para o portão."
+          />
+          <Sheet open={listOpen} onOpenChange={setListOpen}>
+            <SheetContent side="left" className="w-full gap-0 p-0 sm:max-w-[320px]">
+              <SheetTitle className="sr-only">Seções do site</SheetTitle>
+              <div className="flex min-h-0 flex-1 flex-col pt-10">{listPanel}</div>
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
 
       <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} site={editor.site} onSave={editor.saveSettings} />
 

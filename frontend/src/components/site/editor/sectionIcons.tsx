@@ -2,7 +2,7 @@
  * Ícone (lucide) e miniatura de cada tipo de seção — usados na lista e na galeria.
  */
 import React from 'react';
-import { BookOpen, CalendarDays, Handshake, LayoutTemplate, MapPin, MessageCircle, Type, Video, type LucideIcon } from 'lucide-react';
+import { BookOpen, CalendarDays, Clock, HandHeart, Handshake, HelpCircle, Images, LayoutTemplate, MapPin, MessageCircle, Share2, Sparkles, Type, Video, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const SECTION_ICONS: Record<string, LucideIcon> = {
@@ -14,6 +14,12 @@ export const SECTION_ICONS: Record<string, LucideIcon> = {
   CONTACT: MessageCircle,
   SPONSOR: Handshake,
   CUSTOM_TEXT: Type,
+  GALLERY: Images,
+  LINHAS: Sparkles,
+  ROTINA: Clock,
+  FAQ: HelpCircle,
+  SOCIAL: Share2,
+  AJUDAR: HandHeart,
 };
 
 export function SectionIcon({ type, className }: { type: string; className?: string }) {
@@ -98,6 +104,43 @@ export function SectionThumb({ type, className }: { type: string; className?: st
           <span className={cn(bar, 'h-1.5 w-full opacity-60')} />
           <span className={cn(bar, 'h-1.5 w-11/12 opacity-60')} />
           <span className={cn(bar, 'h-1.5 w-3/4 opacity-60')} />
+        </div>
+      )}
+      {type === 'GALLERY' && (
+        <div className="grid h-full grid-cols-3 gap-1">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <span key={i} className="rounded-sm bg-foreground/20" />
+          ))}
+        </div>
+      )}
+      {(type === 'LINHAS' || type === 'ROTINA') && (
+        <div className="flex h-full flex-col gap-1.5">
+          <span className={cn(bar, 'h-2 w-1/3')} />
+          <div className="grid flex-1 grid-cols-3 gap-1">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="rounded-sm border-t-2 border-primary bg-foreground/10" />
+            ))}
+          </div>
+        </div>
+      )}
+      {type === 'FAQ' && (
+        <div className="flex h-full flex-col justify-center gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="flex items-center justify-between rounded-sm bg-foreground/10 px-1.5 py-1">
+              <span className={cn(bar, 'h-1.5 w-2/3')} />
+              <span className="size-1.5 rounded-full bg-foreground/40" />
+            </span>
+          ))}
+        </div>
+      )}
+      {(type === 'SOCIAL' || type === 'AJUDAR') && (
+        <div className="flex h-full flex-col items-center justify-center gap-2">
+          <span className={cn(bar, 'h-2 w-1/3')} />
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="h-3 w-8 rounded-full bg-primary/60" />
+            ))}
+          </div>
         </div>
       )}
     </div>

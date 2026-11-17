@@ -14,8 +14,9 @@ import { cn } from '@/lib/utils';
 import { pickForeground } from '@/lib/brand';
 import { buttonVariants } from '@/components/ui/button';
 import type { PublicSiteData, RenderMode, SectionContext } from './types';
-import { senhaUrl, siteBrandColor, visibleSections } from './lib';
+import { isSectionHidden, senhaUrl, siteBrandColor, visibleSections } from './lib';
 import { renderSection } from './sections';
+import { EditableFrame, InsertButton, type SiteEditing } from './EditableFrame';
 import { MobileCtaBar } from './MobileCtaBar';
 import { SiteFooter } from './SiteFooter';
 
@@ -24,10 +25,15 @@ export interface PublicSiteProps {
   mode: RenderMode;
   /** Classe do wrapper (`@container`). */
   className?: string;
+  /**
+   * Edição direto na prévia (beta "Novo construtor do site"). Mostra também as seções
+   * ocultas (esmaecidas), para a casa poder religá-las.
+   */
+  editing?: SiteEditing;
 }
 
-export function PublicSite({ site, mode, className }: PublicSiteProps) {
-  const sections = visibleSections(site.sections);
+export function PublicSite({ site, mode, className, editing }: PublicSiteProps) {
+  const sections = editing ? [...site.sections].sort((a, b) => a.order_index - b.order_index) : visibleSections(site.sections);
   const brandColor = siteBrandColor(site.sections);
   const isPreview = mode === 'preview';
   const ctx: SectionContext = { mode, slug: site.slug, giras: site.upcoming_giras, brandColor };
@@ -39,7 +45,31 @@ export function PublicSite({ site, mode, className }: PublicSiteProps) {
         className={cn('@container flex min-h-screen flex-col bg-background text-foreground', mode === 'public' && 'pb-20 md:pb-0', className)}
       >
         <div className="flex-1">
-          {sections.length > 0 ? (
+          {sections.length > 0 && editing ? (
+            <>
+              {editing.canEdit && <InsertButton onClick={() => editing.onInsert(0)} />}
+              {sections.map((section, i) => (
+                <React.Fragment key={section.id}>
+                  <EditableFrame
+                    id={section.id}
+                    type={section.section_type}
+                    index={i}
+                    total={sections.length}
+                    hidden={isSectionHidden(section)}
+                    editing={editing}
+                  >
+                    {renderSection(section, {
+                      ...ctx,
+                      edit: editing.canEdit
+                        ? { selected: editing.selectedId === section.id, patch: (p) => editing.onPatch(section.id, p) }
+                        : undefined,
+                    })}
+                  </EditableFrame>
+                  {editing.canEdit && <InsertButton onClick={() => editing.onInsert(i + 1)} />}
+                </React.Fragment>
+              ))}
+            </>
+          ) : sections.length > 0 ? (
             sections.map((section) => renderSection(section, ctx))
           ) : (
             <section

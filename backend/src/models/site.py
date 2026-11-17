@@ -39,6 +39,13 @@ class SiteSectionType(str, enum.Enum):
     LOCATION = "LOCATION"
     CONTACT = "CONTACT"
     CUSTOM_TEXT = "CUSTOM_TEXT"
+    # Beta "Novo construtor do site" (migração 107)
+    GALLERY = "GALLERY"
+    LINHAS = "LINHAS"
+    ROTINA = "ROTINA"
+    FAQ = "FAQ"
+    SOCIAL = "SOCIAL"
+    AJUDAR = "AJUDAR"
 
 
 class TenantSite(TimestampedModel):
