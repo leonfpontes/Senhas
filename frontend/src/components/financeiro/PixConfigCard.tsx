@@ -276,11 +276,11 @@ export function PixConfigCard({ canEdit }: { canEdit: boolean }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <KeyRound className="size-4 text-brand" aria-hidden /> Chave PIX do terreiro
+          <KeyRound className="size-4 text-brand" aria-hidden /> Chave PIX principal
         </CardTitle>
         <CardDescription>
           Para onde vai o dinheiro quando o médium usa “Pagar com PIX”. Sem taxa: o pagamento cai direto na conta da chave.
-          Vale para toda a corrente, menos os grupos que têm chave própria (abaixo).
+          Vale para toda a corrente, menos os grupos que você ligar a outra chave (abaixo).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

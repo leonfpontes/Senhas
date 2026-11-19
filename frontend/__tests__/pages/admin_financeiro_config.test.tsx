@@ -123,10 +123,10 @@ describe('Configuração financeira', () => {
     const tab = screen.getByRole('tab', { name: 'Mensalidade' });
     fireEvent.mouseDown(tab);
     fireEvent.click(tab);
-    expect(await screen.findByText('Chave PIX do terreiro')).toBeInTheDocument();
+    expect(await screen.findByText('Chave PIX principal')).toBeInTheDocument();
     expect(await screen.findByTestId('pix-chave-atual')).toHaveTextContent('tesouraria@example.com');
     expect(mockGet).toHaveBeenCalledWith('/api/v1/admin/financeiro/config/pix');
-    expect(await screen.findByText('Chaves PIX por grupo da corrente')).toBeInTheDocument();
+    expect(await screen.findByText('Outras chaves PIX da casa')).toBeInTheDocument();
   });
 
   it('conta bancária mostra e envia a data do saldo inicial', async () => {
