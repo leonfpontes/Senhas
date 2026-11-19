@@ -45,6 +45,19 @@ PRIORITY_ORDER: list[str] = [
 ]
 
 
+# Senhas que não ocupam o lugar do consulente na gira: cancelada e a de quem
+# perdeu o prazo de confirmação da fila de espera (pode pedir de novo e volta
+# para o fim da fila). Mesma regra no índice único parcial abaixo (migração 109)
+# e na checagem de duplicata de TicketRepository.
+STATUS_FORA_DA_DEDUP: tuple["TicketStatus", ...] = (
+    TicketStatus.CANCELLED,
+    TicketStatus.WAITLIST_EXPIRED,
+)
+_PREDICADO_SENHA_ATIVA = (
+    "is_acompanhante = false AND status NOT IN ('cancelled', 'waitlist_expired') "
+    "AND deleted_at IS NULL"
+)
+
 class Ticket(SoftDeleteModel):
     """Ticket model - CORE model representing an emitted senha.
     
@@ -73,7 +86,8 @@ class Ticket(SoftDeleteModel):
             postgresql_where=text("email_de_quem_pediu IS NOT NULL"),
         ),
         Index("ix_tickets_checkin_em", "checkin_em"),
-        # Uma senha ativa por consulente/gira/tipo (migração 056, item Q-03).
+        # Uma senha ativa por consulente/gira/tipo (migração 056, item Q-03; 109
+        # deixou de contar a senha com prazo da fila expirado).
         # Mesmo predicado de TicketRepository.check_duplicate_in_gira.
         Index(
             "uq_tickets_gira_consulente_ativo",
@@ -81,8 +95,8 @@ class Ticket(SoftDeleteModel):
             "consulente_id",
             "is_sponsor",
             unique=True,
-            postgresql_where=text("is_acompanhante = false AND status <> 'cancelled' AND deleted_at IS NULL"),
-            sqlite_where=text("is_acompanhante = false AND status <> 'cancelled' AND deleted_at IS NULL"),
+            postgresql_where=text(_PREDICADO_SENHA_ATIVA),
+            sqlite_where=text(_PREDICADO_SENHA_ATIVA),
         ),
     )
     

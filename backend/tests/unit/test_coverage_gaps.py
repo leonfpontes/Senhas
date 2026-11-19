@@ -99,6 +99,18 @@ def _make_starlette_request():
 
 class TestEmitTicketEndpoint:
 
+    @pytest.fixture(autouse=True)
+    def _fila_sem_reserva_vencida(self, monkeypatch):
+        # A emissão põe a fila em dia antes da checagem de duplicata (reserva
+        # vencida → expira e repassa a vaga). Coberto em
+        # tests/integration_pg/test_fila_espera_reemissao.py; aqui o db é
+        # mockado com a sequência exata de execute() de cada cenário.
+        from src.services import waitlist_service
+
+        monkeypatch.setattr(
+            waitlist_service, "release_lapsed_reservations", AsyncMock(return_value=([], []))
+        )
+
     async def test_emit_ticket_tenant_not_found(self):
         from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
         db = _mock_db()

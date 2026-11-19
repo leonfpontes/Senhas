@@ -967,6 +967,12 @@ Incluir obrigatoriamente:
   de 5 a 59999 (999h59; fora disso 400) e só grava com a fila ligada no plano. Na tela, `DurationField` (hh:mm,
   `components/fields`) no drawer de senhas; o e-mail de promoção mostra o prazo legível
   (`waitlist_service.format_duration`: "1h30", "45 min", espelho de `formatDuration` em `lib/duration.ts`).
+- **Perdeu o prazo da fila → pede de novo** (2026-11-19, bug Tuccco): senha `waitlist_expired` não conta como
+  duplicata (`STATUS_FORA_DA_DEDUP` em `models/tickets.py`, mesma regra do índice `uq_tickets_gira_consulente_ativo`
+  desde a migração 109); a pessoa volta para o fim da fila. Como o vencimento do prazo é preguiçoso (sem job), a
+  emissão pública chama `waitlist_service.release_lapsed_reservations` antes da checagem de duplicata (expira a
+  reserva vencida com `FOR UPDATE SKIP LOCKED`, promove o próximo e manda "uma vaga abriu"; sem fila, a vaga
+  volta em `slots_returned`). O link de confirmação vencido (410) usa o mesmo helper e agora avisa o próximo.
 - "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
   janela do GiraCard e de `pickTodayGira`). A gira compartilhada vale para Dashboard, Senhas e Porta
   (`GIRA_CONTEXT_ROUTES`); o select no topo so aparece no Dashboard (`TOPBAR_GIRA_SELECTOR_ROUTES`) — Senhas e Porta

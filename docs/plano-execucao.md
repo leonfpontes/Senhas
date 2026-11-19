@@ -309,6 +309,8 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   para não mudar o contrato do link público). O walk-in passou a fazer o pré-check também.
   Testes em `tests/integration_pg/test_ticket_dedup.py`, incluindo rajada de walk-ins e a
   migração deduplicando dados existentes.
+- **Ajuste 2026-11-19** (migração 109): senha `waitlist_expired` também fica fora do índice e do
+  pré-check — quem perde o prazo da fila de espera pode pedir a senha de novo (bug Tuccco).
 - **Problema**: o dedup de ticket é check-then-act sem backstop — não existe `UniqueConstraint`
   em `(gira_id, consulente_id)`. Duas requisições simultâneas com o mesmo e-mail passam ambas.
   Mesma família do incidente que gerou a migração 052.
