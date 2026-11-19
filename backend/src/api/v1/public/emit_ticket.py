@@ -846,8 +846,24 @@ async def emit_ticket(
             numero_acomp_formatted = f"P{numero_acomp:03d}" if is_sponsor else f"{numero_acomp:04d}"
             acompanhantes_emitidos.append((nome_acomp, numero_acomp_formatted))
 
+        # Fila com vaga livre (contada pela ocupação real, não pelo contador de
+        # números): chama a fila agora, na ordem — inclusive quem acabou de
+        # entrar, se for o próximo. Ainda sob a trava do SenhaControl do STEP 7.
+        promovidos_vaga_livre: list = []
+        if waitlisted:
+            promovidos_vaga_livre = await waitlist_service.fill_free_capacity(
+                session=session, tenant_id=tenant.id, gira=gira, is_sponsor=is_sponsor
+            )
+        recem_chamado = any(p.id == ticket.id for p in promovidos_vaga_livre)
+
         # Commit transaction
         await session.commit()
+
+        if promovidos_vaga_livre:
+            from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
+
+            for promovido in promovidos_vaga_livre:
+                await _send_waitlist_promotion_email(session, tenant.id, promovido, gira)
 
         logger.info(
             f"Ticket {ticket_number_formatted} emitted for {consulente.email} "
@@ -865,6 +881,21 @@ async def emit_ticket(
         tenant_address, primary_color, secondary_color, tenant_logo_url = await _tenant_branding(session, tenant)
 
         subject_prefix = "✦ Associado — " if is_sponsor else ""
+
+        if recem_chamado:
+            # Entrou na fila e já foi chamado: o e-mail que vale é o de "uma vaga
+            # abriu" (já enfileirado acima), não o de entrada na fila.
+            prazo = waitlist_service.format_duration(waitlist_service.confirmation_minutes(gira))
+            return EmitTicketResponse(
+                ticket_number=ticket_number_formatted,
+                rescue_link=rescue_link,
+                message=(
+                    "Abriu uma vaga para você nesta gira! Confirme sua senha pelo "
+                    f"e-mail que enviamos, em até {prazo}."
+                ),
+                waitlisted=True,
+                waitlist_position=None,
+            )
 
         waitlist_position: int | None = None
         if waitlisted:
