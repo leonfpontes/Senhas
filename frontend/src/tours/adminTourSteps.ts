@@ -138,7 +138,7 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="users-novo"]',
       content:
-        'Crie um novo acesso informando e-mail, nome de usuário, senha e o perfil de acesso (Admin ou Operador).',
+        'Convide alguém pelo e-mail: a pessoa recebe o convite e cria a própria senha. Você escolhe o tipo de acesso (Administrador ou Operador) e o perfil.',
     },
     {
       selector: '[data-tour="users-filtro"]',

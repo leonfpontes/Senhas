@@ -12,6 +12,7 @@ from .config import router as config_router
 from .audit_trail import router as audit_router
 from .analytics import router as analytics_router
 from .users import router as users_router
+from .usuario_convites import router as usuario_convites_router
 from .exports import router as exports_router
 from .validate_bulk import router as validate_router
 from .health import router as health_router
@@ -62,6 +63,8 @@ admin_router.include_router(email_router)
 admin_router.include_router(config_router)
 admin_router.include_router(audit_router)
 admin_router.include_router(analytics_router)
+# Antes do users_router: lá `/{user_id}` casaria com "convites".
+admin_router.include_router(usuario_convites_router)
 admin_router.include_router(users_router)
 admin_router.include_router(exports_router)
 admin_router.include_router(validate_router)

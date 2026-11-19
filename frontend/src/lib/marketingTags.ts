@@ -65,7 +65,7 @@ function injetarScript(src: string, id: string): void {
  * Nelas as tags NÃO carregam: o gtag/Pixel mandariam a URL inteira (page_location, Referer) para
  * terceiros — pentest M5. Elas ligam na primeira navegação para uma rota comum.
  */
-const ROTAS_COM_SEGREDO = ['/reset-password', '/admin/impersonate', '/convite/', '/confirmar-email/', '/descadastro/'];
+const ROTAS_COM_SEGREDO = ['/reset-password', '/admin/impersonate', '/convite/', '/convite-equipe/', '/confirmar-email/', '/descadastro/'];
 
 export function rotaComSegredo(caminho: string): boolean {
   const semQuery = caminho.split(/[?#]/)[0];

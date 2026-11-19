@@ -139,19 +139,27 @@ describe('Admin Users Page', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeInTheDocument();
   });
 
-  it('validates the password with the backend rule', async () => {
+  it('nova pessoa não pede senha: manda convite por e-mail', async () => {
+    const { apiClient } = require('@/services/api_client');
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
     fireEvent.click(screen.getByRole('button', { name: /Nova pessoa/ }));
-    const senha = await screen.findByLabelText(/^Senha/);
-    fireEvent.change(senha, { target: { value: 'curta' } });
-    fireEvent.blur(senha);
-    expect(await screen.findByText(/Falta: pelo menos 12 caracteres/)).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Regras da senha' })).toBeInTheDocument();
+    fireEvent.change(await screen.findByLabelText(/^E-mail/), { target: { value: 'nova@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Nova Pessoa' } });
+    expect(screen.queryByLabelText(/Senha/)).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enviar convite' }));
+    });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/users/convites', {
+      email: 'nova@test.com',
+      nome: 'Nova Pessoa',
+      role: 'operator',
+      group_id: null,
+    });
   });
 
-  it('moves a new operator into the chosen group and out of the default one', async () => {
+  it('o perfil escolhido vai no convite (aplicado quando a pessoa aceitar)', async () => {
     mockProfile.role = 'admin';
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockImplementation((url: string) => {
@@ -163,11 +171,9 @@ describe('Admin Users Page', () => {
           ],
         });
       }
+      if (url.startsWith('/api/v1/admin/users/convites')) return Promise.resolve({ data: [] });
       return Promise.resolve({ data: MOCK_USERS });
     });
-    apiClient.post.mockImplementation((url: string) =>
-      Promise.resolve({ data: url === '/api/v1/admin/users' ? { id: 'new-user' } : {} }),
-    );
 
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
@@ -176,24 +182,55 @@ describe('Admin Users Page', () => {
 
     fireEvent.change(await screen.findByLabelText(/^E-mail/), { target: { value: 'nova@test.com' } });
     fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Nova' } });
-    fireEvent.change(screen.getByLabelText(/^Senha/), { target: { value: 'SenhaForte#2026' } });
 
-    // "Pode fazer:" com "Acesso total" como padrão
     const select = await screen.findByRole('combobox', { name: 'Pode fazer:' });
     expect(select).toHaveTextContent('Acesso total');
     fireEvent.click(select);
     fireEvent.click(await screen.findByRole('option', { name: 'Porta' }));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Enviar convite' }));
     });
 
-    await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/permission-groups/g-porta/members', {
-        user_id: 'new-user',
-      }),
-    );
-    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/permission-groups/g-default/members/new-user');
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/users/convites', {
+      email: 'nova@test.com',
+      nome: 'Nova',
+      role: 'operator',
+      group_id: 'g-porta',
+    });
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    mockProfile.role = 'operator';
+  });
+
+  it('mostra o convite pendente na lista e cancela com confirmação', async () => {
+    mockProfile.role = 'admin';
+    const { apiClient } = require('@/services/api_client');
+    apiClient.get.mockImplementation((url: string) => {
+      if (url.startsWith('/api/v1/admin/users/convites')) {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'c1', email: 'convidada@test.com', nome: 'Convidada', role: 'operator', situacao: 'enviado',
+              enviado_em: '2026-11-19T12:00:00Z', expira_em: '2026-11-26T12:00:00Z', created_at: '2026-11-19T12:00:00Z',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ data: MOCK_USERS });
+    });
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    expect(await screen.findByText('convidada@test.com')).toBeInTheDocument();
+    expect(screen.getByText(/Convite enviado · vale até/)).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar convite de convidada@test.com' }));
+    });
+    await waitFor(() => screen.getByRole('alertdialog'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar convite' }));
+    });
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/users/convites/c1');
     mockProfile.role = 'operator';
   });
 

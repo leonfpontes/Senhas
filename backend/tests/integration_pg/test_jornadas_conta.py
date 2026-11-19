@@ -14,7 +14,7 @@ from src.models.subscriptions import PlanType
 from src.models.users import UserRole
 from src.security.jwt import create_access_token
 
-from .factories import create_tenant, create_user, grant
+from .factories import create_tenant, create_user, grant, convidar_e_aceitar
 
 SENHA_FORTE = "SenhaForte#2026"
 
@@ -38,11 +38,11 @@ async def test_operador_com_grupo_usuarios_cria_operador_mas_nao_admin(client, d
     operador = await create_user(db, tenant, UserRole.OPERATOR, name="operador")
     await grant(db, operador, tenant, PermissionFeature.USUARIOS, "view", "insert", "edit", "delete")
 
-    ok = await client.post("/api/v1/admin/users", headers=operador.headers, json=_novo_usuario("operator"))
+    ok = await convidar_e_aceitar(client, operador.headers, _novo_usuario("operator"))
     assert ok.status_code == 201, ok.text
 
     admin_body = _novo_usuario("admin")
-    negado = await client.post("/api/v1/admin/users", headers=operador.headers, json=admin_body)
+    negado = await convidar_e_aceitar(client, operador.headers, admin_body)
     assert negado.status_code == 403, negado.text
 
     # promover o operador recém-criado também é negado
@@ -56,12 +56,11 @@ async def test_senha_fraca_e_super_admin_sao_recusados(client, db):
     tenant = await create_tenant(db, plan=PlanType.PREMIUM)
     admin = await create_user(db, tenant, UserRole.ADMIN)
 
-    fraca = await client.post(
-        "/api/v1/admin/users", headers=admin.headers, json={**_novo_usuario(), "password": "curta"}
+    fraca = await convidar_e_aceitar(client, admin.headers, {**_novo_usuario(), "password": "curta"}
     )
     assert fraca.status_code == 422, fraca.text
 
-    super_admin = await client.post("/api/v1/admin/users", headers=admin.headers, json=_novo_usuario("super_admin"))
+    super_admin = await convidar_e_aceitar(client, admin.headers, _novo_usuario("super_admin"))
     assert super_admin.status_code == 422, super_admin.text
 
 
@@ -213,7 +212,12 @@ async def test_usuario_excluido_perde_acesso_na_hora(client, db):
     assert operador.user.sessions_revoked_at is not None
 
     # Recriar a conta com o mesmo e-mail ressuscita a linha, mas o token antigo continua morto.
-    recriar = await client.post("/api/v1/admin/users", headers=admin.headers, json=_novo_usuario("operator", email=email))
+    # O aceite do convite revoga as sessões com precisão de segundo (o iat do JWT é inteiro):
+    # espera o segundo virar para o token antigo não cair no mesmo segundo do aceite.
+    import asyncio
+
+    await asyncio.sleep(1.1)
+    recriar = await convidar_e_aceitar(client, admin.headers, _novo_usuario("operator", email=email))
     assert recriar.status_code == 201, recriar.text
     assert (await client.get("/api/v1/auth/me", headers=operador.headers)).status_code == 401
 

@@ -22,7 +22,7 @@ from src.models.tenant_config import TenantConfig
 from src.models.users import UserRole
 
 from .conftest import BACKEND_DIR
-from .factories import create_gira, create_tenant, create_user
+from .factories import create_gira, create_tenant, create_user, convidar_e_aceitar
 
 MES = datetime.now(timezone.utc).strftime("%Y-%m")
 
@@ -345,7 +345,7 @@ async def test_gratuito_cria_usuarios_sem_limite(client, db, total):
     for i in range(total - 1):
         body = {"email": f"op{i}-{uuid.uuid4().hex[:6]}@example.com", "username": f"Operador {i}",
                 "password": "SenhaForte#2026", "role": "operator"}
-        resp = await client.post("/api/v1/admin/users", headers=admin.headers, json=body)
+        resp = await convidar_e_aceitar(client, admin.headers, body)
         assert resp.status_code == 201, f"usuário {i + 2}: {resp.text}"
 
 

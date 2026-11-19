@@ -20,7 +20,7 @@ from src.models.users import UserRole
 from src.security.jwt import create_access_token
 
 from .conftest import BACKEND_DIR
-from .factories import create_tenant, create_user, grant, set_area_medium
+from .factories import create_tenant, create_user, grant, set_area_medium, convidar_e_aceitar
 
 ADMIN = "/api/v1/admin/comunicados"
 AVISOS = "/api/v1/medium/avisos"
@@ -147,10 +147,7 @@ async def test_operador_sem_comunicados_leva_403_e_com_grupo_so_faz_o_que_o_grup
 async def test_operador_novo_no_grupo_padrao_ja_tem_comunicados(client, db):
     tenant, admin = await _cenario(db)
     suffix = uuid.uuid4().hex[:6]
-    resp = await client.post(
-        "/api/v1/admin/users",
-        headers=admin.headers,
-        json={"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
+    resp = await convidar_e_aceitar(client, admin.headers, {"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
     )
     assert resp.status_code == 201, resp.text
     headers = {"Authorization": f"Bearer {create_access_token(uuid.UUID(resp.json()['id']), tenant.id, 'operator')}"}

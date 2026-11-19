@@ -28,6 +28,7 @@ from .trial_grants import TrialGrant
 from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
 from .medium_convites import MediumConvite
+from .usuario_convites import UsuarioConvite
 from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoMedium, ComunicadoPublico
 from .corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
 from .atividades import (
@@ -80,6 +81,7 @@ __all__ = [
     "EstoqueMovimentacaoTipo",
     "Medium",
     "MediumConvite",
+    "UsuarioConvite",
     "MediumLembreteEnviado",
     "MediumPreferencia",
     "PushInscricao",
