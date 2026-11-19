@@ -230,6 +230,7 @@ def _mock_tenant_config():
     config.enable_walk_in = False
     config.custom_settings = None
     config.sponsor_priority_mode = "first"
+    config.queue_order_mode = "numero"
     config.validate_associado_on_emit = False
     config.enable_estoque_log = True
     config.enable_mensalidade_associado = False
@@ -246,6 +247,7 @@ class TestGetDoorConfig:
         db = AsyncMock()
         config = MagicMock()
         config.enable_walk_in = True
+        config.queue_order_mode = "numero"
         result_mock = MagicMock()
         result_mock.scalar_one_or_none.return_value = config
         db.execute.return_value = result_mock
@@ -258,6 +260,7 @@ class TestGetDoorConfig:
         db = AsyncMock()
         config = MagicMock()
         config.enable_walk_in = False
+        config.queue_order_mode = "numero"
         result_mock = MagicMock()
         result_mock.scalar_one_or_none.return_value = config
         db.execute.return_value = result_mock

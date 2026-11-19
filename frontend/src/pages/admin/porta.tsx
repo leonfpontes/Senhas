@@ -106,6 +106,8 @@ interface Gira {
 }
 interface TenantConfig {
   enable_walk_in: boolean;
+  /** Ordem da fila escolhida em Configurações › Atendimento (o servidor já devolve ordenado). */
+  queue_order_mode?: 'numero' | 'chegada';
 }
 
 interface DoorStats {
@@ -1009,7 +1011,11 @@ function PortaContent() {
               <section data-tour="porta-fila" aria-label="Fila">
                 <div className="flex items-baseline justify-between gap-3">
                   <SectionTitle count={waiting.length}>Fila</SectionTitle>
-                  <span className="text-sm text-muted-foreground">quem já chegou tem a vez</span>
+                  <span className="text-sm text-muted-foreground">
+                    {config?.queue_order_mode === 'chegada'
+                      ? 'pela ordem de chegada'
+                      : 'pelo número, quem já chegou tem a vez'}
+                  </span>
                 </div>
                 {waiting.length === 0 ? (
                   <p className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">

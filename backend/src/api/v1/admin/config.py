@@ -1,7 +1,7 @@
 """T062: Admin Config - GET/PUT /api/v1/admin/tenant/config (branding, settings)"""
 import logging
 import re
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,6 +85,7 @@ class TenantConfigResponse(BaseModel):
     enable_tv_medium: bool = False
     custom_settings: Optional[Dict[str, Any]]
     sponsor_priority_mode: str = "first"
+    queue_order_mode: str = "numero"
     validate_associado_on_emit: bool = False
     enable_estoque_log: bool = True
     enable_mensalidade_associado: bool = False
@@ -119,6 +120,7 @@ class TenantConfigUpdate(BaseModel):
     enable_tv_medium: Optional[bool] = None
     custom_settings: Optional[Dict[str, Any]] = None
     sponsor_priority_mode: Optional[str] = None
+    queue_order_mode: Optional[Literal["numero", "chegada"]] = None
     validate_associado_on_emit: Optional[bool] = None
     enable_estoque_log: Optional[bool] = None
     enable_mensalidade_associado: Optional[bool] = None
@@ -205,6 +207,7 @@ async def get_tenant_config(
             enable_walk_in=False,
             custom_settings=None,
             sponsor_priority_mode="first",
+            queue_order_mode="numero",
             validate_associado_on_emit=False,
             enable_estoque_log=True,
         )
@@ -321,6 +324,18 @@ async def update_tenant_config(
                 detail="Configuração do tenant não encontrada",
             )
         current_config.sponsor_priority_mode = config_update.sponsor_priority_mode
+        await db.flush()
+
+    # Ordem de atendimento da fila da Porta (número da senha ou ordem de chegada).
+    # Vale em todos os planos: é só a ordem da fila, sem recurso pago envolvido.
+    if config_update.queue_order_mode is not None:
+        current_config = await repo.get_by_tenant(current_user.tenant_id)
+        if current_config is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Configuração do tenant não encontrada",
+            )
+        current_config.queue_order_mode = config_update.queue_order_mode
         await db.flush()
     
     # Update validate_associado_on_emit — ligar exige controle de associados no

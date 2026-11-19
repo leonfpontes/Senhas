@@ -40,6 +40,7 @@ def _config(**overrides):
     config.enable_walk_in = False
     config.custom_settings = None
     config.sponsor_priority_mode = "first"
+    config.queue_order_mode = "numero"
     config.validate_associado_on_emit = False
     config.enable_estoque_log = True
     config.enable_mensalidade_associado = False
