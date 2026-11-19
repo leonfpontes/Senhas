@@ -7,14 +7,14 @@ de novo: o sistema respondia "Este e-mail já possui uma senha emitida para esta
 gira". Recria o índice ignorando também `waitlist_expired` — mesmo predicado de
 `TicketRepository.check_duplicate_in_gira`.
 
-Revision ID: 109_reemissao_apos_fila_expirada
+Revision ID: 111_reemissao_apos_fila_expirada
 Revises: 108_tenant_ia_site_liberada
 Create Date: 2026-11-19
 """
 
 from alembic import op
 
-revision: str = "109_reemissao_apos_fila_expirada"
+revision: str = "111_reemissao_apos_fila_expirada"
 down_revision: str = "108_tenant_ia_site_liberada"
 branch_labels = None
 depends_on = None

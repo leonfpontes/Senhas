@@ -47,7 +47,7 @@ PRIORITY_ORDER: list[str] = [
 
 # Senhas que não ocupam o lugar do consulente na gira: cancelada e a de quem
 # perdeu o prazo de confirmação da fila de espera (pode pedir de novo e volta
-# para o fim da fila). Mesma regra no índice único parcial abaixo (migração 109)
+# para o fim da fila). Mesma regra no índice único parcial abaixo (migração 111)
 # e na checagem de duplicata de TicketRepository.
 STATUS_FORA_DA_DEDUP: tuple["TicketStatus", ...] = (
     TicketStatus.CANCELLED,
@@ -86,7 +86,7 @@ class Ticket(SoftDeleteModel):
             postgresql_where=text("email_de_quem_pediu IS NOT NULL"),
         ),
         Index("ix_tickets_checkin_em", "checkin_em"),
-        # Uma senha ativa por consulente/gira/tipo (migração 056, item Q-03; 109
+        # Uma senha ativa por consulente/gira/tipo (migração 056, item Q-03; 111
         # deixou de contar a senha com prazo da fila expirado).
         # Mesmo predicado de TicketRepository.check_duplicate_in_gira.
         Index(

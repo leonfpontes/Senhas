@@ -969,7 +969,7 @@ Incluir obrigatoriamente:
   (`waitlist_service.format_duration`: "1h30", "45 min", espelho de `formatDuration` em `lib/duration.ts`).
 - **Perdeu o prazo da fila → pede de novo** (2026-11-19, bug Tuccco): senha `waitlist_expired` não conta como
   duplicata (`STATUS_FORA_DA_DEDUP` em `models/tickets.py`, mesma regra do índice `uq_tickets_gira_consulente_ativo`
-  desde a migração 109); a pessoa volta para o fim da fila. Como o vencimento do prazo é preguiçoso (sem job), a
+  desde a migração 111); a pessoa volta para o fim da fila. Como o vencimento do prazo é preguiçoso (sem job), a
   emissão pública chama `waitlist_service.release_lapsed_reservations` antes da checagem de duplicata (expira a
   reserva vencida com `FOR UPDATE SKIP LOCKED`, promove o próximo e manda "uma vaga abriu"; sem fila, a vaga
   volta em `slots_returned`). O link de confirmação vencido (410) usa o mesmo helper e agora avisa o próximo.
