@@ -143,3 +143,47 @@ async def deactivate_tenant(db, tenant: Tenant, by: Optional[User]) -> None:
         .values(is_active=False, deleted_at=agora, self_deactivated_at=agora, self_deactivated_by=by.id if by else None)
     )
     await db.commit()
+
+
+class _Resposta:
+    """Resposta mínima (status_code + json()) no formato da antiga criação com senha."""
+
+    def __init__(self, status_code: int, payload: dict):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = str(payload)
+
+    def json(self) -> dict:
+        return self._payload
+
+
+async def convidar_e_aceitar(client, headers: dict, body: dict):
+    """Cria uma pessoa do painel como na vida real (11/2026): convite + aceite com senha nova.
+
+    `body` no formato antigo ({email, username, password, role}). Recusa do convite (403,
+    409, 422...) volta como veio; aceite volta 201 com {id, role} da conta criada. Os cookies
+    da sessão aberta no aceite são descartados (o teste segue com os headers de quem convidou).
+    """
+    from unittest.mock import patch
+
+    from src.services.email.email_queue import email_queue
+
+    enviados: list = []
+    with patch.object(email_queue, "enqueue", lambda item: enviados.append(item.message)):
+        convite = await client.post(
+            "/api/v1/admin/users/convites",
+            headers=headers,
+            json={"email": body["email"], "nome": body.get("username") or body.get("nome"), "role": body.get("role", "operator")},
+        )
+    if convite.status_code != 201:
+        return convite
+    token = enviados[-1].text_body.split("/convite-equipe/", 1)[1].split()[0]
+    aceite = await client.post(
+        f"/api/v1/public/convite-equipe/{token}/aceitar",
+        json={"modo": "senha_nova", "senha": body.get("password", "Senha-forte-123"), "aceite_termos": True},
+    )
+    client.cookies.clear()
+    if aceite.status_code != 200:
+        return aceite
+    user = aceite.json()["user"]
+    return _Resposta(201, {"id": user["id"], "role": user["role"], "email": user["email"]})

@@ -356,6 +356,16 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
         "sha256 (token_hash == hash_token(token)) — o hash esconde do auditor o parâmetro da "
         "requisição; o tenant passa a ser o do convite e as queries seguintes filtram por ele"
     ),
+    ("api/v1/public/convite_equipe.py", "_convite_pelo_token"): (
+        "busca raiz do convite para o painel (11/2026): token opaco de 256 bits comparado pelo "
+        "sha256 (token_hash == svc.hash_token(token)); o tenant passa a ser o do convite e as "
+        "queries seguintes filtram por convite.tenant_id"
+    ),
+    ("api/v1/public/convite_equipe.py", "_outras_contas"): (
+        "contas ATIVAS do mesmo e-mail em outros terreiros (a mesma busca do login, "
+        "active_login_accounts_stmt): só confere a senha para reaproveitar o hash e diz se existe; "
+        "nenhum dado dessas contas sai na resposta"
+    ),
     ("api/v1/public/email_confirmacao.py", "_conta_pelo_token"): (
         "busca raiz da confirmação do novo e-mail de login (AM-13): token opaco de 256 bits pelo "
         "sha256 (email_pendente_token_hash == hash_token(token)); o tenant passa a ser o da conta "

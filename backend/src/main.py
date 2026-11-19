@@ -22,7 +22,7 @@ from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
 from .api.v1.medium import medium_router
-from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router, waitlist_confirm_router, cancel_ticket_router, public_stats_router, public_sitemap_router, medium_convite_router, email_confirmacao_router, avisos_email_router, parceiros_router
+from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router, waitlist_confirm_router, cancel_ticket_router, public_stats_router, public_sitemap_router, medium_convite_router, convite_equipe_router, email_confirmacao_router, avisos_email_router, parceiros_router
 from .api.v1.bots import crescimento_router
 from .api.v1.webhooks import router as webhooks_router
 from .api.v1.webhooks_mensalidade import router as webhooks_mensalidade_router
@@ -303,6 +303,7 @@ def create_app() -> FastAPI:
     app.include_router(public_stats_router)
     app.include_router(public_sitemap_router)
     app.include_router(medium_convite_router)
+    app.include_router(convite_equipe_router)
     app.include_router(email_confirmacao_router)
     app.include_router(avisos_email_router)
     app.include_router(parceiros_router)

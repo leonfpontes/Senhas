@@ -23,7 +23,7 @@ from src.security import hash_password
 from src.security.jwt import create_access_token
 
 from .conftest import BACKEND_DIR
-from .factories import Actor, create_user, grant
+from .factories import Actor, create_user, grant, convidar_e_aceitar
 from .factories import create_tenant as _create_tenant
 
 ME = "/api/v1/auth/me"
@@ -285,16 +285,27 @@ async def test_lista_de_usuarios_esconde_contas_medium(client, db):
 
 
 async def test_criar_usuario_com_email_de_medium_promove_a_operador_sem_trocar_a_senha(client, db):
+    """Convite (11/2026) para quem já é médium da casa: a mesma conta ganha o painel e o
+    aceite pede a senha que a pessoa já usa na Área — quem convida nunca define senha."""
+    from src.security import hash_password
+
     tenant = await create_tenant(db)
     admin = await create_user(db, tenant, UserRole.ADMIN)
     puro = await _medium_actor(db, tenant)
+    puro.user.password_hash = hash_password("Senha-da-area-123")
+    await db.commit()
     m = await _medium(db, tenant, puro.user)
     hash_antes = puro.user.password_hash
 
-    resp = await client.post(
-        "/api/v1/admin/users",
-        headers=admin.headers,
-        json={"email": puro.user.email.upper(), "username": "novo-nome", "password": "Outra-senha-456", "role": "operator"},
+    errada = await convidar_e_aceitar(
+        client, admin.headers,
+        {"email": puro.user.email.upper(), "username": "novo-nome", "password": "Outra-senha-456", "role": "operator"},
+    )
+    assert errada.status_code == 400 and errada.json()["detail"]["error_code"] == "SENHA_INCORRETA"
+    await db.execute(text("UPDATE usuario_convites SET revogado_em = now() WHERE tenant_id = :t"), {"t": tenant.id})
+    await db.commit()
+
+    resp = await convidar_e_aceitar(client, admin.headers, {"email": puro.user.email.upper(), "username": "novo-nome", "password": "Senha-da-area-123", "role": "operator"},
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["id"] == str(puro.user.id) and resp.json()["role"] == "operator"
@@ -323,9 +334,7 @@ async def test_operador_com_usuarios_nao_promove_medium_a_admin(client, db):
     puro = await _medium_actor(db, tenant)
     await _medium(db, tenant, puro.user)
 
-    resp = await client.post(
-        "/api/v1/admin/users", headers=operador.headers,
-        json={"email": puro.user.email, "username": "x", "password": SENHA, "role": "admin"},
+    resp = await convidar_e_aceitar(client, operador.headers, {"email": puro.user.email, "username": "x", "password": SENHA, "role": "admin"},
     )
     assert resp.status_code == 403
     assert (await _fresh(User, puro.user.id)).role == UserRole.MEDIUM
@@ -336,9 +345,7 @@ async def test_perfil_medium_nao_se_cria_nem_se_atribui_sem_vinculo(client, db):
     admin = await create_user(db, tenant, UserRole.ADMIN)
     operador = await create_user(db, tenant, UserRole.OPERATOR, name="op")
 
-    criar = await client.post(
-        "/api/v1/admin/users", headers=admin.headers,
-        json={"email": "novo@example.com", "username": "novo", "password": SENHA, "role": "medium"},
+    criar = await convidar_e_aceitar(client, admin.headers, {"email": "novo@example.com", "username": "novo", "password": SENHA, "role": "medium"},
     )
     assert criar.status_code == 422
     rebaixar = await client.put(f"/api/v1/admin/users/{operador.user.id}", headers=admin.headers, json={"role": "medium"})

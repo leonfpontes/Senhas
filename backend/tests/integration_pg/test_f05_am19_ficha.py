@@ -30,7 +30,7 @@ from src.security.jwt import create_access_token
 from src.services.ficha_espiritual import CONSENTIMENTO_FICHA_VERSAO
 
 from .conftest import BACKEND_DIR
-from .factories import create_tenant, create_user, grant
+from .factories import create_tenant, create_user, grant, convidar_e_aceitar
 
 BASE = "/api/v1/admin/mediuns"
 CAMPOS = f"{BASE}/ficha-campos"
@@ -102,10 +102,7 @@ async def _auditoria_texto(tenant_id) -> str:
 async def test_grupo_padrao_nao_tem_ficha_e_operador_dele_leva_403(client, db):
     tenant, admin, _, medium = await _cenario(db)
     suffix = uuid.uuid4().hex[:6]
-    resp = await client.post(
-        "/api/v1/admin/users",
-        headers=admin.headers,
-        json={"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
+    resp = await convidar_e_aceitar(client, admin.headers, {"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
     )
     assert resp.status_code == 201, resp.text
     op_token = create_access_token(uuid.UUID(resp.json()["id"]), tenant.id, "operator")

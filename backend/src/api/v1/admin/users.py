@@ -1,7 +1,8 @@
 """T065: Admin Users - GET/POST/PUT/DELETE /api/v1/admin/users/{id}"""
-from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Request, status, Path, Query
+from src.core.limiter import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -11,7 +12,6 @@ from src.core.database import get_db
 from src.models import User, UserRole, PermissionFeature
 from src.repositories.user_repo import UserRepository
 from src.repositories.permission_group_repo import PermissionGroupRepository
-from src.security.password import hash_password, validate_password_policy
 from src.services.audit_service import AuditService
 from src.services import session_service
 from src.services.medium_area import get_linked_medium, unlink_user
@@ -27,21 +27,25 @@ router = APIRouter(prefix="/api/v1/admin/users", tags=["admin-users"])
 logger = logging.getLogger(__name__)
 
 
-class UserCreate(BaseModel):
-    """User creation request."""
-    email: EmailStr
-    username: str
-    password: str
-    role: UserRole = UserRole.OPERATOR
-
-
 class UserUpdate(BaseModel):
-    """User update request."""
+    """User update request.
+
+    Sem senha (11/2026): ninguém define a senha de outra pessoa. Para quem esqueceu, o
+    painel manda o link de criar nova senha (POST /{user_id}/link-nova-senha). Campo
+    `password` no corpo → 422, para o chamador antigo não achar que trocou.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sem_senha(cls, data):
+        if isinstance(data, dict) and "password" in data:
+            raise ValueError("A senha não é mais definida por aqui: mande o link de criar nova senha.")
+        return data
+
     email: Optional[EmailStr] = None
     username: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
-    password: Optional[str] = None
 
 
 _ADMIN_ROLES = (UserRole.ADMIN, UserRole.SUPER_ADMIN)
@@ -135,99 +139,8 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "insert"))])
-async def create_user(
-    user_data: UserCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> UserResponse:
-    """Create new user.
-
-    Autorização pelo grupo (USUARIOS:insert — admin faz bypass). Operador não
-    cria administrador (ver _require_assignable_role).
-    """
-    _require_assignable_role(current_user, user_data.role)
-    validate_password_policy(user_data.password)
-
-    # Sem limite de usuários: ilimitados em todos os planos (out/2026) — quem
-    # opera a plataforma vira promotor do upgrade (ver PLAN_LIMITS).
-
-    # Check if email already exists
-    repo = UserRepository(db)
-    existing = await repo.get_by_email(current_user.tenant_id, user_data.email)
-    if existing and existing.role == UserRole.MEDIUM:
-        # AM-02: a pessoa já tem conta da Área do Médium neste terreiro — é a
-        # mesma pessoa, então ela ganha o painel na MESMA conta (o vínculo com o
-        # médium continua). Papel pedido já passou por _require_assignable_role
-        # (operador não promove a admin). A senha e o nome de usuário da conta
-        # NÃO mudam: quem cadastra não fica sabendo a senha de um médium (que vê
-        # a própria mensalidade); a pessoa entra com a senha que já usa.
-        existing.role = user_data.role
-        existing.is_active = True
-        existing.updated_at = utc_now()
-        db.add(existing)
-        await db.flush()
-        await PermissionGroupRepository(db).assign_default_group_if_groupless(existing)
-        await AuditService(db).log_update(
-            tenant_id=current_user.tenant_id,
-            user_id=current_user.id,
-            resource_type="User",
-            resource_id=existing.id,
-            previous_state={"role": UserRole.MEDIUM.value},
-            new_state={"role": user_data.role.value},
-        )
-        await db.commit()
-        await db.refresh(existing)
-        return UserResponse.model_validate(existing)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email já registrado",
-        )
-
-    # Check if email belongs to a soft-deleted user — if so, resurrect it
-    hashed_password = hash_password(user_data.password)
-    deleted_user = await repo.get_by_email_including_deleted(current_user.tenant_id, user_data.email)
-    if deleted_user:
-        deleted_user.username = user_data.username
-        deleted_user.password_hash = hashed_password
-        deleted_user.role = user_data.role
-        deleted_user.is_active = True
-        deleted_user.deleted_at = None
-        deleted_user.full_name = None
-        deleted_user.phone = None
-        deleted_user.profile_photo_data = None
-        deleted_user.profile_photo_url = None
-        deleted_user.profile_photo_content_type = None
-        deleted_user.updated_at = utc_now()
-        await db.flush()
-        await db.refresh(deleted_user)
-        created_user = deleted_user
-    else:
-        # Create user
-        created_user = await repo.create(
-            tenant_id=current_user.tenant_id,
-            email=user_data.email,
-            username=user_data.username,
-            password_hash=hashed_password,
-            role=user_data.role,
-        )
-    
-    # Q-05: sem grupo o operador não acessa nada — entra no grupo padrão.
-    await PermissionGroupRepository(db).assign_default_group_if_groupless(created_user)
-
-    # Log audit
-    audit_service = AuditService(db)
-    await audit_service.log_create(
-        tenant_id=current_user.tenant_id,
-        user_id=current_user.id,
-        resource_type="User",
-        resource_id=created_user.id,
-        details={"email": user_data.email, "role": user_data.role.value},
-    )
-    
-    await db.commit()
-    return UserResponse.model_validate(created_user)
+# Criar pessoa com senha saiu em 11/2026: o cadastro agora é por convite
+# (POST /api/v1/admin/users/convites, admin/usuario_convites.py) e a pessoa cria a própria senha.
 
 
 @router.get("", response_model=List[UserResponse], dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "view"))])
@@ -313,7 +226,7 @@ async def update_user(
     _require_can_manage_target(current_user, existing_user)
 
     # Update fields (None em role/is_active = "não mudar", não "apagar")
-    update_data = user_update.model_dump(exclude_unset=True, exclude={"password"})
+    update_data = user_update.model_dump(exclude_unset=True)
     for key in ("role", "is_active"):
         if key in update_data and update_data[key] is None:
             del update_data[key]
@@ -345,8 +258,6 @@ async def update_user(
         and (deactivating or (role_change and new_role != UserRole.ADMIN))
     ):
         await _ensure_other_active_admin(db, current_user.tenant_id, existing_user.id)
-    if user_update.password:
-        validate_password_policy(user_update.password)
 
     # Desativar quem é operador/admin e também médium (decisão do dono, 07/10) tira só
     # o painel: a conta vira `medium` e segue ativa na Área do Médium. Quem tira a
@@ -364,12 +275,6 @@ async def update_user(
         if hasattr(existing_user, key):
             setattr(existing_user, key, value)
     
-    # Handle password separately
-    if user_update.password:
-        existing_user.password_hash = hash_password(user_update.password)
-        existing_user.sessions_revoked_at = datetime.now(timezone.utc)
-        await session_service.end_all_sessions(db, existing_user.id)
-
     db.add(existing_user)
     await db.flush()
     await db.refresh(existing_user)
@@ -455,3 +360,65 @@ async def delete_user(
     )
     
     await db.commit()
+
+
+@router.post(
+    "/{user_id}/link-nova-senha",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "edit"))],
+)
+@limiter.limit("10/hour")
+async def enviar_link_nova_senha(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manda à pessoa o link de criar nova senha — só desta conta (11/2026).
+
+    Substitui o "Nova senha (opcional)" da edição: quem administra nunca fica sabendo a
+    senha de ninguém. Mesmo link e validade (1 h) do "Esqueci a senha"; a senha atual segue
+    valendo até a pessoa usar o link.
+    """
+    import hashlib
+    import secrets
+    from datetime import timedelta
+
+    from src.api.v1.auth.login import _send_forgot_password_email
+    from src.core.config import settings
+    from src.services.email.base import EmailMessage
+    from src.services.email.templates.password_reset import render_password_reset_email
+
+    target = await UserRepository(db).get_by_id(user_id, current_user.tenant_id)
+    if not target or target.role not in (UserRole.ADMIN, UserRole.OPERATOR):
+        raise NotFoundError("Usuário não encontrado")
+    _require_can_manage_target(current_user, target)
+    if not target.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A conta está desativada. Reative antes de mandar o link.",
+        )
+
+    raw_token = secrets.token_urlsafe(32)
+    target.reset_token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    target.reset_token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    db.add(target)
+    await AuditService(db).log_update(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="User",
+        resource_id=target.id,
+        new_state={"acao": "link_nova_senha_enviado"},
+    )
+    await db.commit()
+
+    reset_url = f"{settings.FRONTEND_URL}/reset-password#token={raw_token}"
+    msg = EmailMessage(
+        to_email=target.email,
+        subject="Crie uma nova senha — GiraHub",
+        html_body=render_password_reset_email(reset_url, target.full_name or target.username),
+        text_body=f"Acesse o link para criar uma nova senha: {reset_url}",
+    )
+    background_tasks.add_task(_send_forgot_password_email, msg, target.id, [target.id])
+    return {"message": "Enviamos o link para a pessoa criar uma nova senha."}

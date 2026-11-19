@@ -9,7 +9,7 @@ from src.models.permission_groups import PermissionGroup, UserGroupMembership
 from src.models.users import UserRole
 
 from .conftest import BACKEND_DIR
-from .factories import create_tenant, create_user, grant
+from .factories import create_tenant, create_user, grant, convidar_e_aceitar
 from src.models.permission_groups import FEATURES_FORA_DO_GRUPO_PADRAO, GroupPermission, PermissionFeature
 
 
@@ -35,10 +35,7 @@ async def test_operador_criado_pelo_admin_entra_no_grupo_padrao_e_acessa(client,
     admin = await create_user(db, tenant, UserRole.ADMIN)
     suffix = uuid.uuid4().hex[:6]
 
-    resp = await client.post(
-        "/api/v1/admin/users",
-        headers=admin.headers,
-        json={"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
+    resp = await convidar_e_aceitar(client, admin.headers, {"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
     )
 
     assert resp.status_code == 201, resp.text
@@ -86,10 +83,7 @@ async def test_grupo_padrao_nao_pode_ser_excluido(client, db):
     tenant = await create_tenant(db)
     admin = await create_user(db, tenant, UserRole.ADMIN)
     suffix = uuid.uuid4().hex[:6]
-    await client.post(
-        "/api/v1/admin/users",
-        headers=admin.headers,
-        json={"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
+    await convidar_e_aceitar(client, admin.headers, {"email": f"op-{suffix}@example.com", "username": f"op-{suffix}", "password": "Senha-forte-123", "role": "operator"},
     )
     grupo = await _grupo_padrao(tenant.id)
 

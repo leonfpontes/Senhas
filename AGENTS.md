@@ -317,9 +317,10 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `/api/v1/medium/*`. Conta sem painel nunca chama `/api/v1/admin/*` (providers do painel so em `/admin/*`;
   `api_client` cancela). Telas do medium nao usam `canGroup`/`PlanLocked`: sem area → aviso neutro.
 - Papel `medium` em `users.py`: a lista de Usuarios esconde `medium` (so com `?role_filter=medium`);
-  `medium` nao se cria nem se atribui sem vinculo (422 — a conta nasce do convite, AM-03); "Adicionar"
-  com o e-mail de um `medium` do terreiro promove a MESMA conta (papel pedido, grupo padrao, senha e
-  username mantidos — quem cadastra nao fica sabendo a senha do medium; anti-escalada igual);
+  `medium` nao se cria nem se atribui sem vinculo (422 — a conta nasce do convite, AM-03); convidar
+  para o painel (§11.18, convite por e-mail) o e-mail de um `medium` do terreiro promove a MESMA conta
+  no aceite, com a senha que a pessoa ja usa na Area (papel do convite, perfil do convite ou o padrao,
+  username mantido; anti-escalada igual);
   remover (DELETE) operador/admin ligado a medium ativo rebaixa para `medium` e tira dos grupos em vez
   de excluir; desativar (`PUT is_active=false`) operador/admin ligado a medium ativo tambem so tira o painel
   (vira `medium`, continua ativo na Area — decisao do dono, 07/10); excluir de verdade solta o vinculo. Medium nao entra em grupo (`add_member` → 403) e
@@ -1295,9 +1296,25 @@ Incluir obrigatoriamente:
 
 ### 11.18 Jornadas de conta, plano e plataforma (2026-10-06)
 - **Pessoas e acessos** (`users.py` + `users.tsx`): gate só por grupo USUARIOS (sem `is_admin`
-  extra), com as proteções do §3.3; senha de criar/editar passa por `validate_password_policy`;
-  usuarios sao ilimitados em todos os planos (out/2026), entao criar e reativar nao checam limite;
-  a tela busca a lista completa (o filtro de perfil é visual).
+  extra), com as proteções do §3.3; usuarios sao ilimitados em todos os planos (out/2026), entao
+  convidar e reativar nao checam limite; a tela busca a lista completa (o filtro de perfil é visual).
+- **Convite por e-mail (11/2026, migração 113, para todos)**: ninguém define a senha de outra pessoa.
+  `POST /admin/users` (criar com senha) saiu; o `PUT` recusa `password` (422) e a edição manda
+  `POST /admin/users/{id}/link-nova-senha` (o link do "Esqueci a senha", só daquela conta).
+  - Painel: `admin/usuario_convites.py` em `/admin/users/convites` (entra no `admin_router` ANTES do
+    `users_router`, senão `/{user_id}` casa com "convites"): listar = USUARIOS:view, convidar/reenviar =
+    insert, ajustar = edit, cancelar = delete; operador não convida nem mexe em convite de admin.
+    Barra e-mail com painel ativo (`JA_TEM_ACESSO`), desativado (`CONTA_DESATIVADA`) ou convite em aberto
+    (`CONVITE_EM_ABERTO`); reenviar troca o token, 1 por minuto (429); sem "copiar link" de propósito.
+  - Público: `public/convite_equipe.py` em `/public/convite-equipe/{token}` (+ `/aceitar`, `/recusar`),
+    tela `pages/convite-equipe/[token].tsx`. `situacao`: `nova` (cria senha) · `outra_casa` (usa a mesma
+    senha — copia o hash, e o login mostra as duas casas na escolha AM-05 — ou cria uma só desta casa) ·
+    `medium_da_casa` (a mesma conta ganha o painel, com a senha da Área) · `ja_tem_acesso`. O aceite exige
+    os Termos/Privacidade (caixa desmarcada, grava `legal_acceptances`), aplica o perfil do convite (ou o
+    padrão, Q-05), abre a sessão e manda para `/admin` ou `/escolher-area`. Convite de admin cai se quem
+    convidou deixou de ser admin ativo. Token sha256, 7 dias, uso único, um em aberto por e-mail no terreiro.
+  - Testes: `tests/integration_pg/test_usuario_convites.py`, `tests/unit/test_usuario_convite.py`; a suíte
+    cria pessoas pelo fluxo real com `factories.convidar_e_aceitar`.
 - **Configurações** (`config.py`): gate só por grupo CONFIGURACOES; marca gated por plano (§3.4).
 - **`GET /admin/subscription`** traz `has_stripe_subscription` e `is_bonus`; o aviso de trial no topo
   usa a mesma regra do `inLocalTrial` de billing.tsx (trial local, sem Stripe e sem bônus), mostra o

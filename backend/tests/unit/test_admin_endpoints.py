@@ -487,76 +487,17 @@ def _users_repo(MockRepo, target):
 
 
 class TestCreateUser:
-    @patch("src.api.v1.admin.users.AuditService")
-    @patch("src.api.v1.admin.users.hash_password")
-    @patch("src.api.v1.admin.users.UserRepository")
-    async def test_success(self, MockRepo, mock_hash, MockAudit):
-        from src.api.v1.admin.users import create_user, UserCreate
-        db = AsyncMock()
-        repo_inst = AsyncMock()
-        repo_inst.get_by_email.return_value = None
-        repo_inst.get_by_email_including_deleted.return_value = None
-        repo_inst.create.return_value = _mock_user_model()
-        MockRepo.return_value = repo_inst
-        mock_hash.return_value = "hashed"
-        MockAudit.return_value = AsyncMock()
+    """Criar pessoa com senha saiu em 11/2026: o cadastro é por convite
+    (admin/usuario_convites.py; tests/unit/test_usuario_convite.py e
+    tests/integration_pg/test_usuario_convites.py)."""
 
-        result = await create_user(
-            UserCreate(email="user@test.com", username="testuser", password="SecureP@ss1234"),
-            _admin_user(), db,
-        )
-        assert result.email == "user@test.com"
-        db.commit.assert_called_once()
+    def test_rota_de_criar_com_senha_nao_existe_mais(self):
+        from src.api.v1.admin import users
 
-    async def test_operator_cannot_create_admin(self):
-        """Sem o is_admin extra, operador com USUARIOS:insert cria operadores —
-        mas nunca administradores (escalada de privilégio)."""
-        from src.api.v1.admin.users import create_user, UserCreate
-        from src.models import UserRole
-        with pytest.raises(InsufficientPermissionsError):
-            await create_user(
-                UserCreate(email="a@b.com", username="testx", password="P@ss12345678", role=UserRole.ADMIN),
-                _operator_user(), AsyncMock(),
-            )
-
-    async def test_super_admin_role_rejected(self):
-        from fastapi import HTTPException
-        from src.api.v1.admin.users import create_user, UserCreate
-        from src.models import UserRole
-        with pytest.raises(HTTPException) as exc:
-            await create_user(
-                UserCreate(email="a@b.com", username="testx", password="P@ss12345678", role=UserRole.SUPER_ADMIN),
-                _admin_user(), AsyncMock(),
-            )
-        assert exc.value.status_code == 422
-
-    async def test_weak_password_rejected(self):
-        from src.api.v1.admin.users import create_user, UserCreate
-        from src.core.errors import ValidationError
-        with pytest.raises(ValidationError):
-            await create_user(
-                UserCreate(email="a@b.com", username="testx", password="fraca"),
-                _admin_user(), AsyncMock(),
-            )
-
-    @patch("src.api.v1.admin.users.AuditService")
-    @patch("src.api.v1.admin.users.hash_password", return_value="hashed")
-    @patch("src.api.v1.admin.users.UserRepository")
-    async def test_operator_with_group_can_create_operator(self, MockRepo, mock_hash, MockAudit):
-        from src.api.v1.admin.users import create_user, UserCreate
-        db = AsyncMock()
-        repo_inst = AsyncMock()
-        repo_inst.get_by_email.return_value = None
-        repo_inst.get_by_email_including_deleted.return_value = None
-        repo_inst.create.return_value = _mock_user_model()
-        MockRepo.return_value = repo_inst
-        MockAudit.return_value = AsyncMock()
-
-        result = await create_user(
-            UserCreate(email="user@test.com", username="testuser", password="SecureP@ss1234"),
-            _operator_user(), db,
-        )
-        assert result.email == "user@test.com"
+        assert not hasattr(users, "create_user")
+        assert not hasattr(users, "UserCreate")
+        metodos = {(r.path, m) for r in users.router.routes for m in getattr(r, "methods", set())}
+        assert ("/api/v1/admin/users", "POST") not in metodos
 
 
 class TestListUsers:
@@ -601,30 +542,13 @@ class TestUpdateUser:
         result = await update_user(OTHER_USER_ID, UserUpdate(username="updated_user"), _admin_user(), db)
         assert result is not None
 
-    @patch("src.api.v1.admin.users.AuditService")
-    @patch("src.api.v1.admin.users.UserRepository")
-    async def test_password_change_revokes_existing_sessions(self, MockRepo, MockAudit):
-        from src.api.v1.admin.users import update_user, UserUpdate
-        db = AsyncMock()
-        existing = _mock_user_model()
-        existing.sessions_revoked_at = None
-        _users_repo(MockRepo, existing)
-        MockAudit.return_value = AsyncMock()
-        db.refresh = AsyncMock()
+    def test_senha_nao_entra_mais_na_edicao(self):
+        """Ninguém define a senha de outra pessoa (11/2026): `password` no corpo → 422."""
+        from pydantic import ValidationError as PydanticValidationError
+        from src.api.v1.admin.users import UserUpdate
 
-        with patch("src.api.v1.admin.users.session_service.end_all_sessions", new=AsyncMock()) as mock_end_all:
-            await update_user(OTHER_USER_ID, UserUpdate(password="NewPass456!xy"), _admin_user(), db)
-
-        assert existing.sessions_revoked_at is not None
-        mock_end_all.assert_awaited_once_with(db, existing.id)
-
-    @patch("src.api.v1.admin.users.UserRepository")
-    async def test_weak_password_rejected(self, MockRepo):
-        from src.api.v1.admin.users import update_user, UserUpdate
-        from src.core.errors import ValidationError
-        _users_repo(MockRepo, _mock_user_model())
-        with pytest.raises(ValidationError):
-            await update_user(OTHER_USER_ID, UserUpdate(password="fraca"), _admin_user(), AsyncMock())
+        with pytest.raises(PydanticValidationError):
+            UserUpdate(password="NewPass456!xy")
 
     @patch("src.api.v1.admin.users.UserRepository")
     async def test_cannot_demote_self(self, MockRepo):
@@ -687,7 +611,7 @@ class TestUpdateUser:
         from src.models import UserRole
         _users_repo(MockRepo, _mock_user_model(role=UserRole.ADMIN))
         with pytest.raises(InsufficientPermissionsError):
-            await update_user(OTHER_USER_ID, UserUpdate(password="NewPass456!xy"), _operator_user(), AsyncMock())
+            await update_user(OTHER_USER_ID, UserUpdate(username="outro"), _operator_user(), AsyncMock())
 
     @patch("src.api.v1.admin.users.AuditService")
     @patch("src.api.v1.admin.users.UserRepository")

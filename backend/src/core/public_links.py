@@ -10,6 +10,7 @@ Os padrões abaixo espelham os nomes de arquivo do Next:
 - PUBLIC_CANCEL_ROUTE  → pages/public/ticket/[ticketId]/cancelar.tsx
 - PUBLIC_TENANT_ROUTE  → pages/public/[tenant].tsx (redireciona à próxima gira)
 - MEDIUM_CONVITE_ROUTE → pages/convite/[token].tsx (convite da casa para a Área do Médium, AM-03)
+- USUARIO_CONVITE_ROUTE → pages/convite-equipe/[token].tsx (convite da casa para entrar no painel, 11/2026)
 - CONFIRMAR_EMAIL_ROUTE → pages/confirmar-email/[token].tsx (troca do e-mail de login, AM-13)
 - DESCADASTRO_ROUTE    → pages/descadastro/[token].tsx (desligar avisos por e-mail da Área, AM-15)
 
@@ -24,6 +25,7 @@ PUBLIC_TICKET_ROUTE = "/public/{tenant_slug}/ticket/{ticket_id}"
 PUBLIC_CANCEL_ROUTE = "/public/ticket/{ticket_id}/cancelar"
 PUBLIC_TENANT_ROUTE = "/public/{tenant_slug}"
 MEDIUM_CONVITE_ROUTE = "/convite/{token}"
+USUARIO_CONVITE_ROUTE = "/convite-equipe/{token}"
 CONFIRMAR_EMAIL_ROUTE = "/confirmar-email/{token}"
 DESCADASTRO_ROUTE = "/descadastro/{token}"
 
@@ -48,6 +50,11 @@ def public_tenant_link(frontend_url: str, tenant_slug: str) -> str:
 def medium_convite_link(frontend_url: str, token: str) -> str:
     """Convite da casa para a Área do Médium: o token opaco vai em claro só aqui."""
     return _base(frontend_url) + MEDIUM_CONVITE_ROUTE.format(token=token)
+
+
+def usuario_convite_link(frontend_url: str, token: str) -> str:
+    """Convite da casa para entrar no painel: o token opaco vai em claro só aqui."""
+    return _base(frontend_url) + USUARIO_CONVITE_ROUTE.format(token=token)
 
 
 def confirmar_email_link(frontend_url: str, token: str) -> str:
