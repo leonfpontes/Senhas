@@ -1,12 +1,11 @@
 # Textos do site com IA (beta)
 
 - **Chave:** `beta_textos_ia_site` · **Grupo:** Para o site · **Situação:** em teste desde 17/11/2026
-- **Quem libera:** **só a plataforma, casa por casa.** A beta usa a chave da Anthropic do GiraHub, então ser
-  beta tester não basta. Em /platform › terreiro › cartão "Beta tester (Laboratório)" fica o interruptor
-  **"Textos do site com IA"** (`tenants.ia_site_liberada`, migração 108). Sem ele, a beta nem aparece no
-  Laboratório da casa, o PUT do Laboratório responde 403 e a beta não vale, mesmo que já estivesse ligada.
-  Depois da liberação, a casa liga ou desliga a beta em Configurações › Laboratório.
-  (`Beta.liberacao` em `services/laboratorio.py`.)
+- **Quem liga:** a própria casa, em Configurações › Laboratório, como qualquer beta (decisão do dono,
+  19/11/2026). Até então a plataforma liberava casa por casa (`tenants.ia_site_liberada`, migração 108); a
+  migração 110 tirou a coluna e desligou a beta onde ela estava ligada sem a liberação (não valia), então
+  nenhuma casa passou a usar a IA sem ter escolhido. O custo da chave da Anthropic fica contido pelos limites
+  por terreiro (abaixo).
 - **Depende de:** `beta_novo_construtor_site` ligada (o cartão fica no painel da seção do estúdio) e da variável
   `ANTHROPIC_API_KEY` no servidor. Sem a chave, `GET /api/v1/admin/sites/ia` responde `disponivel: false` e o
   cartão não aparece.
@@ -41,3 +40,26 @@
 - **Desligar:** apaga só o cartão. Os textos que a casa aplicou continuam no site.
 - **Testes:** `backend/tests/unit/test_site_textos_ia.py`, `backend/tests/integration_pg/test_site_textos_ia.py`,
   `backend/tests/integration_pg/test_laboratorio.py` e `frontend/__tests__/components/site/textAssist.test.tsx`.
+
+## Nota da versão (como a casa lê no Laboratório)
+
+Fonte: `BETA_RELEASE_NOTES` em `frontend/src/constants/releaseNotes.ts` (mantenha os dois iguais).
+
+**O que faz.** No estúdio do site, a IA ajuda a escrever títulos e textos. Ela escreve a partir da sua ideia, melhora o que já está escrito, encurta ou deixa mais acolhedor. Vêm até três sugestões, e você escolhe uma ou nenhuma.
+
+**Como usar.**
+
+1. Ligue também o "Novo construtor do site": a ajuda da IA fica dentro dele.
+2. No Meu Site, clique na seção que quer mudar. No painel da direita, na aba Conteúdo, abra "Escrever com ajuda da IA".
+3. Escolha qual texto (título, subtítulo, Sobre, introdução) e o que fazer. Se quiser, conte em poucas palavras o que deseja dizer.
+4. Toque em "Usar este texto" na sugestão que servir. Ela entra como uma edição comum: dá para mexer e desfazer (Ctrl+Z). O público só vê depois que você publicar.
+
+**Quem vê.** Quem pode editar o site da casa. A IA recebe só o nome da casa e o que já está escrito no site. Não vai e-mail, telefone nem dado de consulente ou médium.
+
+**Ao desligar.** O cartão da IA some do estúdio. Os textos que você já aplicou continuam no site.
+
+**Bom saber.**
+
+- A IA não escreve sobre entidades, Orixás, guias, linhas, fundamentos ou rituais. Essas palavras são da casa, e a seção Linhas de trabalho fica de fora.
+- Ela não inventa datas, horários, endereço nem história. O que for fato, confira antes de publicar.
+- Cada casa pode fazer até 150 pedidos por dia.

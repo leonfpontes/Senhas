@@ -23,3 +23,23 @@
 - **Ao desligar:** some da tela e o campo deixa de ser gravado; os retornos já anotados continuam no
   banco e voltam ao ligar.
 - **Critério para sair do beta:** uso pela casa da Mãe Rai sem erro por um ciclo de giras e aprovação do dono.
+
+## Nota da versão (como a casa lê no Laboratório)
+
+Fonte: `BETA_RELEASE_NOTES` em `frontend/src/constants/releaseNotes.ts` (mantenha os dois iguais).
+
+**O que faz.** Quando o médium ou a entidade pede que a pessoa volte, quem está na porta anota. Nas giras seguintes, a senha dessa pessoa aparece com o selo Retorno, e a casa sabe com quem encaminhar.
+
+**Como usar.**
+
+1. Na Porta, ao chamar ou editar o atendimento de uma senha, marque "Precisa voltar" e diga com qual médium e/ou entidade. Se quiser, deixe um recado.
+2. Nas próximas giras, quando a pessoa pegar senha de novo, a senha dela aparece com o selo Retorno na fila, no "Próximo" e no "Chamar". Toque no selo para ver com quem ela volta, de qual gira veio e o recado.
+3. Depois do atendimento, toque em "Marcar como resolvido". Se errar, o aviso na tela tem "Desfazer".
+
+**Quem vê.** Quem tem acesso à Porta vê o selo. Anotar e marcar como resolvido pede permissão de editar a Porta. O selo nunca aparece no Modo TV nem para o consulente.
+
+**Ao desligar.** O selo e o campo somem da Porta. Os retornos já anotados ficam guardados e voltam quando a casa ligar de novo.
+
+**Bom saber.**
+
+- A casa reconhece a pessoa pelo mesmo cadastro, e-mail ou telefone, mesmo que numa gira ela tenha vindo pelo link e na outra sem senha.

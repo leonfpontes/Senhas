@@ -47,16 +47,11 @@ class Tenant(SoftDeleteModel):
     # de elegibilidade contra TrialGrant. Nullable pra não quebrar tenants
     # criados antes dessa mudança.
     documento: Mapped[str | None] = mapped_column(String(14), nullable=True)
-    # Chave do lançamento da Área do Médium (decisão do dono, 07/10): tudo vai para a
-    # produção desligado e a plataforma liga por terreiro (piloto) em /platform. Vale
-    # junto com o plano (`area_medium`, Basic+): `dependencies.check_plan_feature`.
-    area_medium_liberada: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
     # Laboratório (jornadas v2, decisão do dono 01/11/2026): a plataforma marca o terreiro como beta
     # tester; só então a casa liga ou desliga cada beta (feature_flags `beta_*`). Migração 102.
+    # Desde 19/11/2026 (migração 110) a Área do Médium e os Textos do site com IA também são betas
+    # do Laboratório: a plataforma não tem mais chave por funcionalidade, só esta.
     beta_tester: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
-    # Beta "Textos do site com IA" (17/11/2026): usa a chave da Anthropic do GiraHub, então só a
-    # plataforma libera, casa por casa, em /platform. Sem isso a beta nem aparece no Laboratório.
-    ia_site_liberada: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
 
     # Relationships
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan", foreign_keys="User.tenant_id")

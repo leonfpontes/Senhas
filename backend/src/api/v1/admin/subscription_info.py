@@ -74,8 +74,8 @@ class SubscriptionInfoResponse(BaseModel):
 
 
 async def _features_do_terreiro(db: AsyncSession, sub) -> PlanFeatures:
-    """Features do plano efetivo, com a Área do Médium só onde a plataforma liberou
-    (lançamento em piloto — mesma regra do `check_plan_feature`)."""
+    """Features do plano efetivo, com a Área do Médium só onde a casa ligou a beta no Laboratório
+    (mesma regra do `check_plan_feature`)."""
     features = get_effective_plan_features(sub)
     if features.area_medium and not await area_medium_liberada(db, sub.tenant_id):
         features = features.model_copy(update={"area_medium": False})

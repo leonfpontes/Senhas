@@ -11,6 +11,9 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BETA_RELEASE_NOTES } from '@/constants/releaseNotes';
+import { minPlanFor, type PlanFeatureKey } from '@/constants/plans';
+import { BetaNoteBody } from '@/components/admin/BetaNoteBody';
+import { useSubscription } from '@/hooks/useSubscription';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { ArrowRight } from 'lucide-react';
@@ -23,6 +26,9 @@ export interface BetaDoLaboratorio {
   grupo: string;
   nota: string;
   ligada: boolean;
+  /** Recurso do plano que a beta também exige (ex.: `area_medium`) e se o plano da casa tem. */
+  plano?: string | null;
+  no_plano?: boolean;
 }
 
 interface Props {
@@ -35,6 +41,9 @@ export function LaboratorioSection({ canEdit, tenantName }: Props) {
   const [salvando, setSalvando] = useState<string | null>(null);
   const [notaAberta, setNotaAberta] = useState<string | null>(null);
   const { showSuccess, showError } = useSnackbar();
+  // As betas ligadas chegam ao painel pela assinatura (`beta(...)`, `features.area_medium`): recarrega
+  // depois de mudar, para a aba Área do Médium e as telas com beta aparecerem ou sumirem na hora.
+  const { refresh } = useSubscription();
 
   useEffect(() => {
     apiClient
@@ -54,6 +63,7 @@ export function LaboratorioSection({ canEdit, tenantName }: Props) {
     try {
       const r = await apiClient.put<{ betas: BetaDoLaboratorio[] }>('/api/v1/admin/config/laboratorio', { chave: b.chave, ligada });
       setBetas(r.data.betas);
+      refresh();
       showSuccess(ligada ? `"${b.nome}" ligada.` : `"${b.nome}" desligada. Nada do que foi registrado foi apagado.`);
     } catch (err) {
       showError(extractApiErrorMessage(err, 'Não foi possível mudar a beta.'));
@@ -84,7 +94,7 @@ export function LaboratorioSection({ canEdit, tenantName }: Props) {
             type="button"
             variant="link"
             className="h-auto gap-1 px-0 text-sm font-semibold text-foreground underline underline-offset-4"
-            onClick={() => window.dispatchEvent(new Event('girahub:abrir-novidades'))}
+            onClick={() => window.dispatchEvent(new CustomEvent('girahub:abrir-novidades', { detail: { modo: 'beta' } }))}
           >
             Notas da versão · Beta testers <ArrowRight aria-hidden className="size-3.5" />
           </Button>
@@ -102,6 +112,12 @@ export function LaboratorioSection({ canEdit, tenantName }: Props) {
                   <div className="min-w-0 flex-1">
                     <Label htmlFor={`beta-${b.chave}`} className="text-base font-semibold">{b.nome}</Label>
                     <p className="text-sm text-muted-foreground">{b.descricao}</p>
+                    {b.plano && b.no_plano === false && (
+                      <p className="mt-1 text-sm font-semibold">
+                        Precisa do plano {minPlanFor(b.plano as PlanFeatureKey).label} ou superior. Dá para ligar agora: passa a
+                        valer quando a casa estiver nesse plano.
+                      </p>
+                    )}
                   </div>
                   {nota && (
                     <button
@@ -124,7 +140,7 @@ export function LaboratorioSection({ canEdit, tenantName }: Props) {
                   </div>
                 </div>
                 {nota && notaAberta === b.chave && (
-                  <p className="rounded-lg bg-muted px-3 py-2 text-sm">{nota.text}</p>
+                  <BetaNoteBody note={nota} className="rounded-lg bg-muted px-4 py-3" />
                 )}
               </div>
             );

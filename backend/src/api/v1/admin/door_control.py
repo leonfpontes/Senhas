@@ -151,6 +151,7 @@ TV_PROXIMAS = 3
 class DoorConfigResponse(BaseModel):
     """Lightweight tenant-config subset needed by the door view (PORTA-gated)."""
     enable_walk_in: bool
+    queue_order_mode: str = "numero"
 
 
 class AttendRequest(BaseModel):
@@ -299,11 +300,35 @@ def _interleave(a: list, b: list) -> list:
     return result
 
 
-def _ordenar_fila(items: List[QueueItemResponse], sponsor_mode: str) -> List[QueueItemResponse]:
+QUEUE_ORDER_MODES = ("numero", "chegada")
+
+
+def _ordem_base(items: List[QueueItemResponse], queue_order_mode: str) -> List[QueueItemResponse]:
+    """Ordem dentro de cada faixa da fila, escolhida pelo terreiro em Configurações.
+
+    ``numero``: pelo número da senha (como ``items`` já vem do banco).
+    ``chegada``: quem já fez check-in, na ordem em que chegou; depois quem ainda
+    não chegou, pelo número. Empate na hora de chegada desempata pelo número.
+    """
+    if queue_order_mode != "chegada":
+        return list(items)
+    chegaram = sorted(
+        (i for i in items if i.checkin_em is not None),
+        key=lambda i: (i.checkin_em, i.numero),
+    )
+    faltam = [i for i in items if i.checkin_em is None]
+    return chegaram + faltam
+
+
+def _ordenar_fila(
+    items: List[QueueItemResponse], sponsor_mode: str, queue_order_mode: str = "numero"
+) -> List[QueueItemResponse]:
     """Ordem da fila da Porta (e do modo TV): categorias de prioridade na ordem de
     PRIORITY_ORDER, depois preferenciais legados (só JSON), depois os demais. Em cada
-    faixa, senhas de associado antes (``first``) ou intercaladas (``interleave``).
+    faixa, senhas de associado antes (``first``) ou intercaladas (``interleave``), e a
+    ordem base do terreiro (``numero`` ou ``chegada``, ver ``_ordem_base``).
     ``items`` já vem ordenado por número."""
+    items = _ordem_base(items, queue_order_mode)
 
     def _juntar(assoc: list, demais: list) -> list:
         return _interleave(assoc, demais) if sponsor_mode == "interleave" else assoc + demais
@@ -441,7 +466,10 @@ async def get_door_config(
     under PORTA instead of CONFIGURACOES so porteiros sem acesso admin de
     config ainda veem o FAB de walk-in quando habilitado."""
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
-    return DoorConfigResponse(enable_walk_in=bool(tenant_config and tenant_config.enable_walk_in))
+    return DoorConfigResponse(
+        enable_walk_in=bool(tenant_config and tenant_config.enable_walk_in),
+        queue_order_mode=tenant_config.queue_order_mode if tenant_config else "numero",
+    )
 
 
 class DoorMediumOption(BaseModel):
@@ -526,8 +554,8 @@ async def get_door_queue(
 ) -> DoorQueueResponse:
     """Get ordered queue for the door view.
     
-    Order: preferenciais first (by numero), then regular (by numero).
-    Includes search by consulente name.
+    Order: preferenciais first, then regular; inside each band, by numero or by
+    check-in time (``tenant_configs.queue_order_mode``). Includes search by name.
     """
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
@@ -561,7 +589,8 @@ async def get_door_queue(
     # Fetch tenant config for sponsor priority mode
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
     sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
-    sorted_items = _ordenar_fila(items, sponsor_mode)
+    queue_order_mode = tenant_config.queue_order_mode if tenant_config else "numero"
+    sorted_items = _ordenar_fila(items, sponsor_mode, queue_order_mode)
     await _preencher_retornos(db, current_user.tenant_id, gira_id, list(tickets), sorted_items)
 
     return DoorQueueResponse(items=sorted_items, total=len(sorted_items))
@@ -613,7 +642,8 @@ async def get_door_tv(
     tickets = (await db.execute(stmt)).scalars().all()
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
     sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
-    fila = _ordenar_fila([_ticket_to_queue_item(t) for t in tickets], sponsor_mode)
+    queue_order_mode = tenant_config.queue_order_mode if tenant_config else "numero"
+    fila = _ordenar_fila([_ticket_to_queue_item(t) for t in tickets], sponsor_mode, queue_order_mode)
 
     # Mesma regra que a TV usava no navegador: o número grande é o primeiro da
     # fila que já chegou; as próximas são as demais que ainda esperam.

@@ -156,9 +156,7 @@ class TenantService:
             "name": tenant.name,
             "description": tenant.description,
             "is_active": tenant.is_active,
-            "area_medium_liberada": bool(tenant.area_medium_liberada),
             "beta_tester": bool(tenant.beta_tester),
-            "ia_site_liberada": bool(tenant.ia_site_liberada),
             "created_at": tenant.created_at.isoformat(),
             "updated_at": tenant.updated_at.isoformat(),
         }
@@ -178,7 +176,7 @@ class TenantService:
             Updated tenant dict or None
         """
         # Only allow certain fields
-        allowed_fields = {"name", "description", "is_active", "area_medium_liberada", "beta_tester", "ia_site_liberada"}
+        allowed_fields = {"name", "description", "is_active", "beta_tester"}
         update_data = {k: v for k, v in kwargs.items() if k in allowed_fields}
         
         if not update_data:
@@ -195,9 +193,7 @@ class TenantService:
             "name": tenant.name,
             "description": tenant.description,
             "is_active": tenant.is_active,
-            "area_medium_liberada": bool(tenant.area_medium_liberada),
             "beta_tester": bool(tenant.beta_tester),
-            "ia_site_liberada": bool(tenant.ia_site_liberada),
             "created_at": tenant.created_at.isoformat(),
             "updated_at": tenant.updated_at.isoformat(),
         }

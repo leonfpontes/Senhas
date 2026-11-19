@@ -70,6 +70,7 @@ from ..models.medium_lembretes import (
     TIPO_VESPERA,
 )
 from ..models.mensalidades import COMPROVANTE_EM_CONFERENCIA, MensalidadeComprovante
+from .laboratorio import BETA_AREA_MEDIUM, condicao_beta_ligada
 from .medium_inicio import STATUS_ATRASADA, STATUS_PENDENTE, situacao_mensalidade, vencimento_do_mes
 
 # ── Janelas (horário de Brasília, [início, fim) em horas) ───────────────────
@@ -231,11 +232,11 @@ def novo_token() -> str:
 
 
 async def terreiros_do_piloto(db: AsyncSession) -> list[uuid.UUID]:
-    """Terreiros ativos com a chave do piloto (`area_medium_liberada`). Cross-tenant por design: o
+    """Terreiros ativos com a beta "Área do Médium" ligada no Laboratório. Cross-tenant por design: o
     agendador varre todos e cada terreiro é processado com o próprio `tenant_id` em seguida."""
     rows = await db.execute(
         select(Tenant.id).where(
-            Tenant.area_medium_liberada.is_(True),
+            condicao_beta_ligada(BETA_AREA_MEDIUM),
             Tenant.is_active.is_(True),
             Tenant.deleted_at.is_(None),
         )

@@ -54,6 +54,7 @@ interface TenantConfig {
   enable_tv_medium?: boolean;
   validate_associado_on_emit: boolean;
   sponsor_priority_mode?: string;
+  queue_order_mode?: QueueOrderMode;
   enable_estoque_log?: boolean;
   enable_mensalidade_associado?: boolean;
   enable_waitlist?: boolean;
@@ -122,6 +123,23 @@ const FEATURE_ITEMS: { field: BoolField; title: string; description: string; gat
   // enable_analytics saiu daqui: era salvo mas nada lia (o Analytics segue o plano e o grupo).
 ];
 
+type QueueOrderMode = 'numero' | 'chegada';
+
+// Ordem de atendimento da fila da Porta, escolhida pela casa. Preferenciais por lei e a regra
+// dos associados (abaixo) continuam valendo nas duas opções.
+const QUEUE_ORDER_OPTIONS: { value: QueueOrderMode; title: string; description: string }[] = [
+  {
+    value: 'numero',
+    title: 'Pelo número da senha',
+    description: 'A fila segue a numeração: a senha 0003 é chamada antes da 0007, mesmo que tenha chegado depois.',
+  },
+  {
+    value: 'chegada',
+    title: 'Pela ordem de chegada',
+    description: 'Quem marcou "Chegou" primeiro é chamado primeiro. Quem ainda não chegou fica no fim, pelo número.',
+  },
+];
+
 const PRIORITY_OPTIONS = [
   { value: 'first', title: 'Associados primeiro', description: 'Associados são chamados antes dos demais, independente da chegada.' },
   { value: 'interleave', title: 'Intercalar na fila', description: 'Um associado é chamado a cada atendimento da fila geral.' },
@@ -163,6 +181,47 @@ function SectionTitle({ title, description }: { title: string; description?: str
       <h2 className="text-base font-bold">{title}</h2>
       {description && <p className="text-sm text-muted-foreground">{description}</p>}
     </div>
+  );
+}
+
+/** Escolha única em cartões (RadioGroup do kit): usada nas regras da aba Atendimento. */
+function OptionCards({
+  name,
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  name: string;
+  options: { value: string; title: string; description: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <RadioGroup value={value} onValueChange={onChange} disabled={disabled} className="gap-3">
+      {options.map((opt) => {
+        const selected = value === opt.value;
+        const id = `${name}-${opt.value}`;
+        return (
+          <label
+            key={opt.value}
+            htmlFor={id}
+            className={cn(
+              'flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition',
+              selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent',
+              disabled && 'cursor-not-allowed opacity-70',
+            )}
+          >
+            <RadioGroupItem id={id} value={opt.value} className="mt-0.5" />
+            <span>
+              <span className="block text-sm font-semibold">{opt.title}</span>
+              <span className="block text-xs text-muted-foreground">{opt.description}</span>
+            </span>
+          </label>
+        );
+      })}
+    </RadioGroup>
   );
 }
 
@@ -519,6 +578,7 @@ function AdminConfigContent() {
         enable_waitlist: config.enable_waitlist,
         enable_time_slot_scheduling: config.enable_time_slot_scheduling,
         sponsor_priority_mode: config.sponsor_priority_mode || 'first',
+        queue_order_mode: config.queue_order_mode || 'numero',
         endereco: config.endereco || '',
       });
       setSavedConfig(res.data);
@@ -613,7 +673,7 @@ function AdminConfigContent() {
   }
 
   const showSaveBar = isDirty && canEdit;
-  // Área do Médium em piloto: some sem a feature (plano Basic+ e chave da plataforma), sem oferta de upgrade.
+  // Área do Médium: some sem a feature (plano Basic+ e a beta ligada no Laboratório), sem oferta de upgrade.
   const showAreaMedium = can('area_medium');
   // ?aba=area-medium (ou outra aba): abre direto nela — o atalho "Área do Médium" da barra e dos Módulos.
   const abaPedida = typeof router.query.aba === 'string' ? router.query.aba : '';
@@ -639,7 +699,7 @@ function AdminConfigContent() {
           <TabsTrigger value="funcionalidades">
             <SlidersHorizontal aria-hidden /> Funções
           </TabsTrigger>
-          <TabsTrigger value="atendimento" disabled={!can('associados')}>
+          <TabsTrigger value="atendimento">
             <DoorOpen aria-hidden /> <span className="hidden sm:inline">Atendimento</span>
             <span className="sm:hidden">Regras</span>
           </TabsTrigger>
@@ -903,43 +963,40 @@ function AdminConfigContent() {
         </TabsContent>
 
         {/* ══ Atendimento ══ */}
-        <TabsContent value="atendimento" className="mt-4" data-tour="config-atendimento">
+        <TabsContent value="atendimento" className="mt-4 flex flex-col gap-4" data-tour="config-atendimento">
           <Card className="max-w-2xl">
             <CardContent className="p-5">
-              <SectionTitle title="Prioridade dos associados" description="Define a posição dos associados na fila da Porta." />
-              <RadioGroup
-                value={config.sponsor_priority_mode || 'first'}
-                onValueChange={(v) => handleChange('sponsor_priority_mode', v)}
+              <SectionTitle
+                title="Ordem de atendimento"
+                description="Como a Porta e o Modo TV escolhem quem é chamado. Preferenciais por lei sempre vêm antes."
+              />
+              <OptionCards
+                name="ordem"
+                options={QUEUE_ORDER_OPTIONS}
+                value={config.queue_order_mode || 'numero'}
+                onChange={(v) => handleChange('queue_order_mode', v as QueueOrderMode)}
                 disabled={!canEdit}
-                className="gap-3"
-              >
-                {PRIORITY_OPTIONS.map((opt) => {
-                  const selected = (config.sponsor_priority_mode || 'first') === opt.value;
-                  const id = `prio-${opt.value}`;
-                  return (
-                    <label
-                      key={opt.value}
-                      htmlFor={id}
-                      className={cn(
-                        'flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition',
-                        selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent',
-                        !canEdit && 'cursor-not-allowed opacity-70',
-                      )}
-                    >
-                      <RadioGroupItem id={id} value={opt.value} className="mt-0.5" />
-                      <span>
-                        <span className="block text-sm font-semibold">{opt.title}</span>
-                        <span className="block text-xs text-muted-foreground">{opt.description}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </RadioGroup>
+              />
             </CardContent>
           </Card>
+
+          {can('associados') && (
+            <Card className="max-w-2xl">
+              <CardContent className="p-5">
+                <SectionTitle title="Prioridade dos associados" description="Define a posição dos associados na fila da Porta." />
+                <OptionCards
+                  name="prio"
+                  options={PRIORITY_OPTIONS}
+                  value={config.sponsor_priority_mode || 'first'}
+                  onChange={(v) => handleChange('sponsor_priority_mode', v)}
+                  disabled={!canEdit}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
-        {/* ══ Área do Médium (AM-10) — só com a feature (plano + chave do piloto), sem PlanLocked ══ */}
+        {/* ══ Área do Médium (AM-10) — só com a feature (plano + beta do Laboratório), sem PlanLocked ══ */}
         {showAreaMedium && (
           <TabsContent value="area-medium" className="mt-4">
             <AreaMediumConfigSection canEdit={canEdit} />

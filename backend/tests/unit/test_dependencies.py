@@ -30,6 +30,13 @@ from tests.conftest import TENANT_ID, TENANT_B_ID, USER_ID, ADMIN_USER_ID, SUPER
 
 # ── get_current_user ─────────────────────────────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def _area_medium_ligada_no_laboratorio():
+    """A beta "Área do Médium" ligada (beta tester + Laboratório): a checagem vai ao banco, que aqui é mock."""
+    with patch("src.services.laboratorio.beta_ligada", AsyncMock(return_value=True)):
+        yield
+
+
 class TestGetCurrentUser:
     async def test_returns_user_when_found(self, operator_user, mock_db_session):
         request = MagicMock()

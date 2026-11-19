@@ -10,7 +10,7 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models.tickets import Ticket, TicketStatus
+from src.models.tickets import STATUS_FORA_DA_DEDUP, Ticket, TicketStatus
 from src.repositories.base import BaseRepository
 
 
@@ -221,7 +221,7 @@ class TicketRepository(BaseRepository[Ticket]):
                 Ticket.tenant_id == tenant_id,
                 Ticket.gira_id == gira_id,
                 Ticket.email_de_quem_pediu == email,
-                Ticket.status != TicketStatus.CANCELLED,
+                Ticket.status.notin_(STATUS_FORA_DA_DEDUP),
                 Ticket.deleted_at.is_(None),
             )
         ).limit(1)
@@ -255,7 +255,8 @@ class TicketRepository(BaseRepository[Ticket]):
             True if duplicate exists, False otherwise
         """
         # Senhas de acompanhante compartilham o consulente_id do titular, então
-        # não contam como emissão do próprio consulente.
+        # não contam como emissão do próprio consulente. Cancelada e prazo da
+        # fila expirado também não: a pessoa pode pedir a senha de novo.
         query = select(Ticket).where(
             and_(
                 Ticket.tenant_id == tenant_id,
@@ -263,7 +264,7 @@ class TicketRepository(BaseRepository[Ticket]):
                 Ticket.consulente_id == consulente_id,
                 Ticket.is_sponsor == is_sponsor,
                 Ticket.is_acompanhante == False,
-                Ticket.status != TicketStatus.CANCELLED,
+                Ticket.status.notin_(STATUS_FORA_DA_DEDUP),
             )
         )
         result = await session.execute(query)
@@ -277,7 +278,8 @@ class TicketRepository(BaseRepository[Ticket]):
         consulente_id: int,
         is_sponsor: bool = False,
     ) -> Optional[Ticket]:
-        """Fetch the consulente's existing non-cancelled ticket of the same type
+        """Fetch the consulente's existing active ticket (not cancelled nor
+        waitlist-expired) of the same type
         in this gira (the one check_duplicate_in_gira detects), with consulente
         eager-loaded for email resend."""
         query = (
@@ -290,7 +292,7 @@ class TicketRepository(BaseRepository[Ticket]):
                     Ticket.consulente_id == consulente_id,
                     Ticket.is_sponsor == is_sponsor,
                     Ticket.is_acompanhante == False,
-                    Ticket.status != TicketStatus.CANCELLED,
+                    Ticket.status.notin_(STATUS_FORA_DA_DEDUP),
                 )
             )
             .limit(1)

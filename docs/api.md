@@ -665,7 +665,7 @@ Endpoints for fine-grained authorization control (Admin role only, operators res
 ### 9. Acesso do médium à Área do Médium (AM-03)
 
 Todas com `MEDIUNS:edit` + `require_plan_feature("area_medium")` (plano Basic+, assinatura em dia
-e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium de outro terreiro → 404.
+e a beta `beta_area_medium` ligada no Laboratório; sem ela → 403). Médium de outro terreiro → 404.
 
 - `POST /admin/mediuns/{medium_id}/convite` — convida ou reenvia (revoga o convite em aberto e cria
   outro). 422 sem e-mail válido no cadastro ou médium inativo; 409 se já tem acesso. Enfileira o
@@ -696,7 +696,7 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
 
 `GET /api/v1/admin/config/area-medium` (CONFIGURACOES `view`) ·
 `PUT /api/v1/admin/config/area-medium` (CONFIGURACOES `edit`). Both require the plan feature
-`area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`), otherwise 403.
+`area_medium` (Basic+ **and** the Laboratório beta `beta_area_medium`), otherwise 403.
 
 **Response** (200 OK):
 ```json
@@ -834,7 +834,7 @@ not confirmed), and since 092 `valor_recebido`, `falta`, `pago_a_mais`, `comprov
 ### 13. Avisos da casa (comunicados, AM-09)
 
 On screen it is **"Avisos"** (decision D-16); the API keeps `comunicados`. Every route requires the
-plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`, otherwise
+plan feature `area_medium` (Basic+ **and** the Laboratório beta `beta_area_medium`, otherwise
 403) and the permission group `COMUNICADOS` ("Avisos e estudos da Área"):
 
 | Method | Path | Group action |

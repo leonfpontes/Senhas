@@ -75,7 +75,16 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
   const [supportUnread, setSupportUnread] = useState(false);
   // Impersonação: o superadmin entra e sai de vários terreiros — o modal de novidades não abre sozinho.
   const impersonating = typeof window !== 'undefined' && Boolean(safeSessionItem('impersonating'));
-  const [notesOpen, setNotesOpen] = useReleaseNotesAutoOpen(profile?.id, Boolean(profile?.id) && !impersonating);
+  const [notesOpen, setNotesOpenRaw] = useReleaseNotesAutoOpen(profile?.id, Boolean(profile?.id) && !impersonating);
+  // "versoes" (menu do perfil e abertura automática) ou "beta" (link do Laboratório).
+  const [notesModo, setNotesModo] = React.useState<'versoes' | 'beta'>('versoes');
+  const setNotesOpen = React.useCallback(
+    (open: boolean) => {
+      if (!open) setNotesModo('versoes');
+      setNotesOpenRaw(open);
+    },
+    [setNotesOpenRaw],
+  );
   const outrasContas = useMinhasContas(profile?.id, Boolean(profile?.tenant_id) && !impersonating);
   const [trocaOpen, setTrocaOpen] = useState(false);
 
@@ -99,7 +108,10 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
     .filter((c) => !c.id);
   // "Notas da versão · Beta testers" (Laboratório, J1 v2 · 12) abre as Novidades daqui.
   React.useEffect(() => {
-    const abrir = () => setNotesOpen(true);
+    const abrir = (e: Event) => {
+      setNotesModo((e as CustomEvent<{ modo?: string }>).detail?.modo === 'beta' ? 'beta' : 'versoes');
+      setNotesOpen(true);
+    };
     window.addEventListener('girahub:abrir-novidades', abrir);
     return () => window.removeEventListener('girahub:abrir-novidades', abrir);
   }, [setNotesOpen]);
@@ -341,7 +353,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand, 
         onOpenChange={setSupportOpen}
         onUnreadChange={setSupportUnread}
       />
-      <ReleaseNotesDialog open={notesOpen} onOpenChange={setNotesOpen} userId={profile?.id} />
+      <ReleaseNotesDialog open={notesOpen} onOpenChange={setNotesOpen} userId={profile?.id} modo={notesModo} />
       {outrasContas.length > 0 && (
         <TrocarTerreiroDialog
           open={trocaOpen}

@@ -58,16 +58,22 @@ async def confirm_waitlist_ticket(request: Request, ticket_id: str):
         if ticket.confirmation_expires_at and now > ticket.confirmation_expires_at:
             # Lapsed since the email was sent — expire it and cascade to the next
             # candidate now, rather than waiting for another trigger point.
+            promovidos: list = []
             if gira_obj:
-                await waitlist_service.reconcile_and_fill(
+                _, promovidos = await waitlist_service.release_lapsed_reservations(
                     session=session,
                     tenant_id=ticket.tenant_id,
-                    gira_id=ticket.gira_id,
-                    is_sponsor=ticket.is_sponsor,
                     gira=gira_obj,
-                    extra_slots=0,
+                    is_sponsor=ticket.is_sponsor,
                 )
             await session.commit()
+            if promovidos:
+                # O próximo da fila precisa saber que a vaga é dele — sem o
+                # e-mail a reserva dele vencia sem aviso.
+                from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
+
+                for promovido in promovidos:
+                    await _send_waitlist_promotion_email(session, ticket.tenant_id, promovido, gira_obj)
             raise HTTPException(
                 status_code=410,
                 detail="O prazo de confirmação expirou e a vaga foi repassada para o próximo da fila",

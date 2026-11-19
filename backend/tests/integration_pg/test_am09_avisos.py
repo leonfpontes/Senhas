@@ -20,7 +20,7 @@ from src.models.users import UserRole
 from src.security.jwt import create_access_token
 
 from .conftest import BACKEND_DIR
-from .factories import create_tenant, create_user, grant
+from .factories import create_tenant, create_user, grant, set_area_medium
 
 ADMIN = "/api/v1/admin/comunicados"
 AVISOS = "/api/v1/medium/avisos"
@@ -334,8 +334,8 @@ async def test_modulo_desligado_e_chave_do_piloto(client, db):
     await db.commit()
     assert (await client.get(AVISOS, headers=ana.headers)).status_code == 200
 
-    # Chave do piloto desligada: a Área inteira some (require_medium).
-    await db.execute(text("UPDATE tenants SET area_medium_liberada = false WHERE id = :t"), {"t": tenant.id})
+    # Beta da Área desligada no Laboratório: a Área inteira some (require_medium).
+    await set_area_medium(db, tenant.id, False)
     await db.commit()
     assert (await client.get(AVISOS, headers=ana.headers)).status_code == 403
     assert (await client.get(ADMIN, headers=admin.headers)).status_code == 403

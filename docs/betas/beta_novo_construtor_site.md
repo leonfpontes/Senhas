@@ -51,3 +51,25 @@
   `107_site_secoes_novo_construtor` (valores novos do tipo `site_section_type`).
 - **Critério para sair do beta:** casas piloto montam e publicam o site sem ajuda, funciona no celular e no
   iPad com iOS 15, e aprovação do dono.
+
+## Nota da versão (como a casa lê no Laboratório)
+
+Fonte: `BETA_RELEASE_NOTES` em `frontend/src/constants/releaseNotes.ts` (mantenha os dois iguais).
+
+**O que faz.** O Meu Site vira um estúdio em tela cheia. Você edita o site clicando direto nele, arruma as seções, troca cores e fontes e vê como fica no computador, no tablet e no celular antes de publicar.
+
+**Como usar.**
+
+1. Abra Meu Site. Com o site vazio, escolha um caminho: responder algumas perguntas, partir de um modelo pronto ou começar do zero.
+2. Clique num texto do site para mudar. Clique numa seção para abrir o painel dela à direita, com o que aparece, o conteúdo e o estilo.
+3. Na barra da esquerda ficam Seções (arrastar para mudar a ordem, ocultar, duplicar), Adicionar (blocos prontos, é só clicar ou arrastar para o ponto do site), Estilo (cores e fontes do site todo), Passos (o que ainda falta), Ajustes e Histórico.
+4. Errou? Desfazer e refazer ficam no alto (Ctrl+Z). "Publicar" confere o que falta e mostra como o link aparece no Google e no WhatsApp.
+
+**Quem vê.** Quem cuida do site da casa. O público continua vendo só o site publicado.
+
+**Ao desligar.** O Meu Site volta ao editor de antes. Nada se perde: o site publicado continua no ar, e as seções novas seguem aparecendo e podem ser editadas no editor antigo.
+
+**Bom saber.**
+
+- No celular, o site ocupa a tela e as ferramentas ficam numa barra embaixo.
+- Sair pelo botão "Painel" salva o rascunho. Se o site está no ar com mudanças não publicadas, o estúdio pergunta antes de descartar.

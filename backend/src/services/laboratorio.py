@@ -5,8 +5,10 @@ beta em Configurações › Laboratório. Cada beta ligada é uma linha em `feat
 `beta_<nome>`. Uma beta só vale com as duas coisas: o terreiro beta tester **e** a beta ligada.
 Desligar não apaga o que a casa registrou com ela. Documentação: `docs/betas/`.
 
-Beta com custo do GiraHub (ex.: IA) tem `liberacao`: além de beta tester, a plataforma libera a casa
-numa coluna própria de `tenants`; sem isso a beta some do Laboratório e não vale.
+Desde 19/11/2026 (decisão do dono, migração 110) não existe chave por funcionalidade no backoffice: a
+plataforma só marca o beta tester, e tudo o que é novo (inclusive a Área do Médium e os Textos do site
+com IA) a casa liga aqui. Beta que depende de um recurso do plano diz qual em `plano` (o gate de plano
+continua valendo por cima).
 
 O catálogo é a fonte única: a tela do Laboratório, a checagem `beta_ligada` e a página pública
 (`betas_ligadas`) leem daqui.
@@ -16,10 +18,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import FeatureFlag, Tenant
+
+
+BETA_AREA_MEDIUM = "beta_area_medium"
 
 
 @dataclass(frozen=True)
@@ -29,9 +34,8 @@ class Beta:
     descricao: str
     grupo: str
     nota: str  # caminho da documentação no repositório
-    # Coluna booleana de `tenants` que a plataforma liga por casa antes de a beta existir para ela
-    # (beta com custo do GiraHub, como a IA). None = basta ser beta tester.
-    liberacao: str | None = None
+    # Recurso do plano (campo de PlanFeatures) que a beta também exige. None = qualquer plano.
+    plano: str | None = None
 
 
 CATALOGO: tuple[Beta, ...] = (
@@ -73,7 +77,12 @@ CATALOGO: tuple[Beta, ...] = (
          "mais acolhedor. Você escolhe uma sugestão ou nenhuma. A IA não escreve sobre entidades, Orixás ou "
          "fundamentos. Precisa do \"Novo construtor do site\" ligado.",
          "Para o site",
-         "docs/betas/beta_textos_ia_site.md", liberacao="ia_site_liberada"),
+         "docs/betas/beta_textos_ia_site.md"),
+    Beta(BETA_AREA_MEDIUM, "Área do Médium",
+         "Cada médium da corrente entra com o próprio login e vê a agenda, os avisos, as escalas e a "
+         "mensalidade dele. A casa configura tudo na aba Área do Médium.",
+         "Para a corrente",
+         "docs/betas/beta_area_medium.md", plano="area_medium"),
 )
 CHAVES = {b.chave for b in CATALOGO}
 
@@ -83,12 +92,8 @@ async def eh_beta_tester(db: AsyncSession, tenant_id: UUID) -> bool:
 
 
 async def betas_disponiveis(db: AsyncSession, tenant_id: UUID) -> list[Beta]:
-    """Betas que a casa vê no Laboratório: todas as do catálogo, menos as que pedem liberação da
-    plataforma (`Beta.liberacao`) ainda não liberada para ela. Vazio se não é beta tester."""
-    tenant = await db.get(Tenant, tenant_id)
-    if tenant is None or not tenant.beta_tester:
-        return []
-    return [b for b in CATALOGO if b.liberacao is None or bool(getattr(tenant, b.liberacao, False))]
+    """Betas que a casa vê no Laboratório: o catálogo todo se é beta tester, senão nenhuma."""
+    return list(CATALOGO) if await eh_beta_tester(db, tenant_id) else []
 
 
 async def betas_ligadas(db: AsyncSession, tenant_id: UUID) -> set[str]:
@@ -108,6 +113,20 @@ async def betas_ligadas(db: AsyncSession, tenant_id: UUID) -> set[str]:
 
 async def beta_ligada(db: AsyncSession, tenant_id: UUID, chave: str) -> bool:
     return chave in await betas_ligadas(db, tenant_id)
+
+
+def condicao_beta_ligada(chave: str):
+    """Filtro SQL sobre `Tenant` com a mesma regra de `beta_ligada` (beta tester + flag ligada), para
+    os agendadores que varrem os terreiros (ex.: lembretes da Área do Médium). O `exists` amarra a
+    flag ao próprio terreiro da linha (`FeatureFlag.tenant_id == Tenant.id`)."""
+    return and_(
+        Tenant.beta_tester.is_(True),
+        exists().where(
+            FeatureFlag.tenant_id == Tenant.id,
+            FeatureFlag.feature == chave,
+            FeatureFlag.enabled.is_(True),
+        ),
+    )
 
 
 # ─── Beta "Menu que se ajusta ao uso": os módulos que a casa já usa (têm dado) ──────────────

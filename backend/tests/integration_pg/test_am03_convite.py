@@ -11,14 +11,14 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select, text, update
 
-from src.models import Medium, MediumConvite, Tenant
+from src.models import Medium, MediumConvite
 from src.models.permission_groups import PermissionFeature
 from src.models.subscriptions import PlanType
 from src.models.users import User, UserRole
 from src.security import hash_password
 from src.services.medium_convite import CONSENTIMENTO_AREA_VERSAO
 
-from .factories import create_tenant, create_user, grant
+from .factories import create_tenant, create_user, grant, set_area_medium
 
 SENHA = "Senha-forte-123"
 MEDIUNS = "/api/v1/admin/mediuns"
@@ -57,7 +57,7 @@ async def _fresh(model, obj_id):
 
 
 async def _chave(db, tenant, ligada: bool) -> None:
-    await db.execute(update(Tenant).where(Tenant.id == tenant.id).values(area_medium_liberada=ligada))
+    await set_area_medium(db, tenant.id, ligada)
     await db.commit()
 
 

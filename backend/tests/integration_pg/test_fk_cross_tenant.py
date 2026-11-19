@@ -25,7 +25,7 @@ from src.models.users import UserRole
 from src.services.permission_service import PermissionService
 
 from .conftest import SESSION_LOOP
-from .factories import create_gira, create_tenant, create_user
+from .factories import create_gira, create_tenant, create_user, set_area_medium
 
 MES = date.today().strftime("%Y-%m")
 
@@ -207,15 +207,11 @@ async def test_permissoes_efetivas_ignoram_usuario_de_outro_tenant(db, cenario):
 
 async def test_grupos_da_corrente_cruzando_tenants_sao_recusados(client, db, cenario):
     """AM-23: grupo_id/medium_id de outro terreiro no corpo ou no caminho (checagem 4)."""
-    from sqlalchemy import text
-
     from src.models.corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
 
     admin_a, a, b = cenario
-    await db.execute(
-        text("UPDATE tenants SET area_medium_liberada = true WHERE id IN (:a, :b)"),
-        {"a": a["medium"].tenant_id, "b": b["medium"].tenant_id},
-    )
+    for tid in (a["medium"].tenant_id, b["medium"].tenant_id):
+        await set_area_medium(db, tid, True)
     grupo_b = CorrenteGrupo(tenant_id=b["medium"].tenant_id, nome="G1 de B")
     db.add(grupo_b)
     await db.commit()
@@ -252,17 +248,14 @@ async def test_grupos_da_corrente_cruzando_tenants_sao_recusados(client, db, cen
 
 async def test_atividades_cruzando_tenants_sao_recusadas(client, db, cenario):
     """AM-08: tipo_id/grupo_id no corpo e tipo/função/gira/atividade no caminho de outro terreiro."""
-    from sqlalchemy import text
-
     from src.models.atividades import Atividade, AtividadeTipo, AtividadeTipoGrupo, FuncaoCorrente
     from src.models.corrente_grupos import CorrenteGrupo
     from src.services.atividades import ensure_default_atividade_tipos
 
     admin_a, a, b = cenario
     tenant_a, tenant_b = a["medium"].tenant_id, b["medium"].tenant_id
-    await db.execute(
-        text("UPDATE tenants SET area_medium_liberada = true WHERE id IN (:a, :b)"), {"a": tenant_a, "b": tenant_b}
-    )
+    for tid in (tenant_a, tenant_b):
+        await set_area_medium(db, tid, True)
     for tid in (tenant_a, tenant_b):
         await ensure_default_atividade_tipos(db, tid)
     grupo_b = CorrenteGrupo(tenant_id=tenant_b, nome="G1 de B")

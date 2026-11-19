@@ -1,4 +1,4 @@
-"""Beta "Textos do site com IA": liberação da plataforma + as duas betas + grupo SITE, com Postgres real.
+"""Beta "Textos do site com IA": beta tester + as duas betas ligadas no Laboratório + grupo SITE, com Postgres real.
 
 A chamada à Anthropic é trocada por uma função falsa: aqui se testa quem pode pedir, não o modelo.
 """
@@ -16,17 +16,17 @@ BODY = {"secao": "HERO", "campo": "subtitle", "pedido": "escrever", "ideia": "ca
 
 
 async def _casa(db, *, liberada: bool):
+    """`liberada` = a casa ligou a beta da IA no Laboratório (o construtor novo fica ligado nas duas)."""
     tenant = await create_tenant(db)
     tenant.beta_tester = True
-    tenant.ia_site_liberada = liberada
     db.add(tenant)
-    for chave in ("beta_novo_construtor_site", "beta_textos_ia_site"):
-        db.add(FeatureFlag(tenant_id=tenant.id, feature=chave, enabled=True))
+    db.add(FeatureFlag(tenant_id=tenant.id, feature="beta_novo_construtor_site", enabled=True))
+    db.add(FeatureFlag(tenant_id=tenant.id, feature="beta_textos_ia_site", enabled=liberada))
     await db.commit()
     return tenant
 
 
-async def test_so_casa_liberada_pela_plataforma_usa_a_ia(client, db, monkeypatch):
+async def test_so_casa_com_a_beta_ligada_usa_a_ia(client, db, monkeypatch):
     monkeypatch.setattr(site_textos_ia.settings, "ANTHROPIC_API_KEY", "teste")
 
     async def falsa(db, tenant_id, **kw):

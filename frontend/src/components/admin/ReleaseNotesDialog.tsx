@@ -7,6 +7,9 @@
  * atual: quando sai uma versão nova, o modal volta a abrir. Tudo fica no navegador
  * (localStorage por usuário; sessionStorage para "uma vez por login").
  *
+ * Com `modo="beta"` (link "Notas da versão · Beta testers" do Laboratório) mostra as notas das
+ * betas (`BETA_RELEASE_NOTES`), sem o "Não mostrar novamente", que é só das versões.
+ *
  * É um Dialog de leitura, não um formulário CRUD (a regra do CrudDrawer não se aplica).
  */
 import React, { useEffect, useRef, useState } from 'react';
@@ -17,7 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { RELEASE_NOTES, formatReleaseDate, type ReleaseNote } from '@/constants/releaseNotes';
+import { BETA_RELEASE_NOTES, RELEASE_NOTES, formatReleaseDate, type ReleaseNote } from '@/constants/releaseNotes';
+import { BetaNoteBody } from '@/components/admin/BetaNoteBody';
 import { APP_VERSION } from '@/lib/version';
 
 export const releaseNotesDismissedKey = (userId: string) => `girahub:release-notes:dismissed:${userId}`;
@@ -103,9 +107,11 @@ export interface ReleaseNotesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string | null | undefined;
+  /** "versoes" (padrão): Novidades do GiraHub. "beta": notas das betas do Laboratório. */
+  modo?: 'versoes' | 'beta';
 }
 
-export function ReleaseNotesDialog({ open, onOpenChange, userId }: ReleaseNotesDialogProps) {
+export function ReleaseNotesDialog({ open, onOpenChange, userId, modo = 'versoes' }: ReleaseNotesDialogProps) {
   const [dontShow, setDontShow] = useState(false);
 
   useEffect(() => {
@@ -113,12 +119,50 @@ export function ReleaseNotesDialog({ open, onOpenChange, userId }: ReleaseNotesD
   }, [open, userId]);
 
   const handleOpenChange = (next: boolean) => {
-    if (!next && userId) write('local', releaseNotesDismissedKey(userId), dontShow ? APP_VERSION : null);
+    if (!next && userId && modo === 'versoes') write('local', releaseNotesDismissedKey(userId), dontShow ? APP_VERSION : null);
     onOpenChange(next);
   };
 
   const current = RELEASE_NOTES[0];
   const history = RELEASE_NOTES.slice(1);
+
+  if (modo === 'beta') {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 p-0 sm:max-w-xl" data-testid="release-notes-beta">
+          <DialogHeader className="border-b px-6 pt-6 pb-4 text-left">
+            <DialogTitle className="font-display text-2xl font-normal">Notas da versão · Beta testers</DialogTitle>
+            <DialogDescription>
+              O que está em teste no Laboratório da casa: o que cada novidade faz, como usar, quem vê e o que acontece ao
+              desligar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-2">
+            <Accordion type="multiple">
+              {BETA_RELEASE_NOTES.map((note) => (
+                <AccordionItem key={note.chave} value={note.chave}>
+                  <AccordionTrigger className="items-center hover:no-underline">
+                    <span className="flex min-w-0 flex-col gap-0.5 text-left">
+                      <span className="font-semibold">{note.title}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {note.text} · desde {formatReleaseDate(note.date)}
+                      </span>
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <BetaNoteBody note={note} />
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+          <DialogFooter className="border-t px-6 py-4">
+            <Button onClick={() => onOpenChange(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

@@ -340,13 +340,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   (sessoes caem na hora). Trocar o e-mail, inativar ou excluir o medium revoga o convite em aberto. E-mail e
   texto de WhatsApp discretos (sem termo religioso alem do nome do terreiro, §6.8 do plano). A busca pelo
   token e a "busca raiz" isenta em `EXEMPT_PUBLIC_QUERIES` (`_convite_pelo_token`).
-- **Lancamento em piloto (decisao do dono, 07/10)**: a Area do Medium vai para a producao desligada.
-  `tenants.area_medium_liberada` (padrao false) e ligado por terreiro pelo super admin no Tenant 360
-  (`PUT /platform/tenants/{id}` com `area_medium_liberada`). `check_plan_feature(..., "area_medium")` exige
-  plano Basic+ E a chave (403 "ainda nao foi liberada"), entao todo `require_plan_feature("area_medium")` ja
-  respeita; `GET /admin/subscription` devolve `features.area_medium = false` sem a chave (a tela esconde as
-  entradas da Area com `can('area_medium')`, sem PlanLocked no piloto) e `areas.medium` fica null. No
-  lancamento: ligar para todos (migracao de dados) ou remover a chave.
+- **Beta do Laboratorio (decisao do dono, 19/11/2026; antes, chave do piloto de 07/10)**: a Area do Medium e a
+  beta `beta_area_medium` do catalogo (`services/laboratorio.py`). Vale com terreiro beta tester
+  (`tenants.beta_tester`, unica chave da plataforma no Tenant 360) E a beta ligada pela casa em Configuracoes ›
+  Laboratorio (`feature_flags`). A coluna `tenants.area_medium_liberada` saiu na migracao 110 (quem a tinha
+  virou beta tester com a beta ligada). `medium_area.area_medium_liberada()` le a beta; os agendadores filtram
+  com `laboratorio.condicao_beta_ligada(BETA_AREA_MEDIUM)`. `check_plan_feature(..., "area_medium")` exige
+  plano Basic+ E a beta (403 "esta desligada. Ligue em Configuracoes › Laboratorio"), entao todo
+  `require_plan_feature("area_medium")` ja respeita; `GET /admin/subscription` devolve `features.area_medium =
+  false` sem ela (a tela esconde as entradas da Area com `can('area_medium')`) e `areas.medium` fica null. No
+  lancamento: promover a beta (tirar a checagem) conforme `docs/betas/README.md`.
+- **Regra das novidades (decisao do dono, 19/11/2026)**: terreiro beta tester nao tem chave por
+  funcionalidade no backoffice. Toda funcionalidade nova entra no catalogo do Laboratorio e a casa liga ou
+  desliga; a plataforma so marca "Beta tester" (o detalhe do terreiro mostra, so leitura, as betas que a casa
+  ligou: `betas_ligadas`). Nada de coluna `tenants.<algo>_liberada` nova.
 - **Configuracao da Area (AM-10)**: `GET/PUT /admin/config/area-medium` (`area_medium_config.py`,
   CONFIGURACOES view/edit + `require_plan_feature("area_medium")`, logo respeita a chave do piloto).
   Colunas `area_medium_*` em `tenant_configs` (068): ligada (o liga/desliga DA CASA; a chave da
@@ -431,6 +438,16 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   em que caiu; baixa do gateway (F-02) fica sem conta. `GET /fluxo-de-caixa?conta_bancaria_id=` mostra so os
   lancamentos e o saldo daquela conta. Tela: `ChavesPixGruposCard` abaixo do `PixConfigCard`; filtro de
   conta no Fluxo de caixa. Testes: `tests/integration_pg/test_pix_por_grupo.py`.
+  **Varias chaves + chave de cada grupo (11/2026)**: a casa cadastra quantas chaves quiser (POST sem grupo) e
+  escolhe, grupo a grupo, qual chave cada um usa em `PUT /config/pix/grupos` (`{grupos:[{grupo_id, chave_id|null}],
+  senha}`; null = chave principal; FINANCEIRO:edit + senha + sem impersonacao + 10/h; auditoria
+  `mensalidade_pix_grupos`; a chave que ganha grupo fica com `pix_alterado_em` = agora). No PUT de uma chave,
+  `grupo_ids` omitido mantem os grupos. Tela: "Chave PIX principal" (`PixConfigCard`) + "Outras chaves PIX da
+  casa" com a secao "Chave de cada grupo da corrente" (`ChavesPixGruposCard`). **Gateway x chave do grupo**:
+  medium cuja chave e a de um grupo (`PixEfetivo.chave_id`) NAO usa a cobranca automatica (F-02) — ela cai na
+  conta conectada da casa (a principal); `medium/mensalidades._gateway_do_medium` devolve None para ele
+  (lista sem `cobranca_automatica`, POST `/cobranca` → 409). Bug de 11/2026: o medium do grupo "alternativo"
+  via o QR da conta principal.
 - **Mensalidade com baixa automatica — gateway da casa (F-02/AM-22, decisao do dono de 2026-10-09: cada casa
   escolhe Stripe Connect ou Mercado Pago)**: `admin/mensalidade_gateway.py` — `GET /admin/financeiro/gateway`
   (FINANCEIRO view + `mensalidade_mediun`), `POST .../gateway/stripe/conectar` e `.../stripe/atualizar`
@@ -967,6 +984,12 @@ Incluir obrigatoriamente:
   de 5 a 59999 (999h59; fora disso 400) e só grava com a fila ligada no plano. Na tela, `DurationField` (hh:mm,
   `components/fields`) no drawer de senhas; o e-mail de promoção mostra o prazo legível
   (`waitlist_service.format_duration`: "1h30", "45 min", espelho de `formatDuration` em `lib/duration.ts`).
+- **Perdeu o prazo da fila → pede de novo** (2026-11-19, bug Tuccco): senha `waitlist_expired` não conta como
+  duplicata (`STATUS_FORA_DA_DEDUP` em `models/tickets.py`, mesma regra do índice `uq_tickets_gira_consulente_ativo`
+  desde a migração 111); a pessoa volta para o fim da fila. Como o vencimento do prazo é preguiçoso (sem job), a
+  emissão pública chama `waitlist_service.release_lapsed_reservations` antes da checagem de duplicata (expira a
+  reserva vencida com `FOR UPDATE SKIP LOCKED`, promove o próximo e manda "uma vaga abriu"; sem fila, a vaga
+  volta em `slots_returned`). O link de confirmação vencido (410) usa o mesmo helper e agora avisa o próximo.
 - "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
   janela do GiraCard e de `pickTodayGira`). A gira compartilhada vale para Dashboard, Senhas e Porta
   (`GIRA_CONTEXT_ROUTES`); o select no topo so aparece no Dashboard (`TOPBAR_GIRA_SELECTOR_ROUTES`) — Senhas e Porta
@@ -1118,7 +1141,7 @@ Incluir obrigatoriamente:
   (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e `pix_*` em `mensalidade_configs`), apos
   `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
   convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
-  `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
+  `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, removida em 110, chave do piloto da Area do
   Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
   SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
   `064_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
@@ -1142,7 +1165,7 @@ Incluir obrigatoriamente:
 - **Espelho em contas a receber** (`services/mensalidade_contas_service.py`, `external_ref = mensalidade:{mediun|associado}:{id}:{YYYY-MM}`): PAGO grava `valor_pago` informado (sem ele, o vigente); PENDENTE → pendente/vencido; ISENTO cancela a conta do mes. Cadastro de medium/associado (nao isento) cria a conta do mes seguinte; inativar (referencia = `data_saida`), excluir ou marcar `mensalidade_isento` cancela as contas pendentes dos meses seguintes. Datas de "hoje" via `core.tz.today_local()` (Brasilia). Nos Lancamentos essas contas sao somente leitura: PUT/baixa/DELETE → 409 e a listagem traz `origem_mensalidade: true` (a tela mostra "Editar em Mensalidades").
 - **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
 - **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
-- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX do terreiro" (`components/financeiro/PixConfigCard.tsx`, com a conta bancaria onde ela cai — migracao 100) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola. Chaves por grupo da corrente: card `ChavesPixGruposCard` logo abaixo (§3.3).
+- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX principal" (`components/financeiro/PixConfigCard.tsx`, com a conta bancaria onde ela cai — migracao 100) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola. Chaves por grupo da corrente: card `ChavesPixGruposCard` logo abaixo (§3.3).
 - **Comprovante**: BYTEA no banco, limite 5MB pelo painel (2 MB pela Area do Medium), tipos aceitos: jpeg/png/webp/pdf.
 - **Comprovante enviado pelo medium (AM-11/AM-12, migracao 072)**: o medium envia pela Area e o registro do mes
   fica PENDENTE (sem valor novo no ENUM; `valor_vigente` capturado no 1o registro, como no painel). Desde a 092
@@ -1503,7 +1526,7 @@ Incluir obrigatoriamente:
   não vira erro).
 
 ### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados, aniversariantes, troca na escala, Estudos e Minha caminhada (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/19/20/21/23/24/25/26/27/28/29 + F-05, 2026-10-08)
-Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
+Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Desde 19/11/2026 é a beta `beta_area_medium` do Laboratório (antes, chave do piloto `area_medium_liberada`, removida na migração 110; §3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
   tem painel; operador/admin que é médium mantém o papel e ganha a Área pelo vínculo. O vínculo só
@@ -1559,7 +1582,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   também pelo Perfil. `sw.js` sem mudança (nunca cacheia `/api/*`).
 - **Configuração da Área e chave PIX (AM-10)**: aba "Área do Médium" em `/admin/config`
   (`components/admin/AreaMediumConfigSection.tsx`, só com `can('area_medium')`, salva à parte) e card
-  "Chave PIX do terreiro" (+ "Chaves PIX por grupo da corrente", migração 100) em Financeiro → Configuração →
+  "Chave PIX principal" (+ "Outras chaves PIX da casa" e a chave de cada grupo, migração 100) em Financeiro → Configuração →
   Mensalidade. Backend e regras em §3.3.
 - **Convite (AM-03)**: tela Médiuns ganha a coluna "Acesso à Área" (Sem acesso · Convite enviado · Ativo),
   a ação "Acesso à Área" na linha (sheet `components/admin/mediuns/AcessoAreaSheet`: e-mail mascarado,

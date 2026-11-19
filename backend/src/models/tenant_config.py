@@ -28,6 +28,9 @@ class TenantConfig(TimestampedModel):
         CheckConstraint(
             "presenca_prazo_justificativa_dias BETWEEN 1 AND 30", name="ck_tenant_configs_presenca_prazo"
         ),
+        CheckConstraint(
+            "queue_order_mode IN ('numero', 'chegada')", name="ck_tenant_configs_queue_order_mode"
+        ),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -57,6 +60,10 @@ class TenantConfig(TimestampedModel):
     
     # Sponsor ordering
     sponsor_priority_mode: Mapped[str] = mapped_column(String(20), default="first", server_default="first", nullable=False)
+
+    # Ordem de atendimento da fila da Porta: "numero" (número da senha) ou
+    # "chegada" (quem fez check-in primeiro). Migração 109.
+    queue_order_mode: Mapped[str] = mapped_column(String(20), default="numero", server_default="numero", nullable=False)
     
     # Associado validation on emit
     validate_associado_on_emit: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
@@ -75,8 +82,8 @@ class TenantConfig(TimestampedModel):
     # Gira.use_time_slots se usa ou não.
     enable_time_slot_scheduling: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
-    # Área do Médium (AM-10) — o que a casa mostra ao médium. A chave da plataforma
-    # (`tenants.area_medium_liberada`) e o plano (`area_medium`) valem por cima.
+    # Área do Médium (AM-10) — o que a casa mostra ao médium. A beta `beta_area_medium` do
+    # Laboratório (beta tester + ligada pela casa) e o plano (`area_medium`) valem por cima.
     area_medium_ativa: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     area_medium_boas_vindas: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Só dígitos, com DDI (ex.: 5511987654321) — botão "Falar com a casa".
