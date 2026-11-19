@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -194,6 +194,95 @@ async def reconcile_and_fill(
     return promoted, unfilled
 
 
+# Status de quem ocupa uma vaga da gira (inclusive quem já foi atendido ou
+# faltou: a vaga foi usada). Somado a isso, a reserva da fila ainda pendente
+# (WAITLISTED com promoted_at) segura a vaga até confirmar ou vencer.
+_STATUS_QUE_OCUPA_VAGA = (
+    TicketStatus.EMITTED,
+    TicketStatus.CALLED,
+    TicketStatus.COMPLETED,
+    TicketStatus.NO_SHOW,
+)
+
+# Depois do início, a gira ainda aceita chamar a fila por este tempo quando não
+# tem data_fim (mesma janela da "gira de hoje").
+_JANELA_SEM_DATA_FIM = timedelta(hours=12)
+
+
+def gira_aceita_chamar_fila(gira: Gira, now: Optional[datetime] = None) -> bool:
+    """A fila só é chamada enquanto a gira não acabou — abrir a fila de uma
+    gira antiga não pode disparar e-mail de "uma vaga abriu"."""
+    if not getattr(gira, "is_active", True):
+        return False
+    now = now or datetime.now(timezone.utc)
+    fim = gira.data_fim or (gira.data_inicio + _JANELA_SEM_DATA_FIM if gira.data_inicio else None)
+    return fim is None or now < fim
+
+
+async def occupied_slots(
+    session: AsyncSession, tenant_id: UUID, gira_id: UUID, is_sponsor: bool
+) -> int:
+    """Vagas ocupadas de verdade na gira (titulares, acompanhantes e walk-ins)."""
+    stmt = select(func.count(Ticket.id)).where(
+        and_(
+            Ticket.tenant_id == tenant_id,
+            Ticket.gira_id == gira_id,
+            Ticket.is_sponsor == is_sponsor,
+            Ticket.deleted_at.is_(None),
+            or_(
+                Ticket.status.in_(_STATUS_QUE_OCUPA_VAGA),
+                and_(Ticket.status == TicketStatus.WAITLISTED, Ticket.promoted_at.isnot(None)),
+            ),
+        )
+    )
+    return int((await session.execute(stmt)).scalar() or 0)
+
+
+async def fill_free_capacity(
+    session: AsyncSession, tenant_id: UUID, gira: Gira, is_sponsor: bool
+) -> list[Ticket]:
+    """Chama a fila para cada vaga livre da gira, contada pelo que está ocupado.
+
+    O teto da emissão usa o contador de números (`total_emitido` −
+    `slots_returned`), e a fila também gasta números: quando a reserva de quem
+    foi chamado vence sem ninguém na fila para assumir, a vaga fica livre mas o
+    contador segue "lotado" — quem entra depois cai na fila e ninguém nunca é
+    chamado (bug Tuccco, 19/11/2026: seis reservas vencidas, a próxima da fila
+    esperando com vaga sobrando). Este passo fecha essa conta.
+
+    Trava a linha do SenhaControl (a mesma que a emissão trava) para duas
+    chamadas simultâneas não promoverem a mesma vaga. Só dá flush: quem chama
+    faz o commit e manda o e-mail "uma vaga abriu" para os promovidos.
+    """
+    max_cap = gira.sponsor_max_tickets if is_sponsor else gira.max_tickets
+    if not max_cap or not gira_aceita_chamar_fila(gira):
+        return []
+
+    from src.models.senha_controls import SenhaControl
+
+    await session.execute(
+        select(SenhaControl.id)
+        .where(
+            and_(
+                SenhaControl.tenant_id == tenant_id,
+                SenhaControl.gira_id == gira.id,
+                SenhaControl.is_sponsor == is_sponsor,
+            )
+        )
+        .with_for_update()
+    )
+    livres = max_cap - await occupied_slots(session, tenant_id, gira.id, is_sponsor)
+    promoted: list[Ticket] = []
+    for _ in range(max(0, livres)):
+        candidate = await _get_next_in_line(session, tenant_id, gira.id, is_sponsor)
+        if not candidate:
+            break
+        _promote(candidate, gira)
+        await session.flush()
+        promoted.append(candidate)
+    return promoted
+
+
 async def release_lapsed_reservations(
     session: AsyncSession,
     tenant_id: UUID,
@@ -219,16 +308,19 @@ async def release_lapsed_reservations(
 
     promoted: list[Ticket] = []
     if await waitlist_enabled_for_tenant(session, tenant_id):
+        # Cada reserva vencida passa a vaga para o próximo (inclusive a vaga
+        # extra que o admin abriu na promoção manual)...
         for _ in range(len(expired)):
             candidate = await _get_next_in_line(session, tenant_id, gira.id, is_sponsor)
             if not candidate:
                 break
             _promote(candidate, gira)
-            promoted.append(candidate)
-        if promoted:
             await session.flush()
+            promoted.append(candidate)
+        # ...e, pela ocupação real, qualquer outra vaga que tenha ficado livre.
+        promoted += await fill_free_capacity(session, tenant_id, gira, is_sponsor)
 
-    unfilled = len(expired) - len(promoted)
+    unfilled = max(0, len(expired) - len(promoted))
     if unfilled > 0:
         from src.models.senha_controls import SenhaControl
         from src.repositories.senha_control_repo import SenhaControlRepository

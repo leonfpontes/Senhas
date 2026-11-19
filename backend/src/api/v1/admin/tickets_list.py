@@ -688,8 +688,53 @@ class WaitlistItemResponse(BaseModel):
     promoted_at: Optional[datetime] = None
     confirmation_expires_at: Optional[datetime] = None
     created_at: datetime
+    consulente_telefone: Optional[str] = None
+    # Texto pronto para o terreiro mandar pelo WhatsApp, conforme a situação
+    # (na fila / vaga aberta com o link de confirmação / prazo perdido).
+    mensagem_whatsapp: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+def _primeiro_nome(nome: Optional[str]) -> str:
+    partes = (nome or "").split()
+    return partes[0] if partes else ""
+
+
+def mensagem_whatsapp_fila(
+    ticket: Ticket, gira: Gira, tenant_name: str, status_fila: str, position: Optional[int]
+) -> str:
+    """Mensagem pronta da fila de espera para o WhatsApp do consulente."""
+    base = settings.FRONTEND_URL.rstrip("/")
+    nome = _primeiro_nome(ticket.consulente.nome if ticket.consulente else None)
+    # Nome da casa em negrito no topo (formato do WhatsApp): serve para qualquer
+    # nome ("Tenda…", "Terreiro…", "Casa…") sem errar o artigo.
+    cabecalho = f"*{tenant_name}*\n\n" if tenant_name else ""
+    ola = cabecalho + (f"Olá, {nome}!" if nome else "Olá!")
+    casa = ""
+    quando = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m às %H:%M") if gira.data_inicio else ""
+    gira_txt = f"{gira.nome} ({quando})" if quando else gira.nome
+    if status_fila == "aguardando_confirmacao":
+        link = f"{base}/public/waitlist/{ticket.id}/confirm"
+        prazo = ""
+        if ticket.confirmation_expires_at:
+            prazo = " até " + ticket.confirmation_expires_at.astimezone(APP_TZ).strftime("%d/%m às %H:%M")
+        return (
+            f"{ola}{casa} Abriu uma vaga para você na {gira_txt}. "
+            f"Para garantir sua senha, confirme por este link{prazo}: {link}"
+        )
+    if status_fila == "expirado":
+        tipo = "?tipo=associado" if ticket.is_sponsor else ""
+        link = f"{base}/public/gira/{gira.id}{tipo}"
+        return (
+            f"{ola}{casa} O prazo para confirmar a vaga na {gira_txt} terminou. "
+            f"Se ainda quiser vir, é só pedir a senha de novo por aqui que você volta para a fila: {link}"
+        )
+    posicao = f", na posição {position}" if position else ""
+    return (
+        f"{ola}{casa} Você está na fila de espera da {gira_txt}{posicao}. "
+        "Se abrir uma vaga, avisamos por e-mail com um link para confirmar."
+    )
 
 
 @router.get(
@@ -727,6 +772,12 @@ async def list_gira_waitlist(
                 gira=gira_obj,
                 extra_slots=0,
             )
+            # Vaga livre que ninguém foi chamado para ocupar (contador "lotado"
+            # com reservas vencidas) — chama a fila agora.
+            promoted += await waitlist_service.fill_free_capacity(
+                session=db, tenant_id=current_user.tenant_id, gira=gira_obj, is_sponsor=is_sponsor
+            )
+            await db.commit()
             for promoted_ticket in promoted:
                 await _send_waitlist_promotion_email(db, current_user.tenant_id, promoted_ticket, gira_obj)
         await db.commit()
@@ -757,6 +808,10 @@ async def list_gira_waitlist(
 
     tickets.sort(key=lambda t: (t.is_sponsor, waitlist_service.priority_rank(t.priority_category), t.numero))
 
+    tenant_name = (
+        await db.execute(select(Tenant.name).where(Tenant.id == current_user.tenant_id))
+    ).scalar_one_or_none() or ""
+
     items = []
     for t in tickets:
         if t.status == TicketStatus.WAITLIST_EXPIRED:
@@ -777,6 +832,10 @@ async def list_gira_waitlist(
             promoted_at=t.promoted_at,
             confirmation_expires_at=t.confirmation_expires_at,
             created_at=t.created_at,
+            consulente_telefone=t.consulente.telefone if t.consulente else None,
+            mensagem_whatsapp=mensagem_whatsapp_fila(
+                t, gira_obj, tenant_name, item_status, positions.get(t.id)
+            ),
         ))
     return items
 

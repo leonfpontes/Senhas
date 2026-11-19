@@ -108,6 +108,9 @@ interface WaitlistItem {
   promoted_at?: string;
   confirmation_expires_at?: string;
   created_at: string;
+  consulente_telefone?: string | null;
+  /** Texto pronto do backend conforme a situação (na fila, vaga aberta com link, prazo perdido). */
+  mensagem_whatsapp?: string | null;
 }
 
 const PAGE_SIZE = 50;
@@ -848,7 +851,7 @@ function AdminTicketsContent() {
             ) : (
               <ul className="m-0 flex list-none flex-col p-0">
                 {waitlist.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 border-b py-2 last:border-b-0">
+                  <li key={item.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b py-2 last:border-b-0">
                     <span className="font-display text-lg tabular-nums">{numeroDaSenha(item)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
@@ -857,6 +860,13 @@ function AdminTicketsContent() {
                         {WAITLIST_STATUS_LABEL[item.status]}
                       </p>
                     </div>
+                    <ContactActions
+                      telefone={item.consulente_telefone}
+                      email={item.consulente_email}
+                      nome={item.consulente_nome}
+                      assunto={`Fila de espera · senha ${numeroDaSenha(item)}`}
+                      mensagem={item.mensagem_whatsapp}
+                    />
                     {item.status === 'aguardando' && canEdit && (
                       <>
                         <Button
