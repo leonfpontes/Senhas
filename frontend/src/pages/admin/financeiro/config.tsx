@@ -1,8 +1,8 @@
 /**
  * Admin Financeiro — Configuração
  * Abas: Categorias | Contas bancárias (contas_financeiras, Premium) | Mensalidade (Basic+,
- * com a chave PIX da mensalidade — `PixConfigCard`, AM-10 — e as chaves por grupo da corrente —
- * `ChavesPixGruposCard`, migração 100)
+ * com as chaves PIX da mensalidade num cadastro único e a chave de cada grupo da corrente —
+ * `ChavesPixSection`, migração 112)
  * (Card + Switch, salvar fixo no rodapé).
  */
 'use client';
@@ -39,8 +39,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatBRL, formatDateBr, todayBr } from '@/lib/dateBr';
 import { minPlanFor, minPlanPhrase } from '@/constants/plans';
-import { PixConfigCard } from '@/components/financeiro/PixConfigCard';
-import { ChavesPixGruposCard } from '@/components/financeiro/ChavesPixGruposCard';
+import { ChavesPixSection } from '@/components/financeiro/ChavesPixSection';
 import { MensalidadeGatewayCard } from '@/components/financeiro/MensalidadeGatewayCard';
 import { useRouter } from 'next/router';
 
@@ -763,11 +762,8 @@ function MensalidadeTab() {
         </Card>
       )}
 
-      {/* Chave PIX (AM-10): salva à parte, com senha — fora da barra "Salvar configuração". */}
-      {planMediuns && <PixConfigCard canEdit={canEdit} />}
-
-      {/* Chaves por grupo da corrente (migração 100): outra conta para parte da corrente. */}
-      {planMediuns && <ChavesPixGruposCard canInsert={canInsertFin} canEdit={canEdit} canDelete={canDeleteFin} />}
+      {/* Chaves PIX (cadastro único, migração 112) e a chave de cada grupo: salvas à parte, com senha. */}
+      {planMediuns && <ChavesPixSection canInsert={canInsertFin} canEdit={canEdit} canDelete={canDeleteFin} />}
 
       {/* Baixa automática (F-02/AM-22): Stripe ou Mercado Pago, também salva à parte com senha. */}
       {planMediuns && <MensalidadeGatewayCard canEdit={canEdit} />}

@@ -5,7 +5,8 @@ Regra única, usada pela Área do Médium, pelos lembretes e pelo espelho em con
 1. médium num grupo da corrente (não arquivado) que tem chave → a chave do grupo;
    em dois grupos com chaves diferentes → a chave cadastrada primeiro (`created_at`, depois
    `id`), e `conflitos()` lista esses médiuns para a tela de configuração;
-2. senão → a chave do terreiro (`mensalidade_configs.pix_*`).
+2. senão → a chave principal (`mensalidade_configs.pix_*`, espelho da chave com `principal = true`
+   em `mensalidade_chaves_pix` — cadastro único, migração 112; `espelhar_principal`).
 
 A conta bancária segue a chave: `conta_bancaria_id` da chave do grupo ou
 `pix_conta_bancaria_id` da chave do terreiro.
@@ -87,7 +88,9 @@ async def _chaves_dos_medium(
         .join(
             MensalidadeChavePix,
             (MensalidadeChavePix.id == MensalidadeChavePixGrupo.chave_id)
-            & (MensalidadeChavePix.tenant_id == tenant_id),
+            & (MensalidadeChavePix.tenant_id == tenant_id)
+            # Grupo ligado à principal = paga na principal (e segue com a cobrança automática).
+            & MensalidadeChavePix.principal.is_(False),
         )
         .where(CorrenteGrupoMembro.tenant_id == tenant_id)
         .order_by(MensalidadeChavePix.created_at, MensalidadeChavePix.id)
@@ -144,6 +147,57 @@ async def conta_bancaria_do_terreiro(db: AsyncSession, tenant_id: uuid.UUID) -> 
             select(MensalidadeConfig.pix_conta_bancaria_id).where(MensalidadeConfig.tenant_id == tenant_id)
         )
     ).scalar_one_or_none()
+
+
+async def chave_principal(db: AsyncSession, tenant_id: uuid.UUID) -> Optional[MensalidadeChavePix]:
+    return (
+        await db.execute(
+            select(MensalidadeChavePix).where(
+                MensalidadeChavePix.tenant_id == tenant_id, MensalidadeChavePix.principal.is_(True)
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def espelhar_principal(db: AsyncSession, tenant_id: uuid.UUID) -> Optional[MensalidadeConfig]:
+    """Copia a chave principal para `mensalidade_configs.pix_*` (sem principal, limpa).
+
+    `pix_alterado_em` da config só muda quando a chave (tipo/valor) que o médium usa muda: trocar
+    qual é a principal ou editar a chave dela avisa os médiuns; mudar o apelido, não.
+    """
+    from decimal import Decimal
+
+    from src.core.tz import utc_now
+
+    principal = await chave_principal(db, tenant_id)
+    config = (
+        await db.execute(select(MensalidadeConfig).where(MensalidadeConfig.tenant_id == tenant_id))
+    ).scalar_one_or_none()
+    if config is None:
+        if principal is None:
+            return None
+        config = MensalidadeConfig(
+            id=uuid.uuid4(), tenant_id=tenant_id, valor_mensal=Decimal("0.00"), dia_vencimento=10
+        )
+        db.add(config)
+    if principal is None:
+        if config.pix_chave:
+            config.pix_alterado_em = utc_now()
+        config.pix_tipo = config.pix_chave = config.pix_nome_recebedor = config.pix_cidade = None
+        config.pix_instrucoes = None
+        config.pix_conta_bancaria_id = None
+    else:
+        if config.pix_chave != principal.pix_chave or config.pix_tipo != principal.pix_tipo:
+            config.pix_alterado_em = utc_now()
+        config.pix_tipo = principal.pix_tipo
+        config.pix_chave = principal.pix_chave
+        config.pix_nome_recebedor = principal.pix_nome_recebedor
+        config.pix_cidade = principal.pix_cidade
+        config.pix_instrucoes = principal.pix_instrucoes
+        config.pix_conta_bancaria_id = principal.conta_bancaria_id
+    config.updated_at = utc_now()
+    await db.flush()
+    return config
 
 
 async def conflitos(db: AsyncSession, tenant_id: uuid.UUID) -> dict[uuid.UUID, list[MensalidadeChavePix]]:
