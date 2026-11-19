@@ -6,10 +6,18 @@ pelo HTTP em integration_pg/test_area_medium.py.
 """
 import uuid
 from datetime import datetime, timezone
+import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.models import Medium, PlanType, SubscriptionStatus, User, UserRole
 from src.services.medium_area import compute_areas
+
+@pytest.fixture(autouse=True)
+def _area_medium_ligada_no_laboratorio():
+    """A beta "Área do Médium" ligada (beta tester + Laboratório): a checagem vai ao banco, que aqui é mock."""
+    with patch("src.services.laboratorio.beta_ligada", AsyncMock(return_value=True)):
+        yield
+
 
 TENANT_ID = uuid.uuid4()
 
