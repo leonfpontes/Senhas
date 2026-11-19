@@ -1,6 +1,19 @@
-import { Html, Head, Main, NextScript, type DocumentProps } from 'next/document';
+import BaseDocument, {
+  Html,
+  Head,
+  Main,
+  NextScript,
+  type DocumentProps,
+  type DocumentContext,
+} from 'next/document';
 
-export default function Document(props: DocumentProps) {
+type DocumentWithNonce = DocumentProps & { nonce?: string };
+
+export default function Document(props: DocumentWithNonce) {
+  // CSP com nonce (pentest L3): o middleware gera o nonce e o passa em x-nonce;
+  // aqui ele vai nos scripts do Next (Head/NextScript) e numa meta que o
+  // ClarityAnalytics lê para o <Script> inline do Clarity.
+  const nonce = props.nonce ?? '';
   // Área do Médium (AM-06, D-23): o MediumLayout linka o próprio manifesto
   // (o da Área, que abre em /medium); o da Porta não pode vir antes dele.
   const page = props.__NEXT_DATA__?.page ?? '';
@@ -10,7 +23,9 @@ export default function Document(props: DocumentProps) {
   const barraClara = areaDoMedium || page === '/escolher-area';
   return (
     <Html lang="pt-BR">
-      <Head>
+      <Head nonce={nonce}>
+        {/* Nonce da CSP (pentest L3) — lido por componentes client (ClarityAnalytics). */}
+        {nonce ? <meta name="x-nonce" content={nonce} /> : null}
         {/* Favicon — PNG/ICO gerados de favicon.svg por scripts/generate-icons.mjs */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -32,8 +47,17 @@ export default function Document(props: DocumentProps) {
       </Head>
       <body>
         <Main />
-        <NextScript />
+        <NextScript nonce={nonce} />
       </body>
     </Html>
   );
 }
+
+// Lê o nonce que o middleware (src/middleware.ts) colocou em x-nonce e o
+// repassa como prop para o render aplicar nos scripts/estilos do Next.
+Document.getInitialProps = async (ctx: DocumentContext): Promise<DocumentWithNonce> => {
+  const initialProps = await BaseDocument.getInitialProps(ctx);
+  const header = ctx.req?.headers['x-nonce'];
+  const nonce = (Array.isArray(header) ? header[0] : header) ?? '';
+  return { ...initialProps, nonce } as DocumentWithNonce;
+};
