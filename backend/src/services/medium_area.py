@@ -96,8 +96,8 @@ async def get_area_medium_config(db: AsyncSession, tenant_id: uuid.UUID) -> Area
 async def area_medium_enabled_by_tenant(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
     """A casa deixou a Área ligada (`tenant_configs.area_medium_ativa`, AM-10).
 
-    É o liga/desliga do próprio terreiro; a chave da plataforma
-    (`area_medium_liberada`) e o plano são checados à parte. Sem linha de config,
+    É o liga/desliga do próprio terreiro dentro da aba da Área; a beta do
+    Laboratório (`area_medium_liberada`) e o plano são checados à parte. Sem linha de config,
     vale o padrão da coluna (ligada).
     """
     result = await db.execute(
@@ -130,9 +130,11 @@ async def area_medium_modulos(db: AsyncSession, tenant_id: uuid.UUID) -> list[st
 
 
 async def area_medium_liberada(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
-    """A plataforma liberou a Área do Médium para o terreiro (chave do lançamento em piloto)."""
-    result = await db.execute(select(Tenant.area_medium_liberada).where(Tenant.id == tenant_id))
-    return bool(result.scalar_one_or_none())
+    """A Área do Médium vale para o terreiro: ele é beta tester e ligou a beta "Área do Médium" no
+    Laboratório (decisão do dono, 19/11/2026; antes era uma chave da plataforma, migração 110)."""
+    from src.services.laboratorio import BETA_AREA_MEDIUM, beta_ligada
+
+    return await beta_ligada(db, tenant_id, BETA_AREA_MEDIUM)
 
 
 async def tenant_has_area_medium(db: AsyncSession, tenant_id: uuid.UUID) -> bool:

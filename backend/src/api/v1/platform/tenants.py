@@ -14,6 +14,7 @@ from src.api.dependencies import require_super_admin
 from src.models import User, PlanType
 from src.models.subscriptions import Subscription
 from src.services.cobranca_cartao import em_tolerancia, pendente_desde
+from src.services.laboratorio import CATALOGO, betas_ligadas
 from src.services.tenant_service import TenantService
 from src.services import session_service
 from src.models.audit_logs import AuditAction
@@ -43,12 +44,10 @@ class UpdateTenantRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
-    # Chave do lançamento em piloto da Área do Médium (vale junto com o plano Basic+).
-    area_medium_liberada: Optional[bool] = None
     # Laboratório: o terreiro testa as betas (a casa liga cada uma em Configurações › Laboratório).
+    # É a única chave de novidade da plataforma: Área do Médium e Textos com IA também são betas da
+    # casa desde 19/11/2026 (migração 110).
     beta_tester: Optional[bool] = None
-    # Beta "Textos do site com IA": usa a chave da Anthropic do GiraHub; a plataforma libera por casa.
-    ia_site_liberada: Optional[bool] = None
 
 
 class DeleteTenantRequest(BaseModel):
@@ -78,12 +77,17 @@ class TenantResponse(BaseModel):
     # próprio terreiro que se desativou pelo painel (/auth/deactivate-account).
     deleted_at: Optional[str] = None
     self_deactivated_at: Optional[str] = None
-    area_medium_liberada: bool = False
     beta_tester: bool = False
-    ia_site_liberada: bool = False
+    # Só leitura: nomes das betas que a própria casa ligou no Laboratório (a plataforma não liga).
+    betas_ligadas: List[str] = []
     # Tolerância do cartão (migração 094): cartão recusado, plano ainda ativo enquanto a Stripe
     # tenta de novo — badge "Pagamento pendente" na lista e no Tenant 360.
     payment_pending_since: Optional[str] = None
+
+
+async def _nomes_das_betas_ligadas(db: AsyncSession, tenant_id: UUID) -> List[str]:
+    ligadas = await betas_ligadas(db, tenant_id)
+    return [b.nome for b in CATALOGO if b.chave in ligadas]
 
 
 def _payment_pending_since(sub) -> Optional[str]:
@@ -184,9 +188,8 @@ async def get_tenant(
             self_deactivated_at=(
                 tenant.self_deactivated_at.isoformat() if tenant.self_deactivated_at else None
             ),
-            area_medium_liberada=bool(tenant.area_medium_liberada),
             beta_tester=bool(getattr(tenant, "beta_tester", False)),
-            ia_site_liberada=bool(getattr(tenant, "ia_site_liberada", False)),
+            betas_ligadas=await _nomes_das_betas_ligadas(db, tenant.id),
             payment_pending_since=_payment_pending_since(sub),
         )
     except HTTPException:
@@ -210,7 +213,7 @@ async def update_tenant(
     
     try:
         update_data = request.model_dump(exclude_unset=True)
-        for field in ("name", "is_active", "area_medium_liberada", "beta_tester", "ia_site_liberada"):
+        for field in ("name", "is_active", "beta_tester"):
             if field in update_data and update_data[field] is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -255,7 +258,7 @@ async def update_tenant(
 
         await db.commit()
         
-        return TenantResponse(**result)
+        return TenantResponse(**result, betas_ligadas=await _nomes_das_betas_ligadas(db, tenant_id))
     except HTTPException:
         raise
     except Exception as e:

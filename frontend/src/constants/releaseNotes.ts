@@ -391,33 +391,259 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
-/** "6 de outubro de 2026" ou, para versões agrupadas por mês, "outubro de 2026". */
 /**
- * Notas da versão · Beta testers (jornadas v2): o canal das betas do Laboratório, visto só por
- * terreiro beta tester. Uma entrada por beta quando ela nasce ou muda (docs/betas/).
+ * Notas da versão das betas do Laboratório (Configurações › Laboratório › "Nota da versão" e
+ * "Notas da versão · Beta testers"). Uma por beta do catálogo (`backend/src/services/laboratorio.py`;
+ * um teste confere). Linguagem de quem usa o terreiro: o que faz, como usar, quem vê e o que acontece
+ * ao desligar. A documentação técnica fica em `docs/betas/`.
  */
 export interface BetaReleaseNote {
   chave: string;
+  /** Desde quando a beta está no Laboratório (AAAA-MM-DD). */
   date: string;
   title: string;
+  /** Uma frase de resumo (lista das notas de beta testers). */
   text: string;
+  /** O que a funcionalidade faz, em poucas frases. */
+  oQueFaz: string;
+  /** Passo a passo para usar. */
+  comoUsar: string[];
+  /** Quem enxerga e quem pode mexer. */
+  quemVe: string;
+  /** O que acontece ao desligar (sempre: nada do que foi registrado se perde). */
+  aoDesligar: string;
+  /** Detalhes que evitam surpresa. */
+  bomSaber?: string[];
 }
 
 export const BETA_RELEASE_NOTES: BetaReleaseNote[] = [
-  { chave: 'beta_textos_ia_site', date: '2026-11-17', title: 'Textos do site com IA', text: 'No estúdio do site, abra "Escrever com ajuda da IA" no painel da seção e escolha o texto (título, subtítulo, Sobre, introdução). Peça para escrever, melhorar, encurtar ou deixar mais acolhedor e, se quiser, conte a ideia em poucas palavras. Vêm até três sugestões, e só entra a que você escolher (dá para desfazer). A IA usa o que a casa escreveu, não inventa datas nem endereços e não escreve sobre entidades, Orixás ou fundamentos. A seção Linhas de trabalho fica de fora.' },
-  { chave: 'beta_novo_construtor_site', date: '2026-11-17', title: 'Novo construtor do site', text: 'O Meu Site virou um estúdio em tela cheia. Comece respondendo algumas perguntas, escolhendo um modelo pronto ou do zero. Depois é só clicar no site para mudar um texto, arrastar as seções para mudar a ordem, trocar cores e fontes do site inteiro e ver como fica no computador, no tablet e no celular, com desfazer. Uma lista de próximos passos mostra o que falta, e há seções novas (fotos, linhas de trabalho, rotina da casa, perguntas frequentes, redes sociais e como ajudar) e uma conferência antes de publicar. Em "Adicionar", os blocos já vêm no jeito escolhido (fotos em grade, mosaico ou faixa, contato em cartões ou botões) e dá para arrastar direto para o ponto do site. E cada seção deixa escolher o que aparece: na capa, por exemplo, o botão "Retirar senha" pode sair, e o texto dele pode mudar.' },
-  { chave: 'beta_retorno_consulente', date: '2026-11-06', title: 'Retorno do consulente na porta', text: 'Quem chama a senha marca "Precisa voltar" com o médium ou a entidade. Nas próximas giras, a senha da pessoa aparece com o selo Retorno até alguém marcar como resolvido.' },
-  { chave: 'beta_receber_senha_de_novo', date: '2026-11-02', title: 'Receber a senha de novo', text: 'O consulente pede o bilhete de novo no link da gira, e ele chega só no e-mail.' },
-  { chave: 'beta_bilhete_offline', date: '2026-11-02', title: 'Bilhete sem internet', text: 'O bilhete fica guardado no celular e abre no portão sem sinal.' },
-  { chave: 'beta_senha_para_outra_pessoa', date: '2026-11-02', title: 'Senha para outra pessoa', text: 'Quem preenche pega a senha de quem vai, e a senha chega no e-mail de quem preencheu.' },
-  { chave: 'beta_repetir_gira', date: '2026-11-02', title: 'Repetir a gira em outra data', text: 'Cria a mesma gira, com as mesmas senhas, em outro dia.' },
-  { chave: 'beta_cartaz_portao', date: '2026-11-02', title: 'Cartaz do portão', text: 'PDF com o QR do link do terreiro, para imprimir e colar no portão.' },
-  { chave: 'beta_lembrete_dia_gira', date: '2026-11-02', title: 'Lembrete no dia da gira', text: 'Um e-mail pela manhã para quem tem senha, com o horário da gira.' },
-  { chave: 'beta_avisar_exclusao_gira', date: '2026-11-02', title: 'Avisar quem tem senha quando a gira é excluída', text: 'Ao excluir, a casa pode mandar um e-mail para quem já pegou senha.' },
-  { chave: 'beta_menu_ajustavel', date: '2026-11-02', title: 'Menu que se ajusta ao uso', text: 'O que a casa já usa sobe para o menu, em "Da casa"; cada pessoa põe ou tira módulos na página Módulos.' },
-  { chave: 'beta_indicacao_plano', date: '2026-11-02', title: 'Indicação do plano pelo uso', text: 'Em Conta e plano, uma frase com o uso do mês (giras e médiuns) diz qual plano dá conta.' },
+  {
+    chave: 'beta_area_medium',
+    date: '2026-11-19',
+    title: 'Área do Médium',
+    text: 'Cada médium da corrente entra com o próprio login e vê a agenda, os avisos, as escalas e a mensalidade dele.',
+    oQueFaz: 'Cada médium da corrente ganha um lugar só dele no GiraHub, com login e senha próprios. Lá ele vê a agenda das giras e das atividades da casa, os avisos e os estudos que a direção publica, as escalas em que está e a própria mensalidade, com o PIX da casa e o envio do comprovante. A casa escolhe o que aparece.',
+    comoUsar: [
+      'Ligue aqui. Logo aparece a aba Área do Médium em Configurações.',
+      'Nessa aba, escolha o que o médium vê (agenda, avisos, mensalidade) e escreva a mensagem de boas-vindas e o WhatsApp da casa.',
+      'Em Médiuns, use "Convidar todos para a Área" ou convide um por um no cadastro. Cada médium recebe um link no e-mail, cria a senha e entra.',
+      'Avisos, estudos, atividades e escalas continuam sendo feitos nos módulos de sempre. O médium vê tudo na Área dele.',
+    ],
+    quemVe: 'Quem cuida das Configurações liga e desliga. Os médiuns convidados veem só a própria Área: não entram no painel da casa e não veem dado de outro médium. Precisa do plano Basic ou superior.',
+    aoDesligar: 'Os médiuns deixam de entrar na Área na mesma hora, a aba some das Configurações e os e-mails de lembrete da Área param. Nada é apagado: convites, contas dos médiuns, avisos, escalas e configurações ficam guardados e voltam como estavam quando a casa ligar de novo.',
+    bomSaber: [
+      'Para pausar a Área por uns dias sem mexer no Laboratório, use "Área do Médium ligada" dentro da própria aba.',
+      'Quem já usava a Área antes do Laboratório continua com ela ligada. Nada mudou para essas casas.',
+    ],
+  },
+  {
+    chave: 'beta_textos_ia_site',
+    date: '2026-11-17',
+    title: 'Textos do site com IA',
+    text: 'No estúdio do site, peça sugestões para títulos e textos e escolha uma ou nenhuma.',
+    oQueFaz: 'No estúdio do site, a IA ajuda a escrever títulos e textos. Ela escreve a partir da sua ideia, melhora o que já está escrito, encurta ou deixa mais acolhedor. Vêm até três sugestões, e você escolhe uma ou nenhuma.',
+    comoUsar: [
+      'Ligue também o "Novo construtor do site": a ajuda da IA fica dentro dele.',
+      'No Meu Site, clique na seção que quer mudar. No painel da direita, na aba Conteúdo, abra "Escrever com ajuda da IA".',
+      'Escolha qual texto (título, subtítulo, Sobre, introdução) e o que fazer. Se quiser, conte em poucas palavras o que deseja dizer.',
+      'Toque em "Usar este texto" na sugestão que servir. Ela entra como uma edição comum: dá para mexer e desfazer (Ctrl+Z). O público só vê depois que você publicar.',
+    ],
+    quemVe: 'Quem pode editar o site da casa. A IA recebe só o nome da casa e o que já está escrito no site. Não vai e-mail, telefone nem dado de consulente ou médium.',
+    aoDesligar: 'O cartão da IA some do estúdio. Os textos que você já aplicou continuam no site.',
+    bomSaber: [
+      'A IA não escreve sobre entidades, Orixás, guias, linhas, fundamentos ou rituais. Essas palavras são da casa, e a seção Linhas de trabalho fica de fora.',
+      'Ela não inventa datas, horários, endereço nem história. O que for fato, confira antes de publicar.',
+      'Cada casa pode fazer até 150 pedidos por dia.',
+    ],
+  },
+  {
+    chave: 'beta_novo_construtor_site',
+    date: '2026-11-17',
+    title: 'Novo construtor do site',
+    text: 'O Meu Site vira um estúdio em tela cheia: edite clicando no site e veja no celular antes de publicar.',
+    oQueFaz: 'O Meu Site vira um estúdio em tela cheia. Você edita o site clicando direto nele, arruma as seções, troca cores e fontes e vê como fica no computador, no tablet e no celular antes de publicar.',
+    comoUsar: [
+      'Abra Meu Site. Com o site vazio, escolha um caminho: responder algumas perguntas, partir de um modelo pronto ou começar do zero.',
+      'Clique num texto do site para mudar. Clique numa seção para abrir o painel dela à direita, com o que aparece, o conteúdo e o estilo.',
+      'Na barra da esquerda ficam Seções (arrastar para mudar a ordem, ocultar, duplicar), Adicionar (blocos prontos, é só clicar ou arrastar para o ponto do site), Estilo (cores e fontes do site todo), Passos (o que ainda falta), Ajustes e Histórico.',
+      'Errou? Desfazer e refazer ficam no alto (Ctrl+Z). "Publicar" confere o que falta e mostra como o link aparece no Google e no WhatsApp.',
+    ],
+    quemVe: 'Quem cuida do site da casa. O público continua vendo só o site publicado.',
+    aoDesligar: 'O Meu Site volta ao editor de antes. Nada se perde: o site publicado continua no ar, e as seções novas seguem aparecendo e podem ser editadas no editor antigo.',
+    bomSaber: [
+      'No celular, o site ocupa a tela e as ferramentas ficam numa barra embaixo.',
+      'Sair pelo botão "Painel" salva o rascunho. Se o site está no ar com mudanças não publicadas, o estúdio pergunta antes de descartar.',
+    ],
+  },
+  {
+    chave: 'beta_retorno_consulente',
+    date: '2026-11-06',
+    title: 'Retorno do consulente na porta',
+    text: 'Quem chama a senha anota que a pessoa precisa voltar, e a Porta lembra nas giras seguintes.',
+    oQueFaz: 'Quando o médium ou a entidade pede que a pessoa volte, quem está na porta anota. Nas giras seguintes, a senha dessa pessoa aparece com o selo Retorno, e a casa sabe com quem encaminhar.',
+    comoUsar: [
+      'Na Porta, ao chamar ou editar o atendimento de uma senha, marque "Precisa voltar" e diga com qual médium e/ou entidade. Se quiser, deixe um recado.',
+      'Nas próximas giras, quando a pessoa pegar senha de novo, a senha dela aparece com o selo Retorno na fila, no "Próximo" e no "Chamar". Toque no selo para ver com quem ela volta, de qual gira veio e o recado.',
+      'Depois do atendimento, toque em "Marcar como resolvido". Se errar, o aviso na tela tem "Desfazer".',
+    ],
+    quemVe: 'Quem tem acesso à Porta vê o selo. Anotar e marcar como resolvido pede permissão de editar a Porta. O selo nunca aparece no Modo TV nem para o consulente.',
+    aoDesligar: 'O selo e o campo somem da Porta. Os retornos já anotados ficam guardados e voltam quando a casa ligar de novo.',
+    bomSaber: [
+      'A casa reconhece a pessoa pelo mesmo cadastro, e-mail ou telefone, mesmo que numa gira ela tenha vindo pelo link e na outra sem senha.',
+    ],
+  },
+  {
+    chave: 'beta_receber_senha_de_novo',
+    date: '2026-11-02',
+    title: 'Receber a senha de novo',
+    text: 'O consulente pede o bilhete de novo no link da gira, e ele chega só no e-mail.',
+    oQueFaz: 'Quem perdeu ou apagou o e-mail da senha pede de novo, sozinho, no link da gira. Ninguém da casa precisa procurar a senha no WhatsApp em dia de gira.',
+    comoUsar: [
+      'Basta ligar.',
+      'No link da gira aparece "Já pegou? Receber a senha de novo". A pessoa digita o e-mail que usou e o bilhete chega de novo nesse e-mail.',
+    ],
+    quemVe: 'O consulente, na página da gira, enquanto as senhas estão abertas ou esgotadas.',
+    aoDesligar: 'O link some da página da gira. As senhas já emitidas não mudam.',
+    bomSaber: [
+      'Por segurança, o bilhete só vai para o e-mail que pegou a senha, e a tela não diz se aquele e-mail tem ou não senha na gira.',
+    ],
+  },
+  {
+    chave: 'beta_bilhete_offline',
+    date: '2026-11-02',
+    title: 'Bilhete sem internet',
+    text: 'O bilhete fica guardado no celular e abre no portão sem sinal.',
+    oQueFaz: 'Depois de pegar a senha, o bilhete fica guardado no celular da pessoa. Se ela chegar no portão sem sinal ou sem internet, o número aparece do mesmo jeito.',
+    comoUsar: [
+      'Basta ligar. Ao pegar a senha, a pessoa vê "Esta senha fica guardada neste celular e abre até sem internet".',
+      'Sem sinal, ela abre o GiraHub no mesmo celular e no mesmo navegador, e a senha guardada aparece.',
+    ],
+    quemVe: 'O consulente, no celular em que pegou a senha. O bilhete fica só no aparelho dele, e nada novo vai para o servidor.',
+    aoDesligar: 'As senhas novas deixam de ser guardadas no celular. As que já estavam guardadas somem sozinhas quando a gira passa.',
+    bomSaber: [
+      'O celular guarda até 5 bilhetes, só de giras que ainda não passaram.',
+    ],
+  },
+  {
+    chave: 'beta_senha_para_outra_pessoa',
+    date: '2026-11-02',
+    title: 'Senha para outra pessoa',
+    text: 'Quem preenche pega a senha de quem vai, e a senha chega no e-mail de quem preencheu.',
+    oQueFaz: 'Um filho pode pegar a senha para a mãe, e um vizinho para quem não tem celular. Quem preenche põe o nome de quem vai, e a senha chega no e-mail de quem preencheu.',
+    comoUsar: [
+      'No formulário da gira aparece "Para quem é a senha?", com "Para mim" já escolhido e "Para outra pessoa".',
+      'Em "Para outra pessoa", o nome é o de quem vai (é o nome chamado na porta) e o e-mail é o de quem está preenchendo.',
+      'A senha chega nesse e-mail. É só mostrar ou encaminhar para quem vai.',
+    ],
+    quemVe: 'O consulente, no link da gira.',
+    aoDesligar: 'A pergunta some do formulário. As senhas já tiradas para outra pessoa continuam valendo.',
+    bomSaber: [
+      'O limite de senhas por e-mail é o mesmo que a casa já configurou na gira.',
+    ],
+  },
+  {
+    chave: 'beta_repetir_gira',
+    date: '2026-11-02',
+    title: 'Repetir a gira em outra data',
+    text: 'Cria a próxima gira a partir de uma que já existe, sem preencher tudo de novo.',
+    oQueFaz: 'Para a gira que se repete toda semana ou todo mês, você cria a próxima a partir de uma que já existe, sem preencher tudo de novo.',
+    comoUsar: [
+      'Em Giras, no cartão da gira, abra "Mais ações" e escolha "Repetir em outra data".',
+      'O cadastro abre já preenchido com o nome, a descrição, os recados, o local, as orientações da corrente, a quantidade de senhas e os acompanhantes.',
+      'Escolha a nova data e o horário, confira e salve.',
+    ],
+    quemVe: 'Quem pode criar giras.',
+    aoDesligar: 'A opção some do menu da gira. As giras criadas assim continuam normais.',
+    bomSaber: [
+      'Só a configuração é copiada. Senhas, fila e atendimentos da gira antiga não vão para a nova.',
+      'Os horários de atendimento por faixa não são copiados. Se a gira usa, configure de novo.',
+    ],
+  },
+  {
+    chave: 'beta_cartaz_portao',
+    date: '2026-11-02',
+    title: 'Cartaz do portão',
+    text: 'PDF com o QR do link do terreiro, para imprimir e colar no portão.',
+    oQueFaz: 'Um cartaz pronto para imprimir e colar no portão ou no mural, com o nome da casa e o QR do link do terreiro. Quem chega aponta a câmera do celular e pega a senha.',
+    comoUsar: [
+      'Abra o compartilhar do link, na gira ou no link do terreiro.',
+      'Aparece a prévia do cartaz. Toque em "Baixar o cartaz (PDF)".',
+      'Imprima numa folha A4 e cole no portão.',
+    ],
+    quemVe: 'Quem pode compartilhar o link das giras.',
+    aoDesligar: 'Volta o QR simples de antes. Os cartazes já impressos continuam funcionando.',
+    bomSaber: [
+      'O QR é do link do terreiro, que sempre abre a próxima gira com senhas abertas. O mesmo cartaz serve para todas as giras.',
+    ],
+  },
+  {
+    chave: 'beta_lembrete_dia_gira',
+    date: '2026-11-02',
+    title: 'Lembrete no dia da gira',
+    text: 'Um e-mail pela manhã para quem tem senha, com o número e o horário da gira.',
+    oQueFaz: 'No dia da gira, de manhã, quem tem senha recebe um e-mail com o número da senha, o horário e o recado da casa. Quem não puder ir libera a vaga pelo próprio e-mail, e ela fica para outra pessoa.',
+    comoUsar: [
+      'Basta ligar. O envio é automático, a partir das 8h (horário de Brasília) do dia da gira.',
+      'O que estiver em "Recados" no cadastro da gira vai junto no lembrete.',
+    ],
+    quemVe: 'Quem tem senha emitida para a gira. Cada pessoa recebe um e-mail só.',
+    aoDesligar: 'Os lembretes param a partir do próximo envio. Nada muda nas senhas.',
+    bomSaber: [
+      'Gira que começa em menos de 2 horas não recebe lembrete.',
+      'Acompanhante não recebe e-mail próprio: o lembrete vai para quem pegou a senha.',
+    ],
+  },
+  {
+    chave: 'beta_avisar_exclusao_gira',
+    date: '2026-11-02',
+    title: 'Avisar quem tem senha quando a gira é excluída',
+    text: 'Ao excluir uma gira com senhas, a casa escolhe se manda um e-mail para quem já pegou senha.',
+    oQueFaz: 'Se a casa precisar cancelar uma gira que já tem senhas, pode avisar por e-mail, de uma vez, todo mundo que pegou senha.',
+    comoUsar: [
+      'Em Giras, exclua a gira como sempre.',
+      'Se ela tem senhas, depois de confirmar aparece a pergunta "Avisar por e-mail as pessoas que têm senha?", com "Enviar aviso" e "Não enviar".',
+      'A gira é excluída nos dois casos. Fechar a pergunta sem escolher não exclui nada.',
+    ],
+    quemVe: 'Quem pode excluir giras. O e-mail vai para quem tinha senha.',
+    aoDesligar: 'A pergunta some, e excluir volta a ser só a confirmação de sempre, sem aviso.',
+    bomSaber: [
+      'Nada vem marcado: a casa escolhe a cada vez se manda ou não.',
+    ],
+  },
+  {
+    chave: 'beta_menu_ajustavel',
+    date: '2026-11-02',
+    title: 'Menu que se ajusta ao uso',
+    text: 'O que a casa já usa sobe para o menu, em "Da casa"; cada pessoa põe ou tira módulos na página Módulos.',
+    oQueFaz: 'O menu lateral mostra o que a casa usa de verdade. Módulo que já tem dado (médiuns, mensalidades, estoque e outros) sobe sozinho para "Da casa", e o resto fica em "Ver os módulos".',
+    comoUsar: [
+      'Ligue e veja o menu se arrumar pelo uso.',
+      'Na página Módulos, cada pessoa põe ou tira módulos do próprio menu.',
+    ],
+    quemVe: 'Todo mundo do painel da casa. O que cada pessoa escolhe na página Módulos vale só para ela.',
+    aoDesligar: 'O menu volta a mostrar todos os módulos. Nada é apagado.',
+    bomSaber: [
+      'Nada some de verdade: o que não está no menu continua em "Ver os módulos", com o mesmo endereço.',
+    ],
+  },
+  {
+    chave: 'beta_indicacao_plano',
+    date: '2026-11-02',
+    title: 'Indicação do plano pelo uso',
+    text: 'Em Conta e plano, uma frase com o uso do mês diz qual plano dá conta.',
+    oQueFaz: 'Em Conta e plano, uma frase mostra o uso do mês, com quantas giras a casa fez e quantos médiuns cadastrou, e diz qual plano dá conta desse uso. Ajuda a não pagar a mais e a não ficar sem espaço.',
+    comoUsar: [
+      'Basta ligar e abrir Conta e plano › Plano e assinatura.',
+    ],
+    quemVe: 'Quem vê Conta e plano.',
+    aoDesligar: 'A frase some. Nada muda no plano nem na cobrança.',
+    bomSaber: [
+      'É só uma indicação. O plano só muda se a casa escolher mudar.',
+    ],
+  },
 ];
 
+/** "6 de outubro de 2026" ou, para versões agrupadas por mês, "outubro de 2026". */
 export function formatReleaseDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number);
   const month = MONTHS[(m ?? 1) - 1];

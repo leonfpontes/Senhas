@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from src.models.feature_flags import FeatureFlag
 from src.models.giras import Gira
 from src.models.permission_groups import GroupPermission, PermissionFeature, PermissionGroup, UserGroupMembership
 from src.models.subscriptions import PlanType, Subscription, SubscriptionStatus
@@ -16,6 +17,24 @@ from src.models.tenants import Tenant
 from src.models.users import User, UserRole
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.security.jwt import create_access_token
+from src.services.laboratorio import BETA_AREA_MEDIUM
+
+
+async def set_area_medium(db, tenant_id, ligada: bool) -> None:
+    """Liga ou desliga a Área do Médium do terreiro (beta tester + beta no Laboratório), sem commit."""
+    from sqlalchemy import delete, update
+
+    if ligada:
+        await db.execute(update(Tenant).where(Tenant.id == tenant_id).values(beta_tester=True))
+        await db.execute(delete(FeatureFlag).where(FeatureFlag.tenant_id == tenant_id, FeatureFlag.feature == BETA_AREA_MEDIUM))
+        db.add(FeatureFlag(tenant_id=tenant_id, feature=BETA_AREA_MEDIUM, enabled=True))
+        await db.flush()
+    else:
+        await db.execute(
+            update(FeatureFlag)
+            .where(FeatureFlag.tenant_id == tenant_id, FeatureFlag.feature == BETA_AREA_MEDIUM)
+            .values(enabled=False)
+        )
 
 
 @dataclass
@@ -27,10 +46,14 @@ class Actor:
 async def create_tenant(
     db, name: str = "Terreiro Teste", plan: PlanType = PlanType.PREMIUM, area_medium_liberada: bool = False
 ) -> Tenant:
+    """`area_medium_liberada=True` deixa a Área do Médium valendo como em produção desde a migração 110:
+    terreiro beta tester com a beta `beta_area_medium` ligada no Laboratório."""
     slug = f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
-    tenant = Tenant(name=name, slug=slug, is_active=True, area_medium_liberada=area_medium_liberada)
+    tenant = Tenant(name=name, slug=slug, is_active=True, beta_tester=area_medium_liberada)
     db.add(tenant)
     await db.flush()
+    if area_medium_liberada:
+        db.add(FeatureFlag(tenant_id=tenant.id, feature=BETA_AREA_MEDIUM, enabled=True))
     limits = SubscriptionRepository(db)._get_plan_config(plan)
     db.add(
         Subscription(

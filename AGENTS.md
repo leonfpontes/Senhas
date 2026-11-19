@@ -340,13 +340,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   (sessoes caem na hora). Trocar o e-mail, inativar ou excluir o medium revoga o convite em aberto. E-mail e
   texto de WhatsApp discretos (sem termo religioso alem do nome do terreiro, §6.8 do plano). A busca pelo
   token e a "busca raiz" isenta em `EXEMPT_PUBLIC_QUERIES` (`_convite_pelo_token`).
-- **Lancamento em piloto (decisao do dono, 07/10)**: a Area do Medium vai para a producao desligada.
-  `tenants.area_medium_liberada` (padrao false) e ligado por terreiro pelo super admin no Tenant 360
-  (`PUT /platform/tenants/{id}` com `area_medium_liberada`). `check_plan_feature(..., "area_medium")` exige
-  plano Basic+ E a chave (403 "ainda nao foi liberada"), entao todo `require_plan_feature("area_medium")` ja
-  respeita; `GET /admin/subscription` devolve `features.area_medium = false` sem a chave (a tela esconde as
-  entradas da Area com `can('area_medium')`, sem PlanLocked no piloto) e `areas.medium` fica null. No
-  lancamento: ligar para todos (migracao de dados) ou remover a chave.
+- **Beta do Laboratorio (decisao do dono, 19/11/2026; antes, chave do piloto de 07/10)**: a Area do Medium e a
+  beta `beta_area_medium` do catalogo (`services/laboratorio.py`). Vale com terreiro beta tester
+  (`tenants.beta_tester`, unica chave da plataforma no Tenant 360) E a beta ligada pela casa em Configuracoes ›
+  Laboratorio (`feature_flags`). A coluna `tenants.area_medium_liberada` saiu na migracao 110 (quem a tinha
+  virou beta tester com a beta ligada). `medium_area.area_medium_liberada()` le a beta; os agendadores filtram
+  com `laboratorio.condicao_beta_ligada(BETA_AREA_MEDIUM)`. `check_plan_feature(..., "area_medium")` exige
+  plano Basic+ E a beta (403 "esta desligada. Ligue em Configuracoes › Laboratorio"), entao todo
+  `require_plan_feature("area_medium")` ja respeita; `GET /admin/subscription` devolve `features.area_medium =
+  false` sem ela (a tela esconde as entradas da Area com `can('area_medium')`) e `areas.medium` fica null. No
+  lancamento: promover a beta (tirar a checagem) conforme `docs/betas/README.md`.
+- **Regra das novidades (decisao do dono, 19/11/2026)**: terreiro beta tester nao tem chave por
+  funcionalidade no backoffice. Toda funcionalidade nova entra no catalogo do Laboratorio e a casa liga ou
+  desliga; a plataforma so marca "Beta tester" (o detalhe do terreiro mostra, so leitura, as betas que a casa
+  ligou: `betas_ligadas`). Nada de coluna `tenants.<algo>_liberada` nova.
 - **Configuracao da Area (AM-10)**: `GET/PUT /admin/config/area-medium` (`area_medium_config.py`,
   CONFIGURACOES view/edit + `require_plan_feature("area_medium")`, logo respeita a chave do piloto).
   Colunas `area_medium_*` em `tenant_configs` (068): ligada (o liga/desliga DA CASA; a chave da
@@ -1118,7 +1125,7 @@ Incluir obrigatoriamente:
   (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e `pix_*` em `mensalidade_configs`), apos
   `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
   convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
-  `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
+  `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, removida em 110, chave do piloto da Area do
   Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
   SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
   `064_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
@@ -1503,7 +1510,7 @@ Incluir obrigatoriamente:
   não vira erro).
 
 ### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados, aniversariantes, troca na escala, Estudos e Minha caminhada (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/19/20/21/23/24/25/26/27/28/29 + F-05, 2026-10-08)
-Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
+Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Desde 19/11/2026 é a beta `beta_area_medium` do Laboratório (antes, chave do piloto `area_medium_liberada`, removida na migração 110; §3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
   tem painel; operador/admin que é médium mantém o papel e ganha a Área pelo vínculo. O vínculo só

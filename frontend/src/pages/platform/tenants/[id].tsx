@@ -40,6 +40,7 @@ import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
 import { EmptyState } from '@/components/EmptyState';
 import { PasswordField, TextField } from '@/components/fields';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -92,10 +93,10 @@ interface TenantInfo {
   /** Excluído logicamente; com `self_deactivated_at`, foi o próprio terreiro que se desativou. */
   deleted_at?: string | null;
   self_deactivated_at?: string | null;
-  /** Lançamento em piloto da Área do Médium: a plataforma libera por terreiro. */
-  area_medium_liberada?: boolean;
+  /** Laboratório: única chave de novidade da plataforma; cada beta a própria casa liga. */
   beta_tester?: boolean;
-  ia_site_liberada?: boolean;
+  /** Só leitura: nomes das betas que a casa ligou no Laboratório. */
+  betas_ligadas?: string[];
   /** Cartão recusado, plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
   payment_pending_since?: string | null;
 }
@@ -295,22 +296,6 @@ export default function TenantDetailPage() {
     }
   };
 
-  // ── Área do Médium em piloto: liga/desliga por terreiro ──
-  const [areaSaving, setAreaSaving] = useState(false);
-  const toggleAreaMedium = async (liberar: boolean) => {
-    if (!tenant) return;
-    setAreaSaving(true);
-    try {
-      await apiClient.put(`/api/v1/platform/tenants/${tenant.id}`, { area_medium_liberada: liberar });
-      toast.success(liberar ? 'Área do Médium liberada para este terreiro.' : 'Área do Médium desligada para este terreiro.');
-      load();
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Não foi possível mudar a Área do Médium.'));
-    } finally {
-      setAreaSaving(false);
-    }
-  };
-
   // ── Laboratório (jornadas v2): o terreiro testa as betas; a casa liga cada uma nas Configurações ──
   const [betaSaving, setBetaSaving] = useState(false);
   const toggleBetaTester = async (ligar: boolean) => {
@@ -324,22 +309,6 @@ export default function TenantDetailPage() {
       toast.error(extractApiErrorMessage(err, 'Não foi possível mudar o beta tester.'));
     } finally {
       setBetaSaving(false);
-    }
-  };
-
-  // Beta "Textos do site com IA": usa a chave da Anthropic do GiraHub; a plataforma libera por casa.
-  const [iaSaving, setIaSaving] = useState(false);
-  const toggleIaSite = async (liberar: boolean) => {
-    if (!tenant) return;
-    setIaSaving(true);
-    try {
-      await apiClient.put(`/api/v1/platform/tenants/${tenant.id}`, { ia_site_liberada: liberar });
-      toast.success(liberar ? 'IA dos textos do site liberada para este terreiro.' : 'IA dos textos do site desligada para este terreiro.');
-      load();
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Não foi possível mudar a IA dos textos do site.'));
-    } finally {
-      setIaSaving(false);
     }
   };
 
@@ -613,36 +582,10 @@ export default function TenantDetailPage() {
 
           <Card className="gap-3 py-4">
             <CardHeader className="px-4">
-              <CardTitle className="text-base">Área do Médium (piloto)</CardTitle>
-              <CardDescription>
-                Libera a Área do Médium para este terreiro antes do lançamento. Vale junto com o plano Basic ou
-                superior.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-4">
-              {tenant ? (
-                <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="area-medium-liberada" className="font-normal">
-                    {tenant.area_medium_liberada ? 'Liberada' : 'Desligada'}
-                  </Label>
-                  <Switch
-                    id="area-medium-liberada"
-                    checked={!!tenant.area_medium_liberada}
-                    onCheckedChange={toggleAreaMedium}
-                    disabled={areaSaving || isDeleted}
-                  />
-                </div>
-              ) : (
-                <Skeleton className="h-8 w-full" />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="gap-3 py-4">
-            <CardHeader className="px-4">
               <CardTitle className="text-base">Beta tester (Laboratório)</CardTitle>
               <CardDescription>
-                Libera as funcionalidades em teste. A casa liga ou desliga cada uma em Configurações › Laboratório.
+                Libera o Laboratório da casa. Ela mesma liga ou desliga cada funcionalidade em teste em Configurações ›
+                Laboratório.
               </CardDescription>
             </CardHeader>
             <CardContent className="px-4">
@@ -659,20 +602,25 @@ export default function TenantDetailPage() {
                     disabled={betaSaving || isDeleted}
                   />
                 </div>
-                <div className="mt-3 flex items-start justify-between gap-4 border-t border-border pt-3">
-                  <Label htmlFor="ia-site" className="flex flex-col items-start gap-0.5 font-normal">
-                    <span>Textos do site com IA</span>
-                    <span className="text-xs text-muted-foreground">
-                      Usa a chave da Anthropic do GiraHub. Só aparece no Laboratório da casa depois de liberar aqui.
-                    </span>
-                  </Label>
-                  <Switch
-                    id="ia-site"
-                    checked={!!tenant.ia_site_liberada}
-                    onCheckedChange={toggleIaSite}
-                    disabled={iaSaving || isDeleted || !tenant.beta_tester}
-                    aria-label="Liberar textos do site com IA"
-                  />
+                <div className="mt-3 border-t border-border pt-3 text-sm">
+                  <p className="text-muted-foreground">Ligadas pela casa</p>
+                  {!tenant.beta_tester ? (
+                    <p className="mt-0.5">Nenhuma: o Laboratório só aparece para beta tester.</p>
+                  ) : tenant.betas_ligadas && tenant.betas_ligadas.length > 0 ? (
+                    <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Betas ligadas pela casa">
+                      {tenant.betas_ligadas.map((nome) => (
+                        <li key={nome}>
+                          <Badge variant="outline" className="font-normal">{nome}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-0.5">Nenhuma ainda.</p>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Só leitura. Toda novidade, inclusive a Área do Médium e os textos do site com IA, a casa liga ou
+                    desliga no próprio Laboratório.
+                  </p>
                 </div>
                 </>
               ) : (

@@ -130,8 +130,10 @@ nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do 
 fica como histórico e um convite aceito depois grava outro). `mediuns.aniversario_visivel` (`Boolean`, padrão
 `false`, migração 083) é o opt-in "Mostrar meu aniversário para a corrente" (AM-20: só primeiro nome, dia e mês).
 
-**Chave do piloto (migração 066):** `tenants.area_medium_liberada` (`Boolean`, padrão `false`). A plataforma liga por
-terreiro no Tenant 360; sem ela a Área do Médium não vale, mesmo com plano Basic+ (`check_plan_feature`).
+**Liga/desliga da Área (desde a migração 110):** a Área do Médium é a beta `beta_area_medium` do Laboratório: vale com
+`tenants.beta_tester` e a linha `feature_flags` da beta ligada pela casa; sem isso não vale, mesmo com plano Basic+
+(`check_plan_feature`). A antiga chave do piloto `tenants.area_medium_liberada` (migração 066) e a
+`tenants.ia_site_liberada` (108) saíram na 110.
 
 ### `user_sessions`
 
@@ -720,7 +722,7 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `validate_associado_on_emit` | `Boolean` | Não | `False` | adicionado em 012; verifica email na tabela `associados` |
 | `enable_estoque_log` | `Boolean` | Não | `True` | adicionado em 018 |
 | `custom_settings` | `JSON` | Sim | — | dicionário arbitrário |
-| `area_medium_ativa` | `Boolean` | Não | `true` | 067 (AM-10): liga/desliga da própria casa; a chave da plataforma (`tenants.area_medium_liberada`) vale por cima |
+| `area_medium_ativa` | `Boolean` | Não | `true` | 067 (AM-10): liga/desliga da própria casa; a beta `beta_area_medium` do Laboratório vale por cima |
 | `area_medium_boas_vindas` | `Text` | Sim | — | 067: mensagem de boas-vindas da Área (≤ 500 na API) |
 | `area_medium_whatsapp` | `String(20)` | Sim | — | 067: WhatsApp da casa, só dígitos com DDI (`5511987654321`) |
 | `area_medium_agenda` / `area_medium_avisos` / `area_medium_mensalidade` | `Boolean` | Não | `true` | 067: módulos visíveis na Área (mensalidade também exige `mensalidade_mediun` no plano) |

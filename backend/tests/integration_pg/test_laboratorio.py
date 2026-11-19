@@ -42,8 +42,8 @@ async def test_beta_tester_liga_desliga_e_audita(client, db):
     r = await client.get(LAB, headers=admin.headers)
     assert r.status_code == 200, r.text
     betas = r.json()["betas"]
-    # Beta com custo do GiraHub (IA) só aparece depois da liberação da plataforma.
-    assert {b["chave"] for b in betas} == set(CHAVES) - {"beta_textos_ia_site"}
+    # Desde 19/11/2026 o catálogo inteiro (inclusive Área do Médium e IA) aparece para o beta tester.
+    assert {b["chave"] for b in betas} == set(CHAVES)
     assert not any(b["ligada"] for b in betas)
 
     r = await client.put(LAB, headers=admin.headers, json={"chave": "beta_bilhete_offline", "ligada": True})
@@ -63,27 +63,35 @@ async def test_beta_tester_liga_desliga_e_audita(client, db):
     assert await betas_ligadas(db, tenant.id) == set()
 
 
-async def test_beta_da_ia_precisa_da_liberacao_da_plataforma(client, db):
-    tenant = await _beta_tester(db, await create_tenant(db))
+async def test_area_do_medium_e_ia_sao_betas_da_casa(client, db):
+    """Decisão do dono (19/11/2026): a casa liga a Área do Médium e os Textos com IA no Laboratório; a
+    plataforma não tem mais chave por funcionalidade."""
+    from src.models.subscriptions import PlanType
+
+    tenant = await _beta_tester(db, await create_tenant(db, plan=PlanType.FREE))
     admin = await create_user(db, tenant, UserRole.ADMIN)
-    r = await client.put(LAB, headers=admin.headers, json={"chave": "beta_textos_ia_site", "ligada": True})
-    assert r.status_code == 403
-    assert await betas_ligadas(db, tenant.id) == set()
+    betas = {b["chave"]: b for b in (await client.get(LAB, headers=admin.headers)).json()["betas"]}
+    # A Área pede o plano Basic+: o Laboratório avisa, sem esconder.
+    assert betas["beta_area_medium"]["plano"] == "area_medium"
+    assert betas["beta_area_medium"]["no_plano"] is False
+    assert betas["beta_textos_ia_site"]["plano"] is None and betas["beta_textos_ia_site"]["no_plano"] is True
 
-    tenant.ia_site_liberada = True
-    db.add(tenant)
-    await db.commit()
-    r = await client.get(LAB, headers=admin.headers)
-    assert "beta_textos_ia_site" in {b["chave"] for b in r.json()["betas"]}
-    r = await client.put(LAB, headers=admin.headers, json={"chave": "beta_textos_ia_site", "ligada": True})
+    for chave in ("beta_area_medium", "beta_textos_ia_site"):
+        r = await client.put(LAB, headers=admin.headers, json={"chave": chave, "ligada": True})
+        assert r.status_code == 200, r.text
+    assert {"beta_area_medium", "beta_textos_ia_site"} <= await betas_ligadas(db, tenant.id)
+    # Plano gratuito: ligada no Laboratório, mas o plano continua mandando.
+    info = await client.get("/api/v1/admin/subscription", headers=admin.headers)
+    assert info.json()["features"]["area_medium"] is False
+
+    # A plataforma não liga mais funcionalidade: o campo antigo é ignorado.
+    super_admin = await create_user(db, None, UserRole.SUPER_ADMIN, name="plataforma")
+    url = f"/api/v1/platform/tenants/{tenant.id}"
+    r = await client.put(url, headers=super_admin.headers, json={"name": "Casa", "area_medium_liberada": False})
     assert r.status_code == 200, r.text
-    assert "beta_textos_ia_site" in await betas_ligadas(db, tenant.id)
-
-    # Tirar a liberação desliga na hora, sem apagar a escolha da casa.
-    tenant.ia_site_liberada = False
-    db.add(tenant)
-    await db.commit()
-    assert "beta_textos_ia_site" not in await betas_ligadas(db, tenant.id)
+    assert "area_medium_liberada" not in r.json() and "ia_site_liberada" not in r.json()
+    assert set(r.json()["betas_ligadas"]) == {"Área do Médium", "Textos do site com IA"}
+    assert "beta_area_medium" in await betas_ligadas(db, tenant.id)
 
 
 async def test_grupos_de_permissao(client, db):

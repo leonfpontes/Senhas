@@ -110,3 +110,15 @@ describe('useReleaseNotesAutoOpen', () => {
     expect(run('u1', false).result.current[0]).toBe(false);
   });
 });
+
+describe('ReleaseNotesDialog modo beta', () => {
+  it('mostra as notas das betas do Laboratório, sem o "Não mostrar novamente"', async () => {
+    const { BETA_RELEASE_NOTES } = await import('@/constants/releaseNotes');
+    render(<ReleaseNotesDialog open onOpenChange={jest.fn()} userId="u1" modo="beta" />);
+    expect(screen.getByRole('heading', { name: /Notas da versão · Beta testers/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Não mostrar novamente')).not.toBeInTheDocument();
+    const primeira = BETA_RELEASE_NOTES[0];
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(primeira.title) }));
+    expect(screen.getByText(primeira.oQueFaz)).toBeInTheDocument();
+  });
+});

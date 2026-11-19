@@ -62,7 +62,7 @@ Sem a chave de um provider, ele é pulado (log de aviso).
 
 Agendador `services/medium_lembrete_scheduler.py` (a cada 15 min; chave `0x6769726168756206`), regras em
 `services/medium_lembretes.py`, textos em `services/email/templates/medium_lembretes.py`. Só para terreiros com a
-chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Área ligada pela casa.
+beta "Área do Médium" ligada no Laboratório (`beta_area_medium`), o plano `area_medium` e a Área ligada pela casa.
 
 | Tipo | Para quem | Quando (Brasília) | Assunto |
 |---|---|---|---|

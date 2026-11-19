@@ -275,7 +275,7 @@ class MediumContext:
 
 
 AREA_MEDIUM_INDISPONIVEL = "A Área do Médium não está disponível para a sua conta."
-AREA_MEDIUM_NAO_LIBERADA = "A Área do Médium ainda não foi liberada para este terreiro."
+AREA_MEDIUM_NAO_LIBERADA = "A Área do Médium está desligada. Ligue em Configurações › Laboratório."
 
 
 async def require_medium(
@@ -411,7 +411,7 @@ async def check_plan_feature(user: User, db: AsyncSession, feature: str, detail:
             status_code=status.HTTP_403_FORBIDDEN,
             detail=detail or PLAN_FEATURE_DENIED_MESSAGES.get(feature, "Recurso não disponível no plano atual."),
         )
-    # Área do Médium em piloto: além do plano, a plataforma precisa ter liberado o terreiro.
+    # Área do Médium em beta: além do plano, a casa precisa ter ligado a beta no Laboratório.
     if feature == "area_medium" and not await area_medium_liberada(db, user.tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AREA_MEDIUM_NAO_LIBERADA)
     reason = subscription_block_reason(sub)

@@ -3,16 +3,24 @@
 Decisão do dono em 01/11/2026: o que é novo nas jornadas v2 entra como **beta**.
 
 ## Como funciona
-1. A plataforma marca o terreiro como **beta tester** em `/platform` (detalhe do terreiro, chave "Beta tester"). Fica em `tenants.beta_tester` (migração 102).
+1. A plataforma marca o terreiro como **beta tester** em `/platform` (detalhe do terreiro, chave "Beta tester"). Fica em `tenants.beta_tester` (migração 102). **É a única chave da plataforma** (decisão do dono, 19/11/2026): nada de interruptor por funcionalidade no backoffice, nem para beta com custo do GiraHub (como a IA). O detalhe do terreiro só mostra, para leitura, as betas que a casa ligou (`betas_ligadas`).
 2. Só então a casa vê **Configurações › Laboratório (beta)** e liga ou desliga cada beta. A escolha fica em `feature_flags`, com a chave `beta_<nome>`.
 3. Uma beta só vale com as duas coisas. No backend, `services/laboratorio.beta_ligada(db, tenant_id, chave)`; na página do consulente, a lista `betas` da resposta de `/api/v1/public/gira/{id}`.
-4. **Beta com custo do GiraHub** (ex.: a IA dos textos do site) tem `liberacao` no catálogo: além de beta tester, a
-   plataforma libera a casa num interruptor próprio em `/platform` (coluna de `tenants`). Sem isso a beta some do
-   Laboratório e não vale.
+4. **Beta que também pede um recurso do plano** (ex.: a Área do Médium, Basic+) diz qual em `Beta.plano`. O Laboratório mostra a beta em qualquer plano e avisa o plano que falta; o gate de plano continua valendo no uso.
 5. **Desligar não apaga dado**: o que a casa registrou com a beta continua no banco e volta ao ligar.
 
 ## Catálogo
-O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda beta nova entra nele, ganha um arquivo aqui e uma entrada em **Notas da versão · Beta testers** (`frontend/src/constants/releaseNotes.ts`, `BETA_RELEASE_NOTES`).
+O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda beta nova entra nele, ganha um arquivo aqui e uma entrada em **Notas da versão · Beta testers** (`frontend/src/constants/releaseNotes.ts`, `BETA_RELEASE_NOTES`; um teste confere que toda beta do catálogo tem nota).
+
+## A nota da versão de cada beta
+É o que a casa lê ao tocar em "Nota da versão" no Laboratório e em "Notas da versão · Beta testers". Não repete a descrição curta da linha: explica em linguagem do terreiro, sem termo técnico, em quatro partes fixas e uma opcional:
+- **O que faz**: o problema da casa que ela resolve, em poucas frases;
+- **Como usar**: o passo a passo, com o nome dos botões como aparecem na tela;
+- **Quem vê**: quem enxerga e quem pode mexer (consulente, médium, quem tem tal permissão, plano);
+- **Ao desligar**: o que some e o que fica guardado (nada do que a casa registrou se perde);
+- **Bom saber** (opcional): o que evita surpresa, como limites, o que não é copiado e cuidados.
+
+Sem urgência, sem promessa e sem confirmshaming (regras de design ético do projeto). Cada arquivo desta pasta repete a nota no fim, em "Nota da versão".
 
 ## Promover ou retirar
 - **Promover para todos**: tirar a checagem de `beta_ligada` no código, manter este arquivo (vira "Promovida em <data>") e a nota de versão normal.
@@ -32,4 +40,5 @@ O catálogo é único: `backend/src/services/laboratorio.py` (`CATALOGO`). Toda 
 | [Indicação do plano pelo uso](beta_indicacao_plano.md) | `beta_indicacao_plano` | Para o painel |
 | [Novo construtor do site](beta_novo_construtor_site.md) | `beta_novo_construtor_site` | Para o site |
 | [Textos do site com IA](beta_textos_ia_site.md) | `beta_textos_ia_site` | Para o site |
+| [Área do Médium](beta_area_medium.md) | `beta_area_medium` | Para a corrente |
 | [Assistente de plano no site](assistente_plano_site.md) | `NEXT_PUBLIC_ASSISTENTE_PLANO` (chave do site, fora do Laboratório) | Para o site |

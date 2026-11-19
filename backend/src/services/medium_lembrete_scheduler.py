@@ -1,6 +1,6 @@
 """Agendador dos lembretes e avisos por e-mail da Área do Médium (AM-15) — a cada 15 min.
 
-Só para terreiros com a chave do piloto (`tenants.area_medium_liberada`), o plano com `area_medium`
+Só para terreiros com a beta "Área do Médium" ligada no Laboratório, o plano com `area_medium`
 e a Área ligada pela casa. Cada tipo só sai dentro da sua janela em Brasília
 (`services/medium_lembretes.JANELAS`) e com o plano do módulo:
 
@@ -186,6 +186,7 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> tupl
     from src.services import medium_lembretes as lm
     from src.services.email.base import EmailMessage
     from src.services.email.templates import medium_lembretes as tpl
+    from src.services.laboratorio import BETA_AREA_MEDIUM, condicao_beta_ligada
     from src.services.medium_area import get_area_medium_config, modulos_visiveis
     from src.services import medium_push, web_push
     from src.services.plan_features import get_effective_plan_features
@@ -194,7 +195,7 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> tupl
         await db.execute(
             select(Tenant).where(
                 Tenant.id == tenant_id,
-                Tenant.area_medium_liberada.is_(True),
+                condicao_beta_ligada(BETA_AREA_MEDIUM),
                 Tenant.is_active.is_(True),
                 Tenant.deleted_at.is_(None),
             )

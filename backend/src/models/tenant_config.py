@@ -75,8 +75,8 @@ class TenantConfig(TimestampedModel):
     # Gira.use_time_slots se usa ou não.
     enable_time_slot_scheduling: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
-    # Área do Médium (AM-10) — o que a casa mostra ao médium. A chave da plataforma
-    # (`tenants.area_medium_liberada`) e o plano (`area_medium`) valem por cima.
+    # Área do Médium (AM-10) — o que a casa mostra ao médium. A beta `beta_area_medium` do
+    # Laboratório (beta tester + ligada pela casa) e o plano (`area_medium`) valem por cima.
     area_medium_ativa: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     area_medium_boas_vindas: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Só dígitos, com DDI (ex.: 5511987654321) — botão "Falar com a casa".

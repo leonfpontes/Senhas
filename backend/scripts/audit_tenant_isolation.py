@@ -153,6 +153,9 @@ EXEMPT_QUERIES: dict[tuple[str, str], str] = {
 # Modo scoped (repositories/services) — cross-tenant por design ou sem tenant disponível.
 # Chave: (caminho relativo a src/, "Classe.metodo" ou "funcao").
 EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
+    ("services/laboratorio.py", "condicao_beta_ligada"): (
+        "filtro dos agendadores que varrem terreiros; o exists amarra a flag ao terreiro da linha (FeatureFlag.tenant_id == Tenant.id)"
+    ),
     # ── visão de plataforma (super_admin) ──
     # BillingRepository: faturas (Invoice) são da plataforma; estes 4 métodos não têm chamador
     # em src/ hoje (só testes unitários). Se ganharem, deve ser rota platform/.

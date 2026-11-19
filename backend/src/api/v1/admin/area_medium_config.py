@@ -16,8 +16,8 @@ aniversário, <primeiro nome>! Axé!" (`tenant_configs.area_medium_aniversario_m
 AM-27: `trocas.exige_aprovacao` — "Troca combinada entre médiuns precisa da aprovação da direção"
 (padrão ligado; `tenant_configs.escala_troca_exige_aprovacao`); `trocas_no_plano` diz se a casa tem
 troca de escala (plano `escalas`, Pro — a tela só mostra a opção com ele).
-Trocar o modo vale para as próximas chamadas; presença já registrada não muda. O gate `area_medium` já exige a chave do piloto
-(`tenants.area_medium_liberada`): sem ela, 403 aqui também.
+Trocar o modo vale para as próximas chamadas; presença já registrada não muda. O gate `area_medium` já exige a beta
+"Área do Médium" ligada no Laboratório (`medium_area.area_medium_liberada`): sem ela, 403 aqui também.
 
 Os valores ficam em colunas `area_medium_*` de `tenant_configs` (migração 068) e são
 lidos pela Área via `services/medium_area` (`area_medium_enabled_by_tenant`,

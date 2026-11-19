@@ -5,7 +5,10 @@
 
 Só existe para terreiro marcado como beta tester pela plataforma (`tenants.beta_tester`); sem isso,
 403 ("O laboratório não está liberado para esta casa"). A casa liga ou desliga cada beta do
-catálogo (`services/laboratorio.CATALOGO`); a escolha fica em `feature_flags`. Desligar não apaga o
+catálogo (`services/laboratorio.CATALOGO`), inclusive a Área do Médium e os Textos do site com IA
+(desde 19/11/2026 a plataforma não liga funcionalidade por casa); a escolha fica em `feature_flags`.
+Beta que também exige um recurso do plano vem com `plano` e `no_plano` (a tela avisa; o gate de
+plano continua valendo no uso). Desligar não apaga o
 que foi registrado com a beta. Cada mudança vai para a auditoria (config_type = "laboratorio").
 """
 from __future__ import annotations
@@ -18,8 +21,10 @@ from src.api.dependencies import get_current_user, require_group_permission
 from src.core.database import get_db
 from src.models import PermissionFeature, User
 from src.repositories.feature_flags_repo import FeatureFlagsRepository
+from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 from src.services.laboratorio import CHAVES, betas_disponiveis, betas_ligadas, eh_beta_tester
+from src.services.plan_features import get_effective_plan_features
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-laboratorio"])
 
@@ -31,6 +36,9 @@ class BetaOut(BaseModel):
     grupo: str
     nota: str
     ligada: bool
+    # Recurso do plano que a beta também exige (campo de PlanFeatures) e se o plano atual da casa tem.
+    plano: str | None = None
+    no_plano: bool = True
 
 
 class LaboratorioOut(BaseModel):
@@ -50,10 +58,17 @@ async def _exigir_beta_tester(db: AsyncSession, user: User) -> None:
 
 async def _resposta(db: AsyncSession, user: User) -> LaboratorioOut:
     ligadas = await betas_ligadas(db, user.tenant_id)
+    features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(user.tenant_id))
     return LaboratorioOut(
         beta_tester=True,
-        betas=[BetaOut(chave=b.chave, nome=b.nome, descricao=b.descricao, grupo=b.grupo, nota=b.nota, ligada=b.chave in ligadas)
-               for b in await betas_disponiveis(db, user.tenant_id)],
+        betas=[
+            BetaOut(
+                chave=b.chave, nome=b.nome, descricao=b.descricao, grupo=b.grupo, nota=b.nota,
+                ligada=b.chave in ligadas, plano=b.plano,
+                no_plano=b.plano is None or bool(getattr(features, b.plano)),
+            )
+            for b in await betas_disponiveis(db, user.tenant_id)
+        ],
     )
 
 
@@ -76,8 +91,6 @@ async def set_beta(body: LaboratorioIn, current_user: User = Depends(get_current
     await _exigir_beta_tester(db, current_user)
     if body.chave not in CHAVES:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Beta desconhecida.")
-    if body.chave not in {b.chave for b in await betas_disponiveis(db, current_user.tenant_id)}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta beta ainda não foi liberada para esta casa.")
     antes = body.chave in await betas_ligadas(db, current_user.tenant_id)
     await FeatureFlagsRepository(db).create_or_update(tenant_id=current_user.tenant_id, feature=body.chave, enabled=body.ligada)
     await AuditService(db).log_config_change(

@@ -613,7 +613,7 @@ function AdminConfigContent() {
   }
 
   const showSaveBar = isDirty && canEdit;
-  // Área do Médium em piloto: some sem a feature (plano Basic+ e chave da plataforma), sem oferta de upgrade.
+  // Área do Médium: some sem a feature (plano Basic+ e a beta ligada no Laboratório), sem oferta de upgrade.
   const showAreaMedium = can('area_medium');
   // ?aba=area-medium (ou outra aba): abre direto nela — o atalho "Área do Médium" da barra e dos Módulos.
   const abaPedida = typeof router.query.aba === 'string' ? router.query.aba : '';
@@ -939,7 +939,7 @@ function AdminConfigContent() {
           </Card>
         </TabsContent>
 
-        {/* ══ Área do Médium (AM-10) — só com a feature (plano + chave do piloto), sem PlanLocked ══ */}
+        {/* ══ Área do Médium (AM-10) — só com a feature (plano + beta do Laboratório), sem PlanLocked ══ */}
         {showAreaMedium && (
           <TabsContent value="area-medium" className="mt-4">
             <AreaMediumConfigSection canEdit={canEdit} />
