@@ -93,29 +93,36 @@ describe('Configuração financeira', () => {
     expect(mockPut).not.toHaveBeenCalled();
   });
 
-  it('Mensalidade mostra a chave PIX (AM-10)', async () => {
+  it('Mensalidade mostra as chaves PIX num cadastro único e a chave de cada grupo', async () => {
     mockGet.mockImplementation((url: string) => {
       if (url === '/api/v1/admin/financeiro/config') return Promise.resolve({ data: { valor_mensal: 50, dia_vencimento: 10 } });
-      if (url === '/api/v1/admin/financeiro/config/pix') {
+      if (url === '/api/v1/admin/financeiro/config/pix/chaves') {
         return Promise.resolve({
           data: {
-            configurada: true,
-            tipo: 'email',
-            chave_mascarada: 't***@example.com',
-            chave: 'tesouraria@example.com',
-            nome_recebedor: 'Casa',
-            cidade: 'Rio',
-            instrucoes: null,
-            alterado_em: null,
-            brcode_previa: null,
-            valor_previa: null,
-            conta_bancaria_id: null,
-            conta_bancaria_nome: null,
+            chaves: [
+              {
+                id: 'c0',
+                apelido: 'Tesouraria',
+                principal: true,
+                tipo: 'email',
+                chave_mascarada: 't***@example.com',
+                chave: 'tesouraria@example.com',
+                nome_recebedor: 'Casa',
+                cidade: 'Rio',
+                instrucoes: null,
+                alterado_em: null,
+                conta_bancaria_id: null,
+                conta_bancaria_nome: null,
+                grupos: [],
+                total_mediuns: 0,
+                brcode_previa: null,
+              },
+            ],
+            grupos: [],
+            contas_bancarias: [],
+            conflitos: [],
           },
         });
-      }
-      if (url === '/api/v1/admin/financeiro/config/pix/chaves') {
-        return Promise.resolve({ data: { chaves: [], grupos: [], contas_bancarias: [], conflitos: [] } });
       }
       return Promise.resolve({ data: [] });
     });
@@ -123,10 +130,11 @@ describe('Configuração financeira', () => {
     const tab = screen.getByRole('tab', { name: 'Mensalidade' });
     fireEvent.mouseDown(tab);
     fireEvent.click(tab);
-    expect(await screen.findByText('Chave PIX principal')).toBeInTheDocument();
-    expect(await screen.findByTestId('pix-chave-atual')).toHaveTextContent('tesouraria@example.com');
-    expect(mockGet).toHaveBeenCalledWith('/api/v1/admin/financeiro/config/pix');
-    expect(await screen.findByText('Outras chaves PIX da casa')).toBeInTheDocument();
+    expect(await screen.findByText('Chaves PIX da casa')).toBeInTheDocument();
+    expect(await screen.findByTestId('pix-chave')).toHaveTextContent('tesouraria@example.com');
+    expect(screen.getByTestId('pix-chave-principal')).toHaveTextContent('Principal');
+    expect(screen.getByText('Chave de cada grupo da corrente')).toBeInTheDocument();
+    expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/financeiro/config/pix');
   });
 
   it('conta bancária mostra e envia a data do saldo inicial', async () => {

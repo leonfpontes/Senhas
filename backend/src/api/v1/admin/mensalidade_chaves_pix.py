@@ -5,6 +5,12 @@
     PUT    /api/v1/admin/financeiro/config/pix/chaves/{id}   — FINANCEIRO:edit + senha
     DELETE /api/v1/admin/financeiro/config/pix/chaves/{id}   — FINANCEIRO:delete
     PUT    /api/v1/admin/financeiro/config/pix/grupos        — FINANCEIRO:edit + senha
+    POST   /api/v1/admin/financeiro/config/pix/chaves/{id}/principal — FINANCEIRO:edit + senha
+
+Cadastro único (migração 112): a chave principal também é uma linha daqui (`principal`). A primeira
+chave cadastrada vira a principal; depois a direção troca com "Definir como principal". A principal
+é espelhada em `mensalidade_configs.pix_*` (`espelhar_principal`), não é ligada a grupo e só é
+excluída quando é a única (senão 409: escolha outra principal antes).
 
 A casa cadastra quantas chaves precisar (além da principal, `mensalidade_pix.py`) e depois escolhe,
 grupo a grupo, qual chave cada grupo da corrente usa (`PUT /config/pix/grupos`, 11/2026). O
@@ -58,7 +64,7 @@ from src.models.mensalidade_chaves_pix import APELIDO_MAX, MensalidadeChavePix, 
 from src.repositories.mensalidade_repo import MensalidadeRepository
 from src.security.password import verify_password
 from src.services.audit_service import AuditService
-from src.services.mensalidade_chaves_pix import conflitos
+from src.services.mensalidade_chaves_pix import chave_principal, conflitos, espelhar_principal
 from src.services.pix_brcode import build_static_brcode
 from src.services.pix_chave import (
     CIDADE_MAX,
@@ -85,6 +91,7 @@ class GrupoDaChave(BaseModel):
 class ChavePixOut(BaseModel):
     id: uuid.UUID
     apelido: str
+    principal: bool = False
     tipo: PixTipo
     chave_mascarada: str
     # Só para FINANCEIRO:edit (null para quem só vê).
@@ -126,6 +133,8 @@ class ConflitoChave(BaseModel):
 
 class ChavesPixResponse(BaseModel):
     chaves: List[ChavePixOut]
+    # Valor de exemplo das prévias de copia e cola (mensalidade ou R$ 1,00); null para quem só vê.
+    valor_previa: Optional[float] = None
     grupos: List[GrupoOpcao]
     contas_bancarias: List[ContaBancariaOpcao]
     conflitos: List[ConflitoChave]
@@ -151,6 +160,10 @@ class GrupoChaveBody(BaseModel):
     chave_id: Optional[uuid.UUID] = None
 
 
+class SenhaBody(BaseModel):
+    senha: str = Field(..., min_length=1, max_length=256)
+
+
 class GruposChavesBody(BaseModel):
     """Qual chave cada grupo listado usa (grupos fora da lista ficam como estão)."""
 
@@ -161,7 +174,7 @@ class GruposChavesBody(BaseModel):
 # ── helpers ────────────────────────────────────────────────────────────────
 
 
-def _exigir_senha(body: ChavePixBody | GruposChavesBody, user: User) -> None:
+def _exigir_senha(body: ChavePixBody | GruposChavesBody | SenhaBody, user: User) -> None:
     if not verify_password(body.senha, user.password_hash):
         raise UnauthorizedError(
             "Senha incorreta. Confirme sua senha para alterar a chave PIX.",
@@ -298,7 +311,7 @@ async def _montar(db: AsyncSession, tenant_id: uuid.UUID, ver_chave: bool) -> Ch
         await db.execute(
             select(MensalidadeChavePix)
             .where(MensalidadeChavePix.tenant_id == tenant_id)
-            .order_by(MensalidadeChavePix.created_at, MensalidadeChavePix.id)
+            .order_by(MensalidadeChavePix.principal.desc(), MensalidadeChavePix.created_at, MensalidadeChavePix.id)
         )
     ).scalars().all()
     grupos = (
@@ -358,6 +371,7 @@ async def _montar(db: AsyncSession, tenant_id: uuid.UUID, ver_chave: bool) -> Ch
             ChavePixOut(
                 id=c.id,
                 apelido=c.apelido,
+                principal=c.principal,
                 tipo=c.pix_tipo,
                 chave_mascarada=mascarar_chave(c.pix_tipo, c.pix_chave),
                 chave=c.pix_chave if ver_chave else None,
@@ -400,6 +414,7 @@ async def _montar(db: AsyncSession, tenant_id: uuid.UUID, ver_chave: bool) -> Ch
 
     return ChavesPixResponse(
         chaves=saida,
+        valor_previa=float(valor_previa) if ver_chave else None,
         grupos=[GrupoOpcao(id=g.id, nome=g.nome, cor=g.cor, chave_id=cid) for g, cid in grupos],
         contas_bancarias=[ContaBancariaOpcao(id=c.id, nome=c.nome, banco=c.banco) for c in contas],
         conflitos=lista_conflitos,
@@ -462,17 +477,25 @@ async def criar_chave_pix(
     grupo_ids = await _validar_grupos(db, tenant_id, body.grupo_ids or [])
     await _apelido_livre(db, tenant_id, dados["apelido"])
 
-    chave = MensalidadeChavePix(id=uuid.uuid4(), tenant_id=tenant_id, pix_alterado_em=utc_now(), **dados)
+    # A primeira chave da casa vira a principal (não é ligada a grupo: vale para quem não tem outra).
+    vira_principal = await chave_principal(db, tenant_id) is None
+    if vira_principal:
+        grupo_ids = []
+    chave = MensalidadeChavePix(
+        id=uuid.uuid4(), tenant_id=tenant_id, pix_alterado_em=utc_now(), principal=vira_principal, **dados
+    )
     db.add(chave)
     await db.flush()
     await _ligar_grupos(db, tenant_id, chave.id, grupo_ids)
+    if vira_principal:
+        await espelhar_principal(db, tenant_id)
 
     await AuditService(db).log_create(
         tenant_id=tenant_id,
         user_id=current_user.id,
         resource_type="mensalidade_pix_grupo",
         resource_id=chave.id,
-        details=_auditavel(chave, grupo_ids),
+        details={**_auditavel(chave, grupo_ids), "principal": chave.principal},
     )
     await db.commit()
     await _avisar(db, current_user, chave, None)
@@ -506,6 +529,8 @@ async def atualizar_chave_pix(
     grupo_ids = (
         grupos_antes if body.grupo_ids is None else await _validar_grupos(db, tenant_id, body.grupo_ids)
     )
+    if chave.principal:
+        grupo_ids = []
     await _apelido_livre(db, tenant_id, dados["apelido"], exceto=chave.id)
 
     antes = _auditavel(chave, grupos_antes)
@@ -520,6 +545,8 @@ async def atualizar_chave_pix(
     chave.updated_at = utc_now()
     await db.flush()
     await _ligar_grupos(db, tenant_id, chave.id, grupo_ids)
+    if chave.principal:
+        await espelhar_principal(db, tenant_id)
 
     await AuditService(db).log_update(
         tenant_id=tenant_id,
@@ -552,8 +579,25 @@ async def excluir_chave_pix(
     """Remove a chave: os médiuns dos grupos dela voltam para a chave do terreiro."""
     tenant_id = current_user.tenant_id
     chave = await _buscar(db, tenant_id, chave_id)
+    era_principal = chave.principal
+    if era_principal:
+        outras = (
+            await db.execute(
+                select(func.count(MensalidadeChavePix.id)).where(
+                    MensalidadeChavePix.tenant_id == tenant_id, MensalidadeChavePix.id != chave.id
+                )
+            )
+        ).scalar_one()
+        if outras:
+            raise ConflictError(
+                "Esta é a chave principal. Defina outra chave como principal antes de excluir esta.",
+                details={"error_code": "CHAVE_PRINCIPAL"},
+            )
     antes = _auditavel(chave, await _grupos_da_chave(db, tenant_id, chave.id))
     await db.delete(chave)
+    if era_principal:
+        await db.flush()
+        await espelhar_principal(db, tenant_id)
     await AuditService(db).log_delete(
         tenant_id=tenant_id,
         user_id=current_user.id,
@@ -587,9 +631,11 @@ async def escolher_chaves_dos_grupos(
     """
     _exigir_senha(body, current_user)
     tenant_id = current_user.tenant_id
+    principal = await chave_principal(db, tenant_id)
     escolhas: dict[uuid.UUID, Optional[uuid.UUID]] = {}
     for item in body.grupos:
-        escolhas[item.grupo_id] = item.chave_id
+        # Escolher a principal = sem ligação (o grupo paga na principal, como quem não tem grupo).
+        escolhas[item.grupo_id] = None if principal is not None and item.chave_id == principal.id else item.chave_id
     await _validar_grupos(db, tenant_id, list(escolhas.keys()))
     chaves_ids = {cid for cid in escolhas.values() if cid is not None}
     chaves: dict[uuid.UUID, MensalidadeChavePix] = {}
@@ -643,4 +689,64 @@ async def escolher_chaves_dos_grupos(
             new_state={str(g): (str(c) if c else None) for g, c in mudancas.items()},
         )
         await db.commit()
+    return await _montar(db, tenant_id, True)
+
+
+@router.post(
+    "/config/pix/chaves/{chave_id}/principal",
+    response_model=ChavesPixResponse,
+    dependencies=[
+        _GATE,
+        Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit")),
+        Depends(require_not_impersonated),
+    ],
+)
+@limiter.limit("10/hour")
+async def definir_chave_principal(
+    request: Request,
+    body: SenhaBody,
+    chave_id: uuid.UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChavesPixResponse:
+    """Esta chave passa a ser a principal (exige a senha; avisa os admins).
+
+    Quem não está em grupo ligado a outra chave passa a pagar nela. Os grupos que estavam ligados
+    a ela ficam sem ligação (pagam na principal do mesmo jeito). A principal anterior continua
+    cadastrada, sem grupo.
+    """
+    _exigir_senha(body, current_user)
+    tenant_id = current_user.tenant_id
+    chave = await _buscar(db, tenant_id, chave_id)
+    if chave.principal:
+        return await _montar(db, tenant_id, True)
+    anterior = await chave_principal(db, tenant_id)
+    if anterior is not None:
+        anterior.principal = False
+        anterior.updated_at = utc_now()
+        await db.flush()  # o índice único parcial não deixa duas principais nem por um instante
+    chave.principal = True
+    chave.updated_at = utc_now()
+    await db.execute(
+        delete(MensalidadeChavePixGrupo).where(
+            MensalidadeChavePixGrupo.tenant_id == tenant_id, MensalidadeChavePixGrupo.chave_id == chave.id
+        )
+    )
+    await db.flush()
+    await espelhar_principal(db, tenant_id)
+    await AuditService(db).log_update(
+        tenant_id=tenant_id,
+        user_id=current_user.id,
+        resource_type="mensalidade_pix_principal",
+        resource_id=chave.id,
+        previous_state={"principal": str(anterior.id) if anterior else None},
+        new_state={"principal": str(chave.id), "apelido": chave.apelido},
+    )
+    await db.commit()
+    await _avisar(
+        db,
+        current_user,
+        chave,
+        mascarar_chave(anterior.pix_tipo, anterior.pix_chave) if anterior is not None else None,
+    )
     return await _montar(db, tenant_id, True)

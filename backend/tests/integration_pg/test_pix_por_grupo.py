@@ -24,6 +24,7 @@ from src.api.v1.medium import mensalidades as mens_mod
 from src.models import Medium, MensalidadeConfig
 from src.models.contas_financeiras import ContaBancaria, ContaFinanceira
 from src.models.corrente_grupos import CorrenteGrupo, CorrenteGrupoMembro
+from src.models.mensalidade_chaves_pix import MensalidadeChavePix
 from src.models.permission_groups import PermissionFeature
 from src.models.subscriptions import PlanType
 from src.models.users import UserRole
@@ -87,6 +88,18 @@ async def _cenario(db, nome="Terreiro Pix Grupo"):
     pj = ContaBancaria(tenant_id=tenant.id, nome="PJ Sicredi", banco="Sicredi", data_saldo_inicial=date(2026, 1, 1))
     inter = ContaBancaria(
         tenant_id=tenant.id, nome="Alternativa Inter", banco="Inter", data_saldo_inicial=date(2026, 1, 1)
+    )
+    # Cadastro único (migração 112): a principal também está na lista, como a migração deixa.
+    db.add(
+        MensalidadeChavePix(
+            tenant_id=tenant.id,
+            apelido="Chave principal",
+            pix_tipo="cpf",
+            pix_chave=CPF_TESTE,
+            pix_nome_recebedor="Casa de Oxala",
+            pix_cidade="Sao Paulo",
+            principal=True,
+        )
     )
     g1 = CorrenteGrupo(tenant_id=tenant.id, nome="G1")
     g2 = CorrenteGrupo(tenant_id=tenant.id, nome="G2")
@@ -152,7 +165,8 @@ async def test_chave_por_grupo_ponta_a_ponta(client, db, emails):
     )
     assert criada.status_code == 201, criada.text
     body = criada.json()
-    [chave] = body["chaves"]
+    principal, chave = body["chaves"]
+    assert principal["principal"] is True and chave["principal"] is False
     assert chave["apelido"] == "Conta Inter" and chave["chave"] == EMAIL_INTER
     assert chave["conta_bancaria_nome"] == "Alternativa Inter"
     assert [g["nome"] for g in chave["grupos"]] == ["G2"] and chave["total_mediuns"] == 1
@@ -216,7 +230,7 @@ async def test_chave_por_grupo_ponta_a_ponta(client, db, emails):
     # Excluir a chave: quem estava no G2 volta para a chave do terreiro.
     caio_actor, _ = await _medium(db, tenant, "Caio Lima", g2)
     assert (await client.get(AREA, headers=caio_actor.headers)).json()["pix"]["chave"] == EMAIL_INTER
-    assert (await client.get(f"{CHAVES}", headers=admin.headers)).json()["chaves"][0]["total_mediuns"] == 1
+    assert (await client.get(f"{CHAVES}", headers=admin.headers)).json()["chaves"][1]["total_mediuns"] == 1
     excluida = await client.delete(f"{CHAVES}/{chave['id']}", headers=admin.headers)
     assert excluida.status_code == 204, excluida.text
     assert (await client.get(AREA, headers=caio_actor.headers)).json()["pix"]["chave"] == CPF_TESTE
@@ -227,7 +241,7 @@ async def test_editar_grupos_conflito_e_permissoes(client, db, emails):
     _, ana = await _medium(db, tenant, "Ana Paula", g1, g2)
 
     a = (await client.post(CHAVES, headers=admin.headers, json=_chave_body(grupo_ids=[str(g2.id)]))).json()
-    chave_a = a["chaves"][0]["id"]
+    chave_a = a["chaves"][1]["id"]
     b = await client.post(
         CHAVES,
         headers=admin.headers,
@@ -274,7 +288,9 @@ async def test_editar_grupos_conflito_e_permissoes(client, db, emails):
     assert r.status_code == 422
     r = await client.put(f"{CHAVES}/{chave_a}", headers=admin_outro.headers, json=_chave_body())
     assert r.status_code == 404
-    assert (await client.get(CHAVES, headers=admin_outro.headers)).json()["chaves"] == []
+    assert [c["apelido"] for c in (await client.get(CHAVES, headers=admin_outro.headers)).json()["chaves"]] == [
+        "Chave principal"
+    ]
     r = await client.get(f"{ADMIN}/fluxo-de-caixa", params={"conta_bancaria_id": str(pj_outro.id)}, headers=admin.headers)
     assert r.status_code == 404
 
@@ -297,7 +313,7 @@ async def test_varias_chaves_e_grupo_escolhe_entre_elas(client, db, emails):
     )
     assert b.status_code == 201, b.text
     ids = {c["apelido"]: c["id"] for c in b.json()["chaves"]}
-    assert all(c["grupos"] == [] for c in b.json()["chaves"])
+    assert all(c["grupos"] == [] for c in b.json()["chaves"]) and len(ids) == 3
     # Sem grupo ligado, todo mundo ainda paga na principal.
     assert (await client.get(AREA, headers=ana_actor.headers)).json()["pix"]["chave"] == CPF_TESTE
 
@@ -388,3 +404,97 @@ async def test_medium_de_grupo_com_chave_propria_nao_usa_a_cobranca_automatica(c
     # Quem paga na chave principal continua com a cobrança automática da casa.
     lista_bia = (await client.get(AREA, headers=bia_actor.headers)).json()
     assert lista_bia["cobranca_automatica"] is not None
+
+
+async def test_cadastro_unico_principal_e_troca_de_principal(client, db, emails):
+    """Migração 112: todas as chaves numa lista só; a direção marca a principal."""
+    tenant = await create_tenant(db, name="Terreiro Cadastro Unico", plan=PlanType.PREMIUM, area_medium_liberada=True)
+    db.add(
+        MensalidadeConfig(
+            tenant_id=tenant.id,
+            valor_mensal=Decimal("50.00"),
+            dia_vencimento=10,
+            ativo=True,
+            created_at=datetime(2026, 1, 5, tzinfo=timezone.utc),
+        )
+    )
+    g1 = CorrenteGrupo(tenant_id=tenant.id, nome="G1")
+    db.add(g1)
+    admin = await create_user(db, tenant, UserRole.ADMIN, name="tesoureira")
+    admin.user.password_hash = hash_password(SENHA)
+    await db.commit()
+    ana_actor, _ = await _medium(db, tenant, "Ana Paula", g1)
+    bia_actor, _ = await _medium(db, tenant, "Bia Souza")
+    assert (await client.get(AREA, headers=bia_actor.headers)).json()["pix"] is None
+
+    # A primeira chave cadastrada vira a principal e aparece para todo mundo (espelho na config).
+    r = await client.post(
+        CHAVES,
+        headers=admin.headers,
+        json=_chave_body(apelido="Sicredi PJ", tipo="cpf", chave=CPF_TESTE, grupo_ids=[str(g1.id)]),
+    )
+    assert r.status_code == 201, r.text
+    [sicredi] = r.json()["chaves"]
+    assert sicredi["principal"] is True and sicredi["grupos"] == []
+    assert sicredi["brcode_previa"] and CPF_TESTE in sicredi["brcode_previa"]
+    assert (await client.get(PIX, headers=admin.headers)).json()["chave"] == CPF_TESTE
+    assert (await client.get(AREA, headers=bia_actor.headers)).json()["pix"]["chave"] == CPF_TESTE
+
+    # Segunda chave: não é principal; toda chave tem copia e cola (prévia).
+    r = await client.post(CHAVES, headers=admin.headers, json=_chave_body())
+    assert r.status_code == 201, r.text
+    sicredi, inter = r.json()["chaves"]
+    assert inter["principal"] is False and EMAIL_INTER in inter["brcode_previa"]
+
+    # Escolher a principal para um grupo = sem ligação.
+    r = await client.put(
+        GRUPOS, headers=admin.headers, json={"grupos": [{"grupo_id": str(g1.id), "chave_id": sicredi["id"]}], "senha": SENHA}
+    )
+    assert r.status_code == 200 and {g["nome"]: g["chave_id"] for g in r.json()["grupos"]} == {"G1": None}
+    # G1 na Inter.
+    r = await client.put(
+        GRUPOS, headers=admin.headers, json={"grupos": [{"grupo_id": str(g1.id), "chave_id": inter["id"]}], "senha": SENHA}
+    )
+    assert (await client.get(AREA, headers=ana_actor.headers)).json()["pix"]["chave"] == EMAIL_INTER
+
+    # Excluir a principal com outras chaves → 409.
+    r = await client.delete(f"{CHAVES}/{sicredi['id']}", headers=admin.headers)
+    assert r.status_code == 409 and r.json()["details"]["error_code"] == "CHAVE_PRINCIPAL"
+
+    # Definir a Inter como principal: senha errada 401; depois todo mundo paga nela; G1 sem ligação.
+    url = f"{CHAVES}/{inter['id']}/principal"
+    assert (await client.post(url, headers=admin.headers, json={"senha": "errada"})).status_code == 401
+    emails.clear()
+    r = await client.post(url, headers=admin.headers, json={"senha": SENHA})
+    assert r.status_code == 200, r.text
+    chaves = {c["apelido"]: c for c in r.json()["chaves"]}
+    assert chaves["Conta Inter"]["principal"] is True and chaves["Sicredi PJ"]["principal"] is False
+    assert [c["apelido"] for c in r.json()["chaves"]][0] == "Conta Inter"
+    assert {g["nome"]: g["chave_id"] for g in r.json()["grupos"]} == {"G1": None}
+    assert len(emails) == 1
+    lista_bia = (await client.get(AREA, headers=bia_actor.headers)).json()
+    assert lista_bia["pix"]["chave"] == EMAIL_INTER and lista_bia["pix"]["chave_alterada_em"] is not None
+    assert (await client.get(PIX, headers=admin.headers)).json()["chave"] == EMAIL_INTER
+
+    # Editar a principal reflete na Área.
+    body = _chave_body(chave="nova@example.com")
+    body.pop("grupo_ids")
+    r = await client.put(f"{CHAVES}/{inter['id']}", headers=admin.headers, json=body)
+    assert r.status_code == 200, r.text
+    assert (await client.get(f"{AREA}/2026-10/pix", headers=bia_actor.headers)).json()["chave"] == "nova@example.com"
+
+    # Rota antiga PUT /config/pix também grava a principal na lista.
+    r = await client.put(
+        PIX,
+        headers=admin.headers,
+        json={"tipo": "cpf", "chave": CPF_TESTE, "nome_recebedor": "Casa de Oxala", "cidade": "Sao Paulo", "senha": SENHA},
+    )
+    assert r.status_code == 200, r.text
+    chaves = {c["apelido"]: c for c in (await client.get(CHAVES, headers=admin.headers)).json()["chaves"]}
+    assert chaves["Conta Inter"]["principal"] is True and chaves["Conta Inter"]["chave"] == CPF_TESTE
+
+    # Excluir a outra e depois a principal (única): a casa fica sem chave.
+    assert (await client.delete(f"{CHAVES}/{sicredi['id']}", headers=admin.headers)).status_code == 204
+    assert (await client.delete(f"{CHAVES}/{inter['id']}", headers=admin.headers)).status_code == 204
+    assert (await client.get(PIX, headers=admin.headers)).json()["configurada"] is False
+    assert (await client.get(AREA, headers=bia_actor.headers)).json()["pix"] is None

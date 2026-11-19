@@ -17,6 +17,10 @@ pede — no lugar de empilhar `is_admin` sobre o grupo — é:
    dd/mm", AM-11). O e-mail aos médiuns com acesso à Área (sem a chave: "confira na Área")
    sai pelo agendador de lembretes (AM-15, tipo `pix_alterado`), que lê `pix_alterado_em`.
 
+Cadastro único (migração 112, 11/2026): a tela usa `/config/pix/chaves` para todas as chaves, e a
+principal é espelhada aqui (`mensalidade_configs.pix_*`). Este GET/PUT continua para compatibilidade;
+o PUT também grava a principal na lista (`_gravar_na_lista`).
+
 Conta bancária (migração 100): `conta_bancaria_id` diz em qual conta cai esta chave — o espelho
 da mensalidade paga em contas a receber vai para ela e o Fluxo de caixa por conta a soma. Grupos
 da corrente podem pagar em outra chave/conta: `admin/mensalidade_chaves_pix.py`.
@@ -229,7 +233,7 @@ async def avisar_admins(
         tenant_name=tenant_name,
         alterado_por=alterado_por.full_name or alterado_por.username or alterado_por.email,
         quando=utc_now().astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M"),
-        tipo_label=PIX_TIPO_LABELS.get(tipo, tipo) + (f" — chave “{apelido}” dos grupos da corrente" if apelido else ""),
+        tipo_label=PIX_TIPO_LABELS.get(tipo, tipo) + (f" — chave “{apelido}”" if apelido else ""),
         chave_mascarada=chave_mascarada,
         chave_anterior_mascarada=anterior_mascarada,
         painel_url=f"{settings.FRONTEND_URL.rstrip('/')}/admin/financeiro/config",
@@ -248,6 +252,50 @@ async def avisar_admins(
             )
             enviados += 1
     return enviados
+
+
+async def _gravar_na_lista(db: AsyncSession, config: MensalidadeConfig) -> None:
+    """Cadastro único (migração 112): esta rota antiga também grava a principal na lista de chaves."""
+    from sqlalchemy import func
+
+    from src.models.mensalidade_chaves_pix import MensalidadeChavePix, MensalidadeChavePixGrupo
+    from src.services.mensalidade_chaves_pix import chave_principal
+
+    principal = await chave_principal(db, config.tenant_id)
+    if principal is None:
+        apelido = "Chave principal"
+        existe = (
+            await db.execute(
+                select(MensalidadeChavePix.id).where(
+                    MensalidadeChavePix.tenant_id == config.tenant_id,
+                    func.lower(MensalidadeChavePix.apelido) == apelido.lower(),
+                )
+            )
+        ).first()
+        principal = MensalidadeChavePix(
+            id=uuid.uuid4(),
+            tenant_id=config.tenant_id,
+            apelido="Chave principal da casa" if existe else apelido,
+            principal=True,
+        )
+        db.add(principal)
+    principal.pix_tipo = config.pix_tipo
+    principal.pix_chave = config.pix_chave
+    principal.pix_nome_recebedor = config.pix_nome_recebedor or ""
+    principal.pix_cidade = config.pix_cidade or ""
+    principal.pix_instrucoes = config.pix_instrucoes
+    principal.conta_bancaria_id = config.pix_conta_bancaria_id
+    principal.pix_alterado_em = config.pix_alterado_em
+    principal.updated_at = utc_now()
+    await db.flush()
+    from sqlalchemy import delete
+
+    await db.execute(
+        delete(MensalidadeChavePixGrupo).where(
+            MensalidadeChavePixGrupo.tenant_id == config.tenant_id,
+            MensalidadeChavePixGrupo.chave_id == principal.id,
+        )
+    )
 
 
 @router.get(
@@ -329,6 +377,7 @@ async def update_pix_config(
         config.pix_alterado_em = utc_now()
     config.updated_at = utc_now()
     await db.flush()
+    await _gravar_na_lista(db, config)
 
     depois = _estado_auditavel(config)
     await AuditService(db).log_update(

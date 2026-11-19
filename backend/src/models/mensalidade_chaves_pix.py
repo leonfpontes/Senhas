@@ -10,8 +10,13 @@ parte numa conta "alternativa". Cada chave extra fica aqui, ligada a uma conta b
 - `mensalidade_chave_pix_grupos`: quais grupos usam a chave. PK = `grupo_id`: um grupo tem no
   máximo uma chave.
 
+Cadastro único (migração 112, 11/2026): TODAS as chaves da casa ficam aqui, inclusive a principal
+(`principal = true`, no máximo uma por terreiro). `mensalidade_configs.pix_*` virou o espelho da
+principal (`services/mensalidade_chaves_pix.espelhar_principal`), para quem já lia de lá (Área,
+lembretes, associados). Só chave não principal é ligada a grupo.
+
 Qual chave o médium vê (`services/mensalidade_chaves_pix.py`): a do grupo dele (grupo não
-arquivado); sem grupo com chave, a do terreiro. Médium em dois grupos com chaves diferentes
+arquivado); sem grupo com chave, a principal. Médium em dois grupos com chaves diferentes
 fica com a chave cadastrada primeiro, e a tela de configuração aponta o conflito.
 """
 from __future__ import annotations
@@ -20,7 +25,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +49,13 @@ class MensalidadeChavePix(Base):
             "pix_tipo IN ('cpf', 'cnpj', 'email', 'telefone', 'aleatoria')",
             name="ck_mensalidade_chaves_pix_tipo",
         ),
+        Index(
+            "uq_mensalidade_chaves_pix_tenant_principal",
+            "tenant_id",
+            unique=True,
+            postgresql_where=text("principal"),
+            sqlite_where=text("principal"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -56,6 +68,8 @@ class MensalidadeChavePix(Base):
     pix_nome_recebedor: Mapped[str] = mapped_column(String(25), nullable=False)
     pix_cidade: Mapped[str] = mapped_column(String(15), nullable=False)
     pix_instrucoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # A chave principal da casa (migração 112): quem não está em grupo ligado a outra chave paga nela.
+    principal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     # Última troca da chave OU dos grupos (o médium desses grupos passou a ter outra chave):
     # a Área mostra "Chave alterada em dd/mm" e o lembrete `pix_alterado` sai por ela.
     pix_alterado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
