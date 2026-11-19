@@ -717,6 +717,7 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `enable_webhooks` | `Boolean` | Não | `False` | — |
 | `enable_walk_in` | `Boolean` | Não | `False` | adicionado em 007; habilita emissão walk-in |
 | `sponsor_priority_mode` | `String(20)` | Não | `"first"` | `"first"` ou `"interleave"`; adicionado em 006 |
+| `queue_order_mode` | `String(20)` | Não | `"numero"` | `"numero"` ou `"chegada"` (CHECK `ck_tenant_configs_queue_order_mode`); adicionado em 109 |
 | `validate_associado_on_emit` | `Boolean` | Não | `False` | adicionado em 012; verifica email na tabela `associados` |
 | `enable_estoque_log` | `Boolean` | Não | `True` | adicionado em 018 |
 | `custom_settings` | `JSON` | Sim | — | dicionário arbitrário |
@@ -738,6 +739,12 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 **`sponsor_priority_mode`:**
 - `"first"` — blocos contínuos: `assoc_pref → pref → assoc_reg → regular`
 - `"interleave"` — intercalação em duas fases: `[assoc_pref ↔ pref]` + `[assoc_reg ↔ regular]`
+
+**`queue_order_mode`** (Configurações › Atendimento, todos os planos; `_ordem_base` em `door_control.py`, vale para
+`/door/queue` e `/door/tv`):
+- `"numero"` — dentro de cada faixa acima, pelo número da senha (o comportamento de sempre)
+- `"chegada"` — dentro de cada faixa, quem fez check-in (`tickets.checkin_em`) na ordem da chegada; quem ainda não
+  chegou vem depois, pelo número. As faixas de prioridade e o `sponsor_priority_mode` não mudam.
 
 ---
 
