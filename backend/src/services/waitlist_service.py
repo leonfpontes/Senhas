@@ -118,6 +118,7 @@ async def expire_pending_confirmations(
     tenant_id: UUID,
     gira_id: UUID,
     is_sponsor: bool,
+    lock: bool = False,
 ) -> list[Ticket]:
     """Flip lapsed promotions (WAITLISTED + promoted_at set + window passed) to
     WAITLIST_EXPIRED. Returns the tickets that were just expired."""
@@ -133,6 +134,10 @@ async def expire_pending_confirmations(
             Ticket.confirmation_expires_at < now,
         )
     )
+    if lock:
+        # Emissão pública roda em paralelo: só quem trava a reserva vencida a
+        # expira e repassa a vaga; as outras requisições pulam a linha.
+        stmt = stmt.with_for_update(skip_locked=True)
     result = await session.execute(stmt)
     expired = list(result.scalars().all())
     for t in expired:
@@ -187,6 +192,59 @@ async def reconcile_and_fill(
 
     unfilled = slots_to_fill - len(promoted)
     return promoted, unfilled
+
+
+async def release_lapsed_reservations(
+    session: AsyncSession,
+    tenant_id: UUID,
+    gira: Gira,
+    is_sponsor: bool,
+) -> tuple[list[Ticket], list[Ticket]]:
+    """Expira as reservas da fila com prazo vencido e repassa cada vaga.
+
+    Para quem precisa enxergar a fila "em dia" antes de decidir algo — a
+    emissão pública (quem perdeu o prazo pode pedir a senha de novo) e o link
+    de confirmação vencido. A vaga vai para o próximo da fila (quando a fila
+    está ligada); sem ninguém para assumir, volta para o público
+    (`SenhaControl.slots_returned`), como no cancelamento.
+
+    Devolve (expirados, promovidos). Só dá flush: quem chama faz o commit e,
+    depois dele, envia o e-mail "uma vaga abriu" para os promovidos.
+    """
+    expired = await expire_pending_confirmations(
+        session, tenant_id, gira.id, is_sponsor, lock=True
+    )
+    if not expired:
+        return [], []
+
+    promoted: list[Ticket] = []
+    if await waitlist_enabled_for_tenant(session, tenant_id):
+        for _ in range(len(expired)):
+            candidate = await _get_next_in_line(session, tenant_id, gira.id, is_sponsor)
+            if not candidate:
+                break
+            _promote(candidate, gira)
+            promoted.append(candidate)
+        if promoted:
+            await session.flush()
+
+    unfilled = len(expired) - len(promoted)
+    if unfilled > 0:
+        from src.models.senha_controls import SenhaControl
+        from src.repositories.senha_control_repo import SenhaControlRepository
+
+        senha_control_repo = SenhaControlRepository(session, SenhaControl)
+        for _ in range(unfilled):
+            try:
+                await senha_control_repo.increment_slots_returned(
+                    session=session,
+                    tenant_id=tenant_id,
+                    gira_id=gira.id,
+                    is_sponsor=is_sponsor,
+                )
+            except ValueError:
+                break
+    return expired, promoted
 
 
 async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> str:

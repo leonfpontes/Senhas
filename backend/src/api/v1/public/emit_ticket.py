@@ -513,6 +513,24 @@ async def emit_ticket(
                     detail=f"Esta gira permite no máximo {max_acompanhantes} acompanhante(s) por senha",
                 )
 
+        # === STEP 2b: Fila de espera em dia ===
+        # O vencimento do prazo de confirmação é preguiçoso (sem job): sem isso,
+        # quem perdeu o prazo e volta para pedir a senha ainda tem a reserva
+        # WAITLISTED e leva "já possui uma senha" (bug Tuccco, nov/2026). Expira
+        # as reservas vencidas, repassa as vagas e só então segue a emissão.
+        # Commit já aqui: o resto da emissão pode dar rollback, e o e-mail de
+        # "uma vaga abriu" não pode sair para uma promoção desfeita.
+        expirados, promovidos = await waitlist_service.release_lapsed_reservations(
+            session=session, tenant_id=tenant.id, gira=gira, is_sponsor=is_sponsor
+        )
+        if expirados:
+            await session.commit()
+        if promovidos:
+            from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
+
+            for promovido in promovidos:
+                await _send_waitlist_promotion_email(session, tenant.id, promovido, gira)
+
         # === STEP 3: Initialize Repositories ===
         from src.models.consulentes import Consulente
         from src.models.senha_controls import SenhaControl
