@@ -598,7 +598,8 @@ async def update_senha_config(
     # the feature enabled; ignore it otherwise instead of silently persisting
     # a setting that will never take effect.
     waitlist_confirmation_minutes = config.waitlist_confirmation_minutes
-    if not await waitlist_service.waitlist_enabled_for_tenant(db, current_user.tenant_id):
+    fila_ligada = await waitlist_service.waitlist_enabled_for_tenant(db, current_user.tenant_id)
+    if not fila_ligada:
         waitlist_confirmation_minutes = None
 
     await repo.update(
@@ -655,7 +656,21 @@ async def update_senha_config(
         previous_state={},
         new_state=config.model_dump(mode='json'),
     )
+    # Aumentou o limite com gente na fila: as vagas novas vão para a fila, na
+    # ordem, antes de abrir para o público.
+    promovidos: list = []
+    if fila_ligada:
+        await db.refresh(gira)
+        for is_sponsor in (False, True):
+            promovidos += await waitlist_service.fill_free_capacity(
+                session=db, tenant_id=current_user.tenant_id, gira=gira, is_sponsor=is_sponsor
+            )
     await db.commit()
+    if promovidos:
+        from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
+
+        for promovido in promovidos:
+            await _send_waitlist_promotion_email(db, current_user.tenant_id, promovido, gira)
 
     current_count = await _get_senha_count(db, current_user.tenant_id, gira_id)
     sponsor_count = await _get_senha_count(db, current_user.tenant_id, gira_id, is_sponsor=True)

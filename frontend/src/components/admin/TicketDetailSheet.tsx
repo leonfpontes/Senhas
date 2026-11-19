@@ -33,12 +33,16 @@ export interface TicketDetail {
   created_at?: string;
 }
 
-/** Link de WhatsApp a partir do telefone digitado (assume Brasil quando faltar o DDI). */
-export function whatsappLink(telefone: string): string | null {
+/**
+ * Link de WhatsApp a partir do telefone digitado (assume Brasil quando faltar o DDI).
+ * Com `mensagem`, o WhatsApp já abre com o texto pronto — quem envia ainda revisa e aperta enviar.
+ */
+export function whatsappLink(telefone: string, mensagem?: string | null): string | null {
   const digits = telefone.replace(/\D/g, '');
   if (digits.length < 10) return null;
   const withCountry = digits.length <= 11 ? `55${digits}` : digits;
-  return `https://wa.me/${withCountry}`;
+  const texto = mensagem?.trim();
+  return texto ? `https://wa.me/${withCountry}?text=${encodeURIComponent(texto)}` : `https://wa.me/${withCountry}`;
 }
 
 export function telLink(telefone: string): string | null {
@@ -68,15 +72,18 @@ export function ContactActions({
   email,
   nome,
   assunto,
+  mensagem,
 }: {
   telefone?: string | null;
   email?: string | null;
   nome?: string | null;
   /** Assunto do e-mail (ex.: "Senha 012"). */
   assunto?: string;
+  /** Texto que o WhatsApp abre pronto para enviar (ex.: aviso da fila de espera). */
+  mensagem?: string | null;
 }) {
   const tel = telefone ? telLink(telefone) : null;
-  const wa = telefone ? whatsappLink(telefone) : null;
+  const wa = telefone ? whatsappLink(telefone, mensagem) : null;
   const mail = email ? mailtoLink(email, assunto) : null;
   const quem = nome ? ` ${nome}` : '';
   if (!tel && !wa && !mail) return null;
@@ -91,7 +98,13 @@ export function ContactActions({
       )}
       {wa && (
         <Button asChild size="icon-sm" variant="outline" onClick={(e) => e.stopPropagation()}>
-          <a href={wa} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp de${quem || ' consulente'}`}>
+          <a
+            href={wa}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={mensagem ? `Mandar mensagem pronta no WhatsApp de${quem || ' consulente'}` : `WhatsApp de${quem || ' consulente'}`}
+            title={mensagem ? 'Abre o WhatsApp com a mensagem pronta' : undefined}
+          >
             <MessageCircle aria-hidden />
           </a>
         </Button>

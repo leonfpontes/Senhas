@@ -990,6 +990,16 @@ Incluir obrigatoriamente:
   emissão pública chama `waitlist_service.release_lapsed_reservations` antes da checagem de duplicata (expira a
   reserva vencida com `FOR UPDATE SKIP LOCKED`, promove o próximo e manda "uma vaga abriu"; sem fila, a vaga
   volta em `slots_returned`). O link de confirmação vencido (410) usa o mesmo helper e agora avisa o próximo.
+- **Vaga livre chama a fila** (2026-11-19, bug Tuccco/Rayra): o teto da emissão é o contador de números
+  (`total_emitido − slots_returned`) e a fila também gasta números, então reserva vencida sem ninguém atrás deixava
+  vaga livre com o contador "lotado" e a próxima da fila parada. `waitlist_service.fill_free_capacity` conta a
+  ocupação real (`occupied_slots`: emitida/chamada/atendida/faltou + reserva pendente) e chama a fila para cada vaga
+  livre, travando a linha do SenhaControl. Roda ao entrar na fila (quem entra pode ser chamado na hora: resposta
+  "Abriu uma vaga", só o e-mail de vaga), ao abrir a fila no painel, ao mudar o limite (`PUT /giras/{id}/senhas`) e
+  depois de expirar reservas. Só enquanto a gira não acabou (`gira_aceita_chamar_fila`: `data_fim` ou início + 12h).
+- **WhatsApp na fila de espera**: `GET /giras/{id}/waitlist` devolve `consulente_telefone` e `mensagem_whatsapp`
+  (texto pronto por situação: na fila com a posição, vaga aberta com o link de confirmação e o prazo, prazo perdido
+  com o link da gira). Na tela, cada linha usa `ContactActions` com `mensagem` (`whatsappLink(tel, texto)` → `wa.me/…?text=`).
 - "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
   janela do GiraCard e de `pickTodayGira`). A gira compartilhada vale para Dashboard, Senhas e Porta
   (`GIRA_CONTEXT_ROUTES`); o select no topo so aparece no Dashboard (`TOPBAR_GIRA_SELECTOR_ROUTES`) — Senhas e Porta

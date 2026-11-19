@@ -29,6 +29,15 @@ describe('ContactActions', () => {
     expect(screen.queryByLabelText(/Ligar/)).toBeNull();
   });
 
+  it('abre o WhatsApp com a mensagem pronta quando recebe uma', () => {
+    render(<ContactActions telefone="35998768609" nome="Rayra" mensagem={'*Casa*\n\nOlá, Rayra! Abriu uma vaga.'} />);
+    const link = screen.getByLabelText('Mandar mensagem pronta no WhatsApp de Rayra');
+    expect(link).toHaveAttribute(
+      'href',
+      `https://wa.me/5535998768609?text=${encodeURIComponent('*Casa*\n\nOlá, Rayra! Abriu uma vaga.')}`,
+    );
+  });
+
   it('não renderiza nada sem telefone nem e-mail', () => {
     const { container } = render(<ContactActions />);
     expect(container).toBeEmptyDOMElement();
