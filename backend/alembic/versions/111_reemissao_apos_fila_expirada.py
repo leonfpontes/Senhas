@@ -8,14 +8,14 @@ gira". Recria o índice ignorando também `waitlist_expired` — mesmo predicado
 `TicketRepository.check_duplicate_in_gira`.
 
 Revision ID: 111_reemissao_apos_fila_expirada
-Revises: 108_tenant_ia_site_liberada
+Revises: 110_betas_so_no_laboratorio
 Create Date: 2026-11-19
 """
 
 from alembic import op
 
 revision: str = "111_reemissao_apos_fila_expirada"
-down_revision: str = "108_tenant_ia_site_liberada"
+down_revision: str = "110_betas_so_no_laboratorio"
 branch_labels = None
 depends_on = None
 
