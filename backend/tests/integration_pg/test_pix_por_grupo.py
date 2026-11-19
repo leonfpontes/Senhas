@@ -277,3 +277,114 @@ async def test_editar_grupos_conflito_e_permissoes(client, db, emails):
     assert (await client.get(CHAVES, headers=admin_outro.headers)).json()["chaves"] == []
     r = await client.get(f"{ADMIN}/fluxo-de-caixa", params={"conta_bancaria_id": str(pj_outro.id)}, headers=admin.headers)
     assert r.status_code == 404
+
+
+GRUPOS = f"{ADMIN}/config/pix/grupos"
+
+
+async def test_varias_chaves_e_grupo_escolhe_entre_elas(client, db, emails):
+    """11/2026: cadastrar várias chaves sem grupo e escolher, grupo a grupo, qual cada um usa."""
+    tenant, admin, pj, inter, g1, g2 = await _cenario(db, nome="Terreiro Varias Chaves")
+    ana_actor, _ = await _medium(db, tenant, "Ana Paula", g1)
+    bia_actor, _ = await _medium(db, tenant, "Bia Souza", g2)
+
+    a = await client.post(CHAVES, headers=admin.headers, json=_chave_body(conta_bancaria_id=str(inter.id)))
+    assert a.status_code == 201, a.text
+    b = await client.post(
+        CHAVES,
+        headers=admin.headers,
+        json=_chave_body(apelido="Conta PJ 2", chave="pj2@example.com", conta_bancaria_id=str(pj.id)),
+    )
+    assert b.status_code == 201, b.text
+    ids = {c["apelido"]: c["id"] for c in b.json()["chaves"]}
+    assert all(c["grupos"] == [] for c in b.json()["chaves"])
+    # Sem grupo ligado, todo mundo ainda paga na principal.
+    assert (await client.get(AREA, headers=ana_actor.headers)).json()["pix"]["chave"] == CPF_TESTE
+
+    # Senha errada → 401; grupo/chave de outro terreiro → 422.
+    escolha = {"grupos": [{"grupo_id": str(g1.id), "chave_id": ids["Conta Inter"]}], "senha": "errada"}
+    assert (await client.put(GRUPOS, headers=admin.headers, json=escolha)).status_code == 401
+    _, admin_outro, _, _, g_outro, _ = await _cenario(db, nome="Outro Terreiro Chaves")
+    r = await client.put(
+        GRUPOS, headers=admin.headers, json={"grupos": [{"grupo_id": str(g_outro.id), "chave_id": None}], "senha": SENHA}
+    )
+    assert r.status_code == 422
+    r = await client.put(
+        GRUPOS,
+        headers=admin_outro.headers,
+        json={"grupos": [{"grupo_id": str(g_outro.id), "chave_id": ids["Conta Inter"]}], "senha": SENHA},
+    )
+    assert r.status_code in (401, 422)
+
+    ok = await client.put(
+        GRUPOS,
+        headers=admin.headers,
+        json={
+            "grupos": [
+                {"grupo_id": str(g1.id), "chave_id": ids["Conta Inter"]},
+                {"grupo_id": str(g2.id), "chave_id": ids["Conta PJ 2"]},
+            ],
+            "senha": SENHA,
+        },
+    )
+    assert ok.status_code == 200, ok.text
+    assert {g["nome"]: g["chave_id"] for g in ok.json()["grupos"]} == {"G1": ids["Conta Inter"], "G2": ids["Conta PJ 2"]}
+    assert (await client.get(AREA, headers=ana_actor.headers)).json()["pix"]["chave"] == EMAIL_INTER
+    pix_bia = (await client.get(f"{AREA}/2026-10/pix", headers=bia_actor.headers)).json()
+    assert pix_bia["chave"] == "pj2@example.com" and "pj2@example.com" in pix_bia["copia_e_cola"]
+
+    # Editar a chave sem mandar grupo_ids mantém os grupos dela.
+    body = _chave_body(conta_bancaria_id=str(inter.id), instrucoes="Nova instrução")
+    body.pop("grupo_ids")
+    ed = await client.put(f"{CHAVES}/{ids['Conta Inter']}", headers=admin.headers, json=body)
+    assert ed.status_code == 200, ed.text
+    assert [g["nome"] for g in {c["apelido"]: c for c in ed.json()["chaves"]}["Conta Inter"]["grupos"]] == ["G1"]
+
+    # G1 volta para a chave principal.
+    volta = await client.put(
+        GRUPOS, headers=admin.headers, json={"grupos": [{"grupo_id": str(g1.id), "chave_id": None}], "senha": SENHA}
+    )
+    assert volta.status_code == 200, volta.text
+    assert (await client.get(AREA, headers=ana_actor.headers)).json()["pix"]["chave"] == CPF_TESTE
+
+    # Só view não escolhe.
+    leitor = await create_user(db, tenant, UserRole.OPERATOR, name="leitor2")
+    await grant(db, leitor, tenant, PermissionFeature.FINANCEIRO, "view")
+    r = await client.put(
+        GRUPOS, headers=leitor.headers, json={"grupos": [{"grupo_id": str(g1.id), "chave_id": None}], "senha": SENHA}
+    )
+    assert r.status_code == 403
+
+
+async def test_medium_de_grupo_com_chave_propria_nao_usa_a_cobranca_automatica(client, db, emails, monkeypatch):
+    """Bug 11/2026: com a cobrança automática ligada, o médium do grupo "alternativo" via o QR da
+    conta principal (gateway) em vez da chave do grupo."""
+    from src.models.mensalidade_gateway import MensalidadeGateway
+    from src.services import mensalidade_gateway as gateway_service
+
+    monkeypatch.setattr(gateway_service, "provedor_configurado", lambda provedor: True)
+
+    tenant, admin, pj, inter, g1, g2 = await _cenario(db, nome="Terreiro Pix Gateway")
+    db.add(
+        MensalidadeGateway(
+            tenant_id=tenant.id,
+            provedor="stripe",
+            status="ativo",
+            cadastro_completo=True,
+            recebimentos_ativos=True,
+            pix_disponivel=True,
+        )
+    )
+    await db.commit()
+    ana_actor, _ = await _medium(db, tenant, "Ana Paula", g2)
+    bia_actor, _ = await _medium(db, tenant, "Bia Souza", g1)
+    criada = await client.post(CHAVES, headers=admin.headers, json=_chave_body(grupo_ids=[str(g2.id)]))
+    assert criada.status_code == 201, criada.text
+
+    lista_ana = (await client.get(AREA, headers=ana_actor.headers)).json()
+    assert lista_ana["cobranca_automatica"] is None and lista_ana["pix"]["chave"] == EMAIL_INTER
+    r = await client.post(f"{AREA}/2026-10/cobranca", headers=ana_actor.headers, json={"metodo": "pix"})
+    assert r.status_code == 409 and r.json()["details"]["error_code"] == "COBRANCA_AUTOMATICA_INDISPONIVEL"
+    # Quem paga na chave principal continua com a cobrança automática da casa.
+    lista_bia = (await client.get(AREA, headers=bia_actor.headers)).json()
+    assert lista_bia["cobranca_automatica"] is not None

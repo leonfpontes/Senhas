@@ -431,6 +431,16 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   em que caiu; baixa do gateway (F-02) fica sem conta. `GET /fluxo-de-caixa?conta_bancaria_id=` mostra so os
   lancamentos e o saldo daquela conta. Tela: `ChavesPixGruposCard` abaixo do `PixConfigCard`; filtro de
   conta no Fluxo de caixa. Testes: `tests/integration_pg/test_pix_por_grupo.py`.
+  **Varias chaves + chave de cada grupo (11/2026)**: a casa cadastra quantas chaves quiser (POST sem grupo) e
+  escolhe, grupo a grupo, qual chave cada um usa em `PUT /config/pix/grupos` (`{grupos:[{grupo_id, chave_id|null}],
+  senha}`; null = chave principal; FINANCEIRO:edit + senha + sem impersonacao + 10/h; auditoria
+  `mensalidade_pix_grupos`; a chave que ganha grupo fica com `pix_alterado_em` = agora). No PUT de uma chave,
+  `grupo_ids` omitido mantem os grupos. Tela: "Chave PIX principal" (`PixConfigCard`) + "Outras chaves PIX da
+  casa" com a secao "Chave de cada grupo da corrente" (`ChavesPixGruposCard`). **Gateway x chave do grupo**:
+  medium cuja chave e a de um grupo (`PixEfetivo.chave_id`) NAO usa a cobranca automatica (F-02) — ela cai na
+  conta conectada da casa (a principal); `medium/mensalidades._gateway_do_medium` devolve None para ele
+  (lista sem `cobranca_automatica`, POST `/cobranca` → 409). Bug de 11/2026: o medium do grupo "alternativo"
+  via o QR da conta principal.
 - **Mensalidade com baixa automatica — gateway da casa (F-02/AM-22, decisao do dono de 2026-10-09: cada casa
   escolhe Stripe Connect ou Mercado Pago)**: `admin/mensalidade_gateway.py` — `GET /admin/financeiro/gateway`
   (FINANCEIRO view + `mensalidade_mediun`), `POST .../gateway/stripe/conectar` e `.../stripe/atualizar`
@@ -1142,7 +1152,7 @@ Incluir obrigatoriamente:
 - **Espelho em contas a receber** (`services/mensalidade_contas_service.py`, `external_ref = mensalidade:{mediun|associado}:{id}:{YYYY-MM}`): PAGO grava `valor_pago` informado (sem ele, o vigente); PENDENTE → pendente/vencido; ISENTO cancela a conta do mes. Cadastro de medium/associado (nao isento) cria a conta do mes seguinte; inativar (referencia = `data_saida`), excluir ou marcar `mensalidade_isento` cancela as contas pendentes dos meses seguintes. Datas de "hoje" via `core.tz.today_local()` (Brasilia). Nos Lancamentos essas contas sao somente leitura: PUT/baixa/DELETE → 409 e a listagem traz `origem_mensalidade: true` (a tela mostra "Editar em Mensalidades").
 - **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
 - **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
-- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX do terreiro" (`components/financeiro/PixConfigCard.tsx`, com a conta bancaria onde ela cai — migracao 100) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola. Chaves por grupo da corrente: card `ChavesPixGruposCard` logo abaixo (§3.3).
+- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX principal" (`components/financeiro/PixConfigCard.tsx`, com a conta bancaria onde ela cai — migracao 100) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola. Chaves por grupo da corrente: card `ChavesPixGruposCard` logo abaixo (§3.3).
 - **Comprovante**: BYTEA no banco, limite 5MB pelo painel (2 MB pela Area do Medium), tipos aceitos: jpeg/png/webp/pdf.
 - **Comprovante enviado pelo medium (AM-11/AM-12, migracao 072)**: o medium envia pela Area e o registro do mes
   fica PENDENTE (sem valor novo no ENUM; `valor_vigente` capturado no 1o registro, como no painel). Desde a 092
@@ -1559,7 +1569,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   também pelo Perfil. `sw.js` sem mudança (nunca cacheia `/api/*`).
 - **Configuração da Área e chave PIX (AM-10)**: aba "Área do Médium" em `/admin/config`
   (`components/admin/AreaMediumConfigSection.tsx`, só com `can('area_medium')`, salva à parte) e card
-  "Chave PIX do terreiro" (+ "Chaves PIX por grupo da corrente", migração 100) em Financeiro → Configuração →
+  "Chave PIX principal" (+ "Outras chaves PIX da casa" e a chave de cada grupo, migração 100) em Financeiro → Configuração →
   Mensalidade. Backend e regras em §3.3.
 - **Convite (AM-03)**: tela Médiuns ganha a coluna "Acesso à Área" (Sem acesso · Convite enviado · Ativo),
   a ação "Acesso à Área" na linha (sheet `components/admin/mediuns/AcessoAreaSheet`: e-mail mascarado,

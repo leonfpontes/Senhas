@@ -2,18 +2,20 @@
  * ChavesPixGruposCard (migração 100) — chaves PIX por grupo da corrente:
  * - lista com conta, grupos e médiuns; aviso de médium em grupos com chaves diferentes;
  * - só view: sem botões de criar/editar/excluir;
- * - criar pede a senha e envia conta + grupos; 401 fica no diálogo (skipAutoLogout).
+ * - criar pede a senha e envia a conta, sem grupo; 401 fica no diálogo (skipAutoLogout);
+ * - "Chave de cada grupo": cada grupo escolhe entre a principal e as cadastradas (11/2026).
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const mockGet = jest.fn();
 const mockPost = jest.fn();
+const mockPut = jest.fn();
 jest.mock('@/services/api_client', () => ({
   apiClient: {
     get: (...a: unknown[]) => mockGet(...a),
     post: (...a: unknown[]) => mockPost(...a),
-    put: jest.fn(),
+    put: (...a: unknown[]) => mockPut(...a),
     delete: jest.fn(),
   },
   extractApiErrorMessage: (_e: unknown, f: string) => f,
@@ -70,14 +72,14 @@ describe('ChavesPixGruposCard', () => {
     expect(item).toHaveTextContent('7 médiuns');
     expect(within(item).getByText('G2')).toBeInTheDocument();
     expect(screen.getByTestId('pix-conflitos')).toHaveTextContent('Ana Paula: paga na “Conta Inter”');
-    expect(screen.getByRole('button', { name: /Nova chave para grupos/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nova chave PIX/ })).toBeInTheDocument();
   });
 
   it('só visualização: sem criar, editar ou excluir', async () => {
     mockGet.mockResolvedValue({ data: COM_CHAVE });
     render(<ChavesPixGruposCard canInsert={false} canEdit={false} canDelete={false} />);
     await screen.findByTestId('pix-chave-grupo');
-    expect(screen.queryByRole('button', { name: /Nova chave para grupos/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Nova chave PIX/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ações da chave/ })).not.toBeInTheDocument();
   });
 
@@ -85,7 +87,7 @@ describe('ChavesPixGruposCard', () => {
     mockGet.mockResolvedValue({ data: VAZIO });
     mockPost.mockRejectedValueOnce({ response: { status: 401 } });
     render(<ChavesPixGruposCard canInsert canEdit canDelete />);
-    fireEvent.click(await screen.findByRole('button', { name: /Nova chave para grupos/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Nova chave PIX/ }));
 
     fireEvent.change(await screen.findByLabelText('Nome da chave'), { target: { value: 'Conta Inter' } });
     fireEvent.change(screen.getByLabelText('Chave PIX'), { target: { value: '12345678909' } });
@@ -116,6 +118,40 @@ describe('ChavesPixGruposCard', () => {
         { skipAutoLogout: true },
       ),
     );
+  });
+
+  it('mostra a chave de cada grupo e escolhe entre as cadastradas com senha', async () => {
+    mockGet.mockResolvedValue({ data: COM_CHAVE });
+    mockPut.mockResolvedValue({ data: COM_CHAVE });
+    render(<ChavesPixGruposCard canInsert canEdit canDelete />);
+    const lista = await screen.findByTestId('pix-grupos-lista');
+    expect(lista).toHaveTextContent('G1paga na Chave principal');
+    expect(lista).toHaveTextContent('G2paga na Conta Inter');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escolher a chave dos grupos' }));
+    const select = await screen.findByRole('combobox', { name: 'Chave do grupo G1' });
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole('option', { name: 'Conta Inter (Alternativa Inter)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('G1: passa a pagar na Conta Inter');
+    fireEvent.change(within(dialog).getByLabelText('Sua senha'), { target: { value: 'minha-senha' } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    });
+    expect(mockPut).toHaveBeenCalledWith(
+      '/api/v1/admin/financeiro/config/pix/grupos',
+      { grupos: [{ grupo_id: 'g1', chave_id: 'c1' }], senha: 'minha-senha' },
+      { skipAutoLogout: true },
+    );
+  });
+
+  it('só visualização: não escolhe a chave dos grupos', async () => {
+    mockGet.mockResolvedValue({ data: COM_CHAVE });
+    render(<ChavesPixGruposCard canInsert={false} canEdit={false} canDelete={false} />);
+    await screen.findByTestId('pix-grupos-lista');
+    expect(screen.queryByRole('button', { name: 'Escolher a chave dos grupos' })).not.toBeInTheDocument();
   });
 
   it('erro ao carregar mostra o aviso', async () => {

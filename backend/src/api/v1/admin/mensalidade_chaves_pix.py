@@ -4,6 +4,11 @@
     POST   /api/v1/admin/financeiro/config/pix/chaves        — FINANCEIRO:insert + senha
     PUT    /api/v1/admin/financeiro/config/pix/chaves/{id}   — FINANCEIRO:edit + senha
     DELETE /api/v1/admin/financeiro/config/pix/chaves/{id}   — FINANCEIRO:delete
+    PUT    /api/v1/admin/financeiro/config/pix/grupos        — FINANCEIRO:edit + senha
+
+A casa cadastra quantas chaves precisar (além da principal, `mensalidade_pix.py`) e depois escolhe,
+grupo a grupo, qual chave cada grupo da corrente usa (`PUT /config/pix/grupos`, 11/2026). O
+`grupo_ids` do POST/PUT de uma chave continua aceito; no PUT, omitido = mantém os grupos.
 
 Todas com o plano `mensalidade_mediun`. A casa que recebe em mais de uma conta cadastra aqui a
 chave "alternativa", diz em qual conta bancária ela cai e quais grupos da corrente pagam nela.
@@ -134,15 +139,29 @@ class ChavePixBody(BaseModel):
     cidade: str = Field(..., min_length=1, max_length=CIDADE_MAX)
     instrucoes: Optional[str] = Field(None, max_length=INSTRUCOES_MAX)
     conta_bancaria_id: Optional[uuid.UUID] = None
-    grupo_ids: List[uuid.UUID] = Field(default_factory=list, max_length=MAX_GRUPOS)
+    # None = no PUT, mantém os grupos de hoje (a tela escolhe os grupos em `PUT /config/pix/grupos`).
+    grupo_ids: Optional[List[uuid.UUID]] = Field(None, max_length=MAX_GRUPOS)
     # Senha de quem está alterando. Nunca é gravada nem auditada.
+    senha: str = Field(..., min_length=1, max_length=256)
+
+
+class GrupoChaveBody(BaseModel):
+    grupo_id: uuid.UUID
+    # None = o grupo paga na chave principal do terreiro.
+    chave_id: Optional[uuid.UUID] = None
+
+
+class GruposChavesBody(BaseModel):
+    """Qual chave cada grupo listado usa (grupos fora da lista ficam como estão)."""
+
+    grupos: List[GrupoChaveBody] = Field(..., min_length=1, max_length=MAX_GRUPOS)
     senha: str = Field(..., min_length=1, max_length=256)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
 
-def _exigir_senha(body: ChavePixBody, user: User) -> None:
+def _exigir_senha(body: ChavePixBody | GruposChavesBody, user: User) -> None:
     if not verify_password(body.senha, user.password_hash):
         raise UnauthorizedError(
             "Senha incorreta. Confirme sua senha para alterar a chave PIX.",
@@ -440,7 +459,7 @@ async def criar_chave_pix(
     tenant_id = current_user.tenant_id
     dados = _dados_validos(body)
     await validar_conta_bancaria(db, tenant_id, body.conta_bancaria_id)
-    grupo_ids = await _validar_grupos(db, tenant_id, body.grupo_ids)
+    grupo_ids = await _validar_grupos(db, tenant_id, body.grupo_ids or [])
     await _apelido_livre(db, tenant_id, dados["apelido"])
 
     chave = MensalidadeChavePix(id=uuid.uuid4(), tenant_id=tenant_id, pix_alterado_em=utc_now(), **dados)
@@ -483,10 +502,12 @@ async def atualizar_chave_pix(
     chave = await _buscar(db, tenant_id, chave_id)
     dados = _dados_validos(body)
     await validar_conta_bancaria(db, tenant_id, body.conta_bancaria_id)
-    grupo_ids = await _validar_grupos(db, tenant_id, body.grupo_ids)
+    grupos_antes = await _grupos_da_chave(db, tenant_id, chave.id)
+    grupo_ids = (
+        grupos_antes if body.grupo_ids is None else await _validar_grupos(db, tenant_id, body.grupo_ids)
+    )
     await _apelido_livre(db, tenant_id, dados["apelido"], exceto=chave.id)
 
-    grupos_antes = await _grupos_da_chave(db, tenant_id, chave.id)
     antes = _auditavel(chave, grupos_antes)
     chave_mudou = chave.pix_chave != dados["pix_chave"] or chave.pix_tipo != dados["pix_tipo"]
     # Grupo novo nesta chave = médiuns que passam a pagar nela: também é "chave alterada" para eles.
@@ -541,3 +562,85 @@ async def excluir_chave_pix(
         previous_state=antes,
     )
     await db.commit()
+
+
+@router.put(
+    "/config/pix/grupos",
+    response_model=ChavesPixResponse,
+    dependencies=[
+        _GATE,
+        Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit")),
+        Depends(require_not_impersonated),
+    ],
+)
+@limiter.limit("10/hour")
+async def escolher_chaves_dos_grupos(
+    request: Request,
+    body: GruposChavesBody,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChavesPixResponse:
+    """Escolhe, entre as chaves cadastradas, qual cada grupo da corrente usa (exige a senha).
+
+    `chave_id` null = chave principal do terreiro. A chave que ganha um grupo fica com
+    `pix_alterado_em` = agora: os médiuns desse grupo veem "Chave alterada" e recebem o aviso.
+    """
+    _exigir_senha(body, current_user)
+    tenant_id = current_user.tenant_id
+    escolhas: dict[uuid.UUID, Optional[uuid.UUID]] = {}
+    for item in body.grupos:
+        escolhas[item.grupo_id] = item.chave_id
+    await _validar_grupos(db, tenant_id, list(escolhas.keys()))
+    chaves_ids = {cid for cid in escolhas.values() if cid is not None}
+    chaves: dict[uuid.UUID, MensalidadeChavePix] = {}
+    if chaves_ids:
+        chaves = {
+            c.id: c
+            for c in (
+                await db.execute(
+                    select(MensalidadeChavePix).where(
+                        MensalidadeChavePix.tenant_id == tenant_id,
+                        MensalidadeChavePix.id.in_(list(chaves_ids)),
+                    )
+                )
+            ).scalars().all()
+        }
+        if len(chaves) != len(chaves_ids):
+            raise ValidationError("Chave PIX não encontrada.", details={"field": "chave_id"})
+
+    antes = dict(
+        (
+            await db.execute(
+                select(MensalidadeChavePixGrupo.grupo_id, MensalidadeChavePixGrupo.chave_id).where(
+                    MensalidadeChavePixGrupo.tenant_id == tenant_id,
+                    MensalidadeChavePixGrupo.grupo_id.in_(list(escolhas.keys())),
+                )
+            )
+        ).all()
+    )
+    mudancas = {gid: cid for gid, cid in escolhas.items() if antes.get(gid) != cid}
+    if mudancas:
+        await db.execute(
+            delete(MensalidadeChavePixGrupo).where(
+                MensalidadeChavePixGrupo.tenant_id == tenant_id,
+                MensalidadeChavePixGrupo.grupo_id.in_(list(mudancas.keys())),
+            )
+        )
+        agora = utc_now()
+        for grupo_id, chave_id in mudancas.items():
+            if chave_id is None:
+                continue
+            db.add(MensalidadeChavePixGrupo(grupo_id=grupo_id, chave_id=chave_id, tenant_id=tenant_id))
+            chaves[chave_id].pix_alterado_em = agora
+            chaves[chave_id].updated_at = agora
+        await db.flush()
+        await AuditService(db).log_update(
+            tenant_id=tenant_id,
+            user_id=current_user.id,
+            resource_type="mensalidade_pix_grupos",
+            resource_id=tenant_id,
+            previous_state={str(g): (str(antes[g]) if antes.get(g) else None) for g in mudancas},
+            new_state={str(g): (str(c) if c else None) for g, c in mudancas.items()},
+        )
+        await db.commit()
+    return await _montar(db, tenant_id, True)

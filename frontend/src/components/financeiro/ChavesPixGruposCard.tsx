@@ -1,21 +1,24 @@
 /**
- * ChavesPixGruposCard — chaves PIX por grupo da corrente (migração 100), em Financeiro →
- * Configuração → Mensalidade, logo abaixo da chave do terreiro.
+ * ChavesPixGruposCard — outras chaves PIX da casa e a chave de cada grupo da corrente (migração 100;
+ * refeito em 11/2026), em Financeiro → Configuração → Mensalidade, logo abaixo da chave principal.
  *
- * A casa que recebe em mais de uma conta (ex.: PJ e uma conta "alternativa") cadastra aqui a outra
- * chave, diz em qual conta bancária ela cai e quais grupos da corrente pagam nela. Quem não está
- * nesses grupos continua com a chave do terreiro. Médium em dois grupos com chaves diferentes
- * aparece num aviso (vale a chave cadastrada primeiro).
+ * Dois passos, como a direção pensa:
+ * 1. "Outras chaves PIX": a casa cadastra quantas chaves precisar (ex.: PJ e uma conta
+ *    "alternativa"), cada uma com a conta bancária onde cai. Cadastrar não muda ninguém de chave.
+ * 2. "Chave de cada grupo": para cada grupo da corrente, escolhe entre a chave principal e as
+ *    cadastradas (`PUT /config/pix/grupos`). Quem não está em grupo com outra chave paga na principal.
+ * Médium em dois grupos com chaves diferentes aparece num aviso (vale a chave cadastrada primeiro).
  *
- * - `financeiro:view` vê as chaves mascaradas; criar/editar/excluir seguem insert/edit/delete.
- * - Criar e salvar pedem a senha (ConfirmDialog), com `skipAutoLogout` como na chave do terreiro.
- * - Formulário no `CrudDrawer`; grupos num `MultiCombobox` com a cor de cada grupo.
+ * - `financeiro:view` vê as chaves mascaradas; criar/editar/excluir seguem insert/edit/delete;
+ *   escolher a chave dos grupos é `edit`.
+ * - Criar, salvar e escolher pedem a senha (ConfirmDialog), com `skipAutoLogout` como na principal.
+ * - Formulários no `CrudDrawer`. Editar uma chave não mexe nos grupos dela (o PUT vai sem `grupo_ids`).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { CircleAlert, KeyRound, MoreHorizontal, Plus, Trash2, Users } from 'lucide-react';
 import CrudDrawer from '@/components/CrudDrawer';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
-import { MultiCombobox, PasswordField, TextField } from '@/components/fields';
+import { PasswordField, TextField } from '@/components/fields';
 import { GrupoChip } from '@/components/grupos/GrupoChip';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -30,7 +33,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { corDoGrupo } from '@/constants/correnteGrupos';
 import { formatDateBr } from '@/lib/dateBr';
 import {
   CIDADE_MAX,
@@ -53,6 +55,9 @@ import {
 } from './PixConfigCard';
 
 const APELIDO_MAX = 60;
+export const PIX_GRUPOS_URL = '/api/v1/admin/financeiro/config/pix/grupos';
+/** Valor do Select quando o grupo paga na chave principal. */
+const PRINCIPAL = '__principal__';
 
 interface GrupoResumoApi {
   id: string;
@@ -92,7 +97,6 @@ interface FormState {
   cidade: string;
   instrucoes: string;
   conta: string;
-  grupos: string[];
 }
 
 const EMPTY: FormState = {
@@ -103,7 +107,6 @@ const EMPTY: FormState = {
   cidade: '',
   instrucoes: '',
   conta: SEM_CONTA,
-  grupos: [],
 };
 
 function toForm(c: ChavePixGrupoApi): FormState {
@@ -115,7 +118,6 @@ function toForm(c: ChavePixGrupoApi): FormState {
     cidade: c.cidade,
     instrucoes: c.instrucoes ?? '',
     conta: c.conta_bancaria_id ?? SEM_CONTA,
-    grupos: c.grupos.map((g) => g.id),
   };
 }
 
@@ -143,6 +145,11 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
 
   const [deleteTarget, setDeleteTarget] = useState<ChavePixGrupoApi | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Passo 2: chave de cada grupo (grupo_id → chave_id ou PRINCIPAL).
+  const [gruposOpen, setGruposOpen] = useState(false);
+  const [escolhas, setEscolhas] = useState<Record<string, string>>({});
+  const [gruposConfirmOpen, setGruposConfirmOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -180,16 +187,12 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
   const isDirty = JSON.stringify(form) !== JSON.stringify(editTarget ? toForm(editTarget) : EMPTY);
   const tipoAtual = PIX_TIPOS.find((t) => t.value === form.tipo) ?? PIX_TIPOS[0];
 
-  const nomeDaChave = (id: string | null) => data.chaves.find((c) => c.id === id)?.apelido;
-  const opcoesGrupos = data.grupos.map((g) => {
-    const outra = g.chave_id && g.chave_id !== editTarget?.id ? nomeDaChave(g.chave_id) : undefined;
-    return {
-      value: g.id,
-      label: g.nome,
-      dot: corDoGrupo(g.cor),
-      description: outra ? `Hoje paga na chave “${outra}” — escolher aqui muda para esta` : undefined,
-    };
-  });
+  const nomeDaChave = (id: string | null) =>
+    (id && data.chaves.find((c) => c.id === id)?.apelido) || 'Chave principal';
+  const escolhasAtuais = (): Record<string, string> =>
+    Object.fromEntries(data.grupos.map((g) => [g.id, g.chave_id ?? PRINCIPAL]));
+  const gruposMudados = data.grupos.filter((g) => (escolhas[g.id] ?? PRINCIPAL) !== (g.chave_id ?? PRINCIPAL));
+  const podeEscolherGrupos = canEdit && data.grupos.length > 0 && data.chaves.length > 0;
 
   const abrirNova = () => {
     setEditTarget(null);
@@ -227,7 +230,8 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
       cidade: form.cidade,
       instrucoes: form.instrucoes,
       conta_bancaria_id: form.conta === SEM_CONTA ? null : form.conta,
-      grupo_ids: form.grupos,
+      // Chave nova nasce sem grupo; editar não mexe nos grupos (escolhidos em "Chave de cada grupo").
+      ...(editTarget ? {} : { grupo_ids: [] as string[] }),
       senha,
     };
     // 401 aqui é "senha errada", não sessão expirada: não pode deslogar.
@@ -240,11 +244,60 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
       setConfirmOpen(false);
       setDrawerOpen(false);
       setSenha('');
-      showSuccess(editTarget ? 'Chave PIX atualizada.' : 'Chave PIX criada. Os administradores foram avisados por e-mail.');
+      showSuccess(
+        editTarget
+          ? 'Chave PIX atualizada.'
+          : 'Chave PIX cadastrada. Agora escolha, em “Chave de cada grupo”, quem paga nela.',
+      );
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status;
       setSenhaError(
         status === 401 ? 'Senha incorreta. Confira e tente de novo.' : extractApiErrorMessage(e, 'Não foi possível salvar a chave PIX.'),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const abrirGrupos = () => {
+    setEscolhas(escolhasAtuais());
+    setGruposOpen(true);
+  };
+
+  const pedirSenhaGrupos = () => {
+    if (gruposMudados.length === 0) return;
+    setSenha('');
+    setSenhaError(null);
+    setGruposConfirmOpen(true);
+  };
+
+  const salvarGrupos = async () => {
+    if (!senha) {
+      setSenhaError('Digite sua senha para confirmar.');
+      return;
+    }
+    setSaving(true);
+    setSenhaError(null);
+    const body = {
+      grupos: gruposMudados.map((g) => ({
+        grupo_id: g.id,
+        chave_id: escolhas[g.id] === PRINCIPAL ? null : escolhas[g.id],
+      })),
+      senha,
+    };
+    try {
+      const res = await apiClient.put<ChavesPixApi>(PIX_GRUPOS_URL, body, { skipAutoLogout: true } as ApiRequestConfig);
+      setData(res.data);
+      setGruposConfirmOpen(false);
+      setGruposOpen(false);
+      setSenha('');
+      showSuccess('Chaves dos grupos salvas. Os médiuns desses grupos já veem a chave nova.');
+    } catch (e) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setSenhaError(
+        status === 401
+          ? 'Senha incorreta. Confira e tente de novo.'
+          : extractApiErrorMessage(e, 'Não foi possível salvar as chaves dos grupos.'),
       );
     } finally {
       setSaving(false);
@@ -256,7 +309,7 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
     setDeleting(true);
     try {
       await apiClient.delete(`${PIX_CHAVES_URL}/${deleteTarget.id}`);
-      showSuccess('Chave excluída. Esses grupos voltam a pagar na chave do terreiro.');
+      showSuccess('Chave excluída. Os grupos dela voltam a pagar na chave principal.');
       await load();
     } catch (e) {
       showError(extractApiErrorMessage(e, 'Não foi possível excluir a chave.'));
@@ -270,11 +323,12 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Users className="size-4 text-brand" aria-hidden /> Chaves PIX por grupo da corrente
+          <KeyRound className="size-4 text-brand" aria-hidden /> Outras chaves PIX da casa
         </CardTitle>
         <CardDescription>
-          Recebe em mais de uma conta? Cadastre a outra chave e escolha os grupos que pagam nela. Cada mensalidade entra
-          no saldo da conta da chave usada. Quem não está nesses grupos paga na chave do terreiro.
+          Recebe em mais de uma conta? Cadastre aqui quantas chaves precisar e depois escolha qual chave cada grupo da
+          corrente usa. Cada mensalidade entra no saldo da conta da chave usada. Quem não está num grupo com outra chave
+          paga na chave principal.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -301,7 +355,7 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
 
         {data.chaves.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhuma chave por grupo. Toda a corrente paga na chave do terreiro.
+            Nenhuma outra chave cadastrada. Toda a corrente paga na chave principal.
           </p>
         ) : (
           <ul className="flex flex-col divide-y rounded-md border">
@@ -335,7 +389,7 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-warning-strong">Nenhum grupo usa esta chave ainda.</p>
+                    <p className="text-xs text-muted-foreground">Nenhum grupo usa esta chave ainda.</p>
                   )}
                 </div>
                 {(canEdit || canDelete) && (
@@ -367,23 +421,58 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
         {canInsert && (
           <div>
             <Button type="button" variant="outline" onClick={abrirNova}>
-              <Plus aria-hidden /> Nova chave para grupos
+              <Plus aria-hidden /> Nova chave PIX
             </Button>
           </div>
         )}
-        {data.grupos.length === 0 && (canInsert || canEdit) && (
-          <p className="text-xs text-muted-foreground">
-            A corrente ainda não tem grupos. Crie os grupos em Médiuns → Grupos da corrente para escolher quem paga em
-            cada chave.
-          </p>
-        )}
+
+        <section className="flex flex-col gap-3 border-t pt-4" aria-labelledby="pix-chave-de-cada-grupo">
+          <div className="flex flex-col gap-1">
+            <h3 id="pix-chave-de-cada-grupo" className="flex items-center gap-2 text-sm font-semibold">
+              <Users className="size-4 text-brand" aria-hidden /> Chave de cada grupo da corrente
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Os médiuns veem na Área do Médium o PIX copia e cola e o QR da chave do grupo deles.
+            </p>
+          </div>
+          {data.grupos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              A corrente ainda não tem grupos. Crie os grupos em Médiuns → Grupos da corrente para escolher quem paga em
+              cada chave.
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y rounded-md border" data-testid="pix-grupos-lista">
+              {data.grupos.map((g) => (
+                <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                  <GrupoChip grupo={g} size="sm" />
+                  <span className="text-sm">
+                    <span className="text-muted-foreground">paga na </span>
+                    <span className="font-medium">{nomeDaChave(g.chave_id)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {podeEscolherGrupos && (
+            <div>
+              <Button type="button" variant="outline" onClick={abrirGrupos}>
+                Escolher a chave dos grupos
+              </Button>
+            </div>
+          )}
+          {canEdit && data.grupos.length > 0 && data.chaves.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Cadastre outra chave acima para escolher grupos que pagam nela.
+            </p>
+          )}
+        </section>
       </CardContent>
 
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={editTarget ? 'Editar chave PIX' : 'Nova chave PIX para grupos'}
-        subtitle="Outra conta onde parte da corrente paga a mensalidade"
+        title={editTarget ? 'Editar chave PIX' : 'Nova chave PIX'}
+        subtitle="Outra conta onde a casa recebe a mensalidade"
         icon={<KeyRound />}
         onSave={pedirSenha}
         saveLabel="Salvar chave"
@@ -459,16 +548,6 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
             contas={data.contas_bancarias}
             nomeAtual={editTarget?.conta_bancaria_nome}
           />
-          <MultiCombobox
-            label="Grupos que pagam nesta chave"
-            options={opcoesGrupos}
-            value={form.grupos}
-            onChange={(v) => set('grupos', v)}
-            placeholder={data.grupos.length ? 'Escolha os grupos' : 'Nenhum grupo da corrente'}
-            searchPlaceholder="Buscar grupo..."
-            countLabel={(n) => `${n} ${n === 1 ? 'grupo' : 'grupos'}`}
-            helperText="Os médiuns desses grupos passam a ver esta chave na Área do Médium e recebem o aviso de chave alterada."
-          />
         </div>
       </CrudDrawer>
 
@@ -482,9 +561,10 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
         message={
           <div className="flex flex-col gap-3">
             <p>
-              Os grupos escolhidos passam a pagar na chave <strong>{PIX_TIPO_LABEL[form.tipo]}</strong>{' '}
-              <span className="font-mono">{form.chave}</span>. Todos os administradores do terreiro recebem um e-mail
-              quando a chave muda.
+              {editTarget && editTarget.grupos.length > 0 ? 'Os grupos desta chave passam a pagar na chave' : 'Cadastrar a chave'}{' '}
+              <strong>{PIX_TIPO_LABEL[form.tipo]}</strong> <span className="font-mono">{form.chave}</span>
+              {editTarget && editTarget.grupos.length > 0 ? '.' : '. Ninguém muda de chave até você escolher os grupos.'}{' '}
+              Todos os administradores do terreiro recebem um e-mail quando uma chave é criada ou muda.
             </p>
             <PasswordField
               label="Sua senha"
@@ -503,7 +583,7 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
         title="Excluir chave PIX"
         message={
           <>
-            A chave <strong>{deleteTarget?.apelido}</strong> sai e os grupos dela voltam a pagar na chave do terreiro. As
+            A chave <strong>{deleteTarget?.apelido}</strong> sai e os grupos dela voltam a pagar na chave principal. As
             mensalidades já pagas continuam na conta em que caíram.
           </>
         }
@@ -512,6 +592,71 @@ export function ChavesPixGruposCard({ canInsert, canEdit, canDelete }: Props) {
         loading={deleting}
         onConfirm={excluir}
         onCancel={() => setDeleteTarget(null)}
+      />
+      <CrudDrawer
+        open={gruposOpen}
+        onClose={() => setGruposOpen(false)}
+        title="Chave de cada grupo"
+        subtitle="Escolha entre as chaves cadastradas"
+        icon={<Users />}
+        onSave={pedirSenhaGrupos}
+        saveLabel="Salvar"
+        saving={saving}
+        saveDisabled={gruposMudados.length === 0}
+        isDirty={gruposMudados.length > 0}
+      >
+        <div className="flex flex-col gap-4">
+          {data.grupos.map((g) => (
+            <div key={g.id} className="flex flex-col gap-1.5">
+              <Label htmlFor={`pix-grupo-${g.id}`}>{g.nome}</Label>
+              <Select value={escolhas[g.id] ?? PRINCIPAL} onValueChange={(v) => setEscolhas((e) => ({ ...e, [g.id]: v }))}>
+                <SelectTrigger id={`pix-grupo-${g.id}`} className="w-full" aria-label={`Chave do grupo ${g.nome}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={PRINCIPAL}>Chave principal</SelectItem>
+                  {data.chaves.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.conta_bancaria_nome ? `${c.apelido} (${c.conta_bancaria_nome})` : c.apelido}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Os médiuns dos grupos que mudarem de chave veem o aviso “Chave alterada” na Área do Médium.
+          </p>
+        </div>
+      </CrudDrawer>
+
+      <ConfirmDialog
+        open={gruposConfirmOpen}
+        title="Confirme com a sua senha"
+        confirmText="Salvar"
+        loading={saving}
+        onCancel={() => setGruposConfirmOpen(false)}
+        onConfirm={salvarGrupos}
+        message={
+          <div className="flex flex-col gap-3">
+            <ul className="list-disc pl-4">
+              {gruposMudados.map((g) => (
+                <li key={g.id}>
+                  {g.nome}: passa a pagar na{' '}
+                  <strong>{nomeDaChave(escolhas[g.id] === PRINCIPAL ? null : escolhas[g.id])}</strong>
+                </li>
+              ))}
+            </ul>
+            <PasswordField
+              label="Sua senha"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              autoComplete="current-password"
+              error={senhaError ?? undefined}
+              autoFocus
+            />
+          </div>
+        }
       />
     </Card>
   );

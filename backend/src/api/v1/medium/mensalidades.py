@@ -33,7 +33,10 @@ o único parâmetro). Gate além do `require_medium` do router: módulo "mensali
   `mensalidade_automatica` — `services/mensalidade_gateway.gateway_para_cobrar`), "Pagar com PIX"
   cria (ou reaproveita enquanto vale) uma cobrança dinâmica NA CONTA DA CASA e devolve o
   copia-e-cola; o webhook do provedor dá a baixa e o mês vira "paga" sozinho (`pago_automatico`).
-  Sem gateway, tudo acima continua igual (chave estática + comprovante). Criar cobrança é escrita:
+  Sem gateway, tudo acima continua igual (chave estática + comprovante). Médium cuja chave é a de
+  um grupo da corrente (outra conta) NÃO usa o gateway: a cobrança cairia na conta principal da
+  casa (bug de 11/2026: o médium do grupo "alternativo" via o QR da casa). `_gateway_do_medium`.
+  Criar cobrança é escrita:
   recusada sob impersonação, 20/hora por IP. CPF/endereço do boleto vão direto ao provedor e não
   são gravados.
 - Nada interno sai daqui: `observacao`, `registrado_por` e o arquivo em si (o médium não baixa
@@ -304,6 +307,20 @@ def _pix_da_casa(pix: Optional[PixEfetivo]) -> Optional[PixDaCasa]:
     )
 
 
+async def _gateway_do_medium(
+    db: AsyncSession, ctx: MediumContext, pix: Optional[PixEfetivo]
+):
+    """O gateway da casa, só para quem paga na chave do terreiro.
+
+    A cobrança automática cai na conta conectada da casa (a principal). Médium de um grupo da
+    corrente com chave própria (`pix.chave_id`) paga na chave do grupo, que cai em outra conta:
+    para ele não há cobrança automática, e o "Pagar com PIX" mostra a chave do grupo.
+    """
+    if pix is not None and pix.chave_id is not None:
+        return None
+    return await gateway_service.gateway_para_cobrar(db, ctx.tenant_id)
+
+
 def _parse_mes(texto: str) -> date:
     try:
         return parse_mes(texto)
@@ -364,13 +381,14 @@ async def listar_minhas_mensalidades(
         if sit is not None:
             itens.append(_item(sit, hoje, regs.get(mes)))
     ativa = _cobranca_ativa(config)
-    gw = await gateway_service.gateway_para_cobrar(db, ctx.tenant_id)
+    pix = await pix_do_medium(db, ctx.tenant_id, ctx.medium.id, config)
+    gw = await _gateway_do_medium(db, ctx, pix)
     return MensalidadesResponse(
         hoje=hoje,
         isento=bool(ctx.medium.mensalidade_isento),
         valor_mensal=float(config.valor_mensal) if ativa and config.valor_mensal else None,
         dia_vencimento=config.dia_vencimento if ativa else None,
-        pix=_pix_da_casa(await pix_do_medium(db, ctx.tenant_id, ctx.medium.id, config)),
+        pix=_pix_da_casa(pix),
         cobranca_automatica=(
             CobrancaAutomaticaInfo(
                 provedor=gw.provedor,
@@ -646,7 +664,8 @@ async def criar_cobranca(
 ) -> CobrancaDoMes:
     """Cobrança automática do mês em aberto na conta da casa (reaproveita a pendente que ainda vale)."""
     mes_date = _parse_mes(mes)
-    gw = await gateway_service.gateway_para_cobrar(db, ctx.tenant_id)
+    config = await _config(db, ctx)
+    gw = await _gateway_do_medium(db, ctx, await pix_do_medium(db, ctx.tenant_id, ctx.medium.id, config))
     if gw is None:
         raise ConflictError(
             "A casa não recebe a mensalidade automaticamente. Use a chave PIX e envie o comprovante.",
